@@ -1,4 +1,4 @@
-const CACHE = 'silicon-run-v2';
+const CACHE = 'silicon-run-v3-physical-controls';
 const LOCAL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 const THREE = 'https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js';
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(async cache => { await cache.addAll(LOCAL); try { await cache.add(new Request(THREE,{mode:'no-cors'})); } catch (_) {} }).then(()=>self.skipWaiting())));
