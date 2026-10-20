@@ -1,0 +1,14 @@
+SILICON RUN - FREE GITHUB PAGES DEPLOYMENT
+
+1. Sign in to github.com and create a NEW repository named silicon-run-quest.
+2. Set repository visibility to PUBLIC. Do not add a README or other starter files.
+3. Open the new repository and choose Add file -> Upload files.
+4. Upload all package contents. GitHub's browser uploader may not preserve the hidden .github folder; if it does not, create the workflow manually using the instructions in README.md.
+5. Commit to the main branch.
+6. Go to Settings -> Pages -> Build and deployment -> Source -> GitHub Actions.
+7. Go to Actions and wait for the green deployment tick.
+8. The site address will be https://YOUR_GITHUB_USERNAME.github.io/silicon-run-quest/
+9. Open that URL in Quest Browser.
+10. Enter an operator name -> ENTER CLEANROOM -> ENTER QUEST VR.
+
+IMPORTANT: the repository and site are public on GitHub Free. Do not upload confidential code without approval.
