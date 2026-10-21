@@ -154,7 +154,22 @@ function tryPlaceWafer(){const wafer=phys.waferBody?.view||state.handWafer;if(!w
 function shatterWafer(point,impact){if(state.waferBroken)return;state.waferBroken=true;state.carrying=false;setWaferDynamic(false);setWaferStaged(false);if(phys.pickupGuide)phys.pickupGuide.visible=false;if(state.handWafer)state.handWafer.visible=false;for(let i=0;i<14;i++){const shard=mesh(new THREE.TetrahedronGeometry(.025+Math.random()*.035),mat(0xb9ccd2,.72,.18),scene,point.x,point.y,point.z);const v=new THREE.Vector3((Math.random()-.5)*impact,(Math.random()*.7+.15)*impact,(Math.random()-.5)*impact);waferShards.push({mesh:shard,v,life:0})}toast('WAFER FRACTURE. Dispose of every shard in a yellow sharps bin.','bad');pulseXR(1,160)}  
 function beginControlGrab(c,d){const m=machines[d.machineIndex+1],ref=m.controls[stations[d.machineIndex].controls.findIndex(x=>x.key===d.controlKey)],wp=pinchWorld(c);phys.grab={kind:'control',controller:c,data:d,ref,start:wp.clone(),last:wp.clone()};pulseXR(.35,35)}  
 function updateControlGrab(){const g=phys.grab;if(g?.kind!=='control')return;const i=g.data.machineIndex,spec=stations[i].controls.find(x=>x.key===g.data.controlKey),m=machines[i+1],p=pinchWorld(g.controller),local=m.group.worldToLocal(p.clone());const ref=g.ref;if(spec.style==='slider'){const motion=local.y-m.group.worldToLocal(g.last.clone()).y;if(Math.abs(motion)>.008)adjustControl(g.data,Math.sign(motion))}else{const center=(ref.rotor||ref.mesh).getWorldPosition(new THREE.Vector3()),a=Math.atan2(p.y-center.y,p.x-center.x),b=Math.atan2(g.last.y-center.y,g.last.x-center.x),delta=a-b;if(Math.abs(delta)>.035)adjustControl(g.data,Math.sign(delta))}g.last.copy(p)}  
-function beginDoorGrab(c){const p=pinchWorld(c);let best=null,bestD=1.05;status.forEach((st,i)=>{const m=machines[i+1],doorP=m.door.getWorldPosition(new THREE.Vector3()),targetP=m.chamberTarget.getWorldPosition(new THREE.Vector3()),d=Math.min(p.distanceTo(doorP),p.distanceTo(targetP));if(d<bestD){bestD=d;best={i,m}}});if(!best)return false;state.focus=best.m.chamberTarget;phys.doorGrab={i:best.i,controller:c,last:p.clone()};phys.doorVelocities[best.i]=0;pulseXR(.48,45);toast('Door grip attached. Pull or push the hand to swing.');return true}  
+function beginDoorGrab(c){
+const p=pinchWorld(c);
+let best=null,bestD=1.05;
+status.forEach((st,i)=>{
+const m=machines[i+1],grip=m.doorHandle||m.door.userData.handle||m.door;
+const gripP=grip.getWorldPosition(new THREE.Vector3()),d=p.distanceTo(gripP);
+if(d<bestD){bestD=d;best={i,m,grip}}
+});
+if(!best)return false;
+state.focus=best.grip;
+phys.doorGrab={i:best.i,controller:c,last:p.clone(),handle:best.grip};
+phys.doorVelocities[best.i]=0;
+pulseXR(.48,45);
+toast('Door handle grip attached. Pull or push the handle to swing the door.');
+return true
+}  
 function updateDoorGrab(dt){const g=phys.doorGrab;if(!g)return;const m=machines[g.i+1],st=status[g.i],p=pinchWorld(g.controller),pivot=m.door.getWorldPosition(new THREE.Vector3()),lp=m.group.worldToLocal(p.clone()),lh=m.group.worldToLocal(g.last.clone()),a=Math.atan2(lp.z,lp.x),b=Math.atan2(lh.z,lh.x),delta=a-b;st.doorAmount=clamp(st.doorAmount+delta/(Math.PI/2),0,1);phys.doorVelocities[g.i]=delta/(Math.PI/2)/Math.max(dt,.001);g.last.copy(p)}  
 function onXRTriggerStart(c){if(state.paused)return;if(grabShard(c))return;if(grabWafer(c))return;const near=nearestInteractiveAtPinch(c),d=near?.data;if(d?.type==='control'){state.focus=near.object;beginControlGrab(c,d);return}if(d?.type==='button'){state.focus=near.object;activateFocused();pulseXR(.45,45);return}pulseXR(.08,18)}  
 function onXRTriggerEnd(c){if(phys.grab?.kind==='wafer')releaseWafer(c);else if(phys.grab?.kind==='shard')releaseShard(c);else if(phys.grab?.kind==='control'&&phys.grab.controller===c)phys.grab=null}  
@@ -168,10 +183,82 @@ function updateXRButtons(now){if(!renderer.xr.isPresenting)return;const l=xrLeft
 function machineShell(g,s){box(3.1,.28,2.2,mat(0x263e4c,.55,.25),g,0,.18,0);box(2.85,1.35,1.8,mat(0x172b38,.5,.3),g,0,.92,0);box(3.08,.11,2.12,mat(s.color,.35,.22),g,0,1.62,0);const lamp=cyl(.07,.12,mat(0x263846,.2,.22),g,1.22,1.77,.76);const label=labelMesh(s.name,'#'+s.color.toString(16).padStart(6,'0'),2.7,.48,27);label.position.set(0,2.82,.18);g.add(label);return lamp}  
 function createStockMachine(){const spec={name:'Blank Wafer Stock',color:C.cyan,side:0,z:10,type:'stock'},g=new THREE.Group();g.position.set(0,0,10);g.rotation.y=Math.PI;scene.add(g);const lamp=machineShell(g,spec);for(let i=0;i<8;i++){const w=createWafer(.72);w.position.set(-.55+i%4*.36,1.85+Math.floor(i/4)*.18,.25);w.rotation.x=-Math.PI/2;g.add(w)}const pad=cyl(.47,.035,mat(0x132c38,.25,.42,true,.35,C.cyan),g,0,1.89,.58,32);pad.userData.stockPad=true;const ring=mesh(new THREE.RingGeometry(.31,.43,48),new THREE.MeshBasicMaterial({color:C.cyan,transparent:true,opacity:.75,side:THREE.DoubleSide,toneMapped:false}),g,0,1.915,.58);ring.rotation.x=-Math.PI/2;const pickupLabel=labelMesh('WAFER PICKUP','#ffffff',1.2,.2,27);pickupLabel.position.set(0,2.42,.58);pickupLabel.rotation.y=Math.PI;g.add(pickupLabel);const button=makeButton(g,-.62,1.02,1.03,'DISPENSE',0x43e8ff,{kind:'stock'});stockMachine={group:g,lamp,world:new THREE.Vector3(0,1.4,10),button,pad,ring,spawnLocal:new THREE.Vector3(0,1.94,.58)};machines.push(stockMachine);addCollider(0,10,3.8,2.2)}  
 function makeButton(parent,x,y,z,label,color,data){const m=cyl(.13,.08,mat(color,.35,.22,false,1,color),parent,x,y,z,20);m.rotation.x=Math.PI/2;m.material.emissiveIntensity=.25;m.userData={interactive:true,type:'button',label,...data,baseColor:color};interactives.push(m);const l=labelMesh(label,'#ffffff',.72,.19,28);l.position.set(x,y-.23,z+.045);parent.add(l);return m}  
-function makeControl(parent,c,index,machineIndex){const col=index%2?0x78ffbd:0x52dfff,x=index%2?.55:-.55,y=1.36-Math.floor(index/2)*.64,z=1.04,data={interactive:true,type:'control',machineIndex,controlKey:c.key,label:c.label,baseColor:col};const scaleText=c.kind==='choice'?`${c.options[0]} | ${c.options[Math.floor(c.options.length/2)]} | ${c.options[c.options.length-1]}`:`${c.min} | ${(c.min+c.max)/2} | ${c.max} ${c.unit}`;const scale=labelMesh(scaleText,'#a9cbd8',1.05,.12,18);scale.position.set(x,y-.34,z+.075);parent.add(scale);if(c.style==='slider'){const frameColor=index%2?0x31473f:0x263f52;const frame=box(.39,.56,.055,mat(frameColor,.55,.28),parent,x,y,z-.025);const slot=box(.075,.43,.045,mat(0x071119,.25,.32),parent,x,y,z+.012);const knob=box(.29,.095,.09,mat(col,.35,.22,false,1,col),parent,x,y,z+.075);knob.material.emissiveIntensity=.3;const hit=box(.43,.58,.035,mat(0x000000,0,1,true,.001),parent,x,y,z+.135);hit.material.depthWrite=false;hit.material.colorWrite=false;hit.userData={...data,sliderTarget:true,visualButton:false};interactives.push(hit);return{mesh:knob,track:true,frame,slot,hit}}const rotor=new THREE.Group();rotor.position.set(x,y,z);parent.add(rotor);const dial=cyl(.15,.1,mat(col,.45,.18,false,1,col),rotor,0,0,0,28);dial.rotation.x=Math.PI/2;dial.material.emissiveIntensity=.25;const pointer=box(.025,.13,.035,mat(0xffffff,0,.18),rotor,0,.07,.061);dial.userData=data;pointer.userData=data;interactives.push(dial,pointer);return{mesh:dial,rotor,track:false,pointer}}  
-function createDoor(g,color,machineIndex){const pivot=new THREE.Group();pivot.position.set(-.92,2.13,.92);g.add(pivot);const data={interactive:true,type:'button',label:'DOOR',kind:'machine',action:'door',machineIndex,baseColor:color,visualButton:false};const door=box(1.84,1.22,.1,mat(color,.35,.2,true,.68),pivot,.92,0,0);const handle=box(.08,1.1,.13,mat(0xb9d3dd,.65,.18),pivot,.08,0,.02);door.userData=data;handle.userData=data;interactives.push(door,handle);pivot.userData.surface=door;return pivot}  
+function controlScaleValue(c,v,includeUnit=false){
+if(c.kind==='choice')return String(v);
+const decimals=c.step<1?(String(c.step).split('.')[1]||'').length:0;
+const value=Number(v).toFixed(decimals);
+return includeUnit&&c.unit?`${value} ${c.unit}`:value
+}
+function addControlScaleLabel(parent,text,x,y,z,w=.46,h=.105,font=17){
+const label=labelMesh(String(text),'#c9e1e9',w,h,font);
+label.position.set(x,y,z);
+label.renderOrder=8;
+parent.add(label);
+return label
+}
+function makeControl(parent,c,index,machineIndex){
+const col=index%2?0x78ffbd:0x52dfff,x=index%2?.55:-.55,y=1.36-Math.floor(index/2)*.64,z=1.04,data={interactive:true,type:'control',machineIndex,controlKey:c.key,label:c.label,baseColor:col};
+const values=c.kind==='choice'?[c.options[0],c.options[Math.floor(c.options.length/2)],c.options[c.options.length-1]]:[c.min,(c.min+c.max)/2,c.max];
+if(c.style==='slider'){
+const frameColor=index%2?0x31473f:0x263f52;
+const frame=box(.39,.56,.055,mat(frameColor,.55,.28),parent,x,y,z-.025);
+const slot=box(.075,.43,.045,mat(0x071119,.25,.32),parent,x,y,z+.012);
+const knob=box(.29,.095,.09,mat(col,.35,.22,false,1,col),parent,x,y,z+.075);
+knob.material.emissiveIntensity=.3;
+const side=index%2?1:-1,labelX=x+side*.34,tickX=x+side*.14;
+[-.215,0,.215].forEach((dy,k)=>{
+const tick=box(.09,.012,.025,mat(0xb9d3dd,.55,.2),parent,tickX,y+dy,z+.065);
+const includeUnit=k===2&&c.kind!=='choice';
+addControlScaleLabel(parent,controlScaleValue(c,values[k],includeUnit),labelX,y+dy,z+.078,c.kind==='choice'?.58:.42,.105,c.kind==='choice'?14:17)
+});
+const hit=box(.52,.64,.035,mat(0x000000,0,1,true,.001),parent,x,y,z+.135);
+hit.material.depthWrite=false;
+hit.material.colorWrite=false;
+hit.userData={...data,sliderTarget:true,visualButton:false};
+interactives.push(hit);
+return{mesh:knob,track:true,frame,slot,hit}
+}
+const rotor=new THREE.Group();
+rotor.position.set(x,y,z);
+parent.add(rotor);
+const dial=cyl(.15,.1,mat(col,.45,.18,false,1,col),rotor,0,0,0,28);
+dial.rotation.x=Math.PI/2;
+dial.material.emissiveIntensity=.25;
+const pointer=box(.025,.13,.035,mat(0xffffff,0,.18),rotor,0,.07,.061);
+const angles=[-2.25,0,2.25],radius=.255;
+angles.forEach((angle,k)=>{
+const tx=x-Math.sin(angle)*radius,ty=y+Math.cos(angle)*radius;
+const tick=box(.012,.055,.024,mat(0xb9d3dd,.55,.2),parent,x-Math.sin(angle)*.19,y+Math.cos(angle)*.19,z+.064);
+tick.rotation.z=angle;
+const includeUnit=k===2&&c.kind!=='choice';
+addControlScaleLabel(parent,controlScaleValue(c,values[k],includeUnit),tx,ty,z+.078,c.kind==='choice'?.54:.39,.105,c.kind==='choice'?13:16)
+});
+dial.userData=data;
+pointer.userData=data;
+interactives.push(dial,pointer);
+return{mesh:dial,rotor,track:false,pointer}
+}  
+function createDoor(g,color,machineIndex){
+const pivot=new THREE.Group();
+pivot.position.set(-.92,2.13,.92);
+g.add(pivot);
+const data={interactive:true,type:'button',label:'DOOR HANDLE',kind:'machine',action:'door',machineIndex,baseColor:color,visualButton:false};
+const door=box(1.84,1.22,.1,mat(color,.35,.2,true,.68),pivot,.92,0,0);
+const handleMat=mat(0xc6d5db,.82,.14);
+const upperMount=box(.13,.065,.22,handleMat,pivot,1.61,.31,.115);
+const lowerMount=box(.13,.065,.22,handleMat,pivot,1.61,-.31,.115);
+const handle=cyl(.038,.82,handleMat,pivot,1.67,0,.22,20);
+door.userData=data;
+handle.userData={...data,gripPoint:true};
+upperMount.userData=handle.userData;
+lowerMount.userData=handle.userData;
+interactives.push(door,handle,upperMount,lowerMount);
+pivot.userData.surface=door;
+pivot.userData.handle=handle;
+return pivot
+}  
 function createMachine(s,i){const g=new THREE.Group(),x=s.side*6.65;g.position.set(x,0,s.z);g.rotation.y=s.side<0?Math.PI/2:-Math.PI/2;scene.add(g);const lamp=machineShell(g,s),accent=mat(s.color,.35,.25),dark=mat(0x07121a,.6,.2),glass=mat(s.color,.12,.08,true,.22,s.color);if(s.type==='design'){box(2.2,1.1,.14,dark,g,0,2.05,.05);const screen=box(1.95,.86,.04,mat(0x0b85a5,.1,.2,true,.9,C.cyan),g,0,2.05,.14);effects.push({kind:'screen',obj:screen,index:i})}if(s.type==='deposition'||s.type==='metal'){const chamber=cyl(.72,1.35,glass,g,0,2.08,0);cyl(.83,.13,accent,g,0,1.42,0);cyl(.83,.13,accent,g,0,2.69,0);cyl(.3,.35,dark,g,0,2.96,0);effects.push({kind:s.type==='metal'?'metal':'vapor',obj:chamber,index:i})}if(s.type==='spinner'||s.type==='wetbench'){cyl(.78,.35,dark,g,0,1.92,0);const chuck=cyl(.37,.12,accent,g,0,2.11,0);effects.push({kind:'spin',obj:chuck,index:i});if(s.type==='spinner'){mesh(new THREE.SphereGeometry(.92,26,14,0,Math.PI*2,0,Math.PI/2),glass,g,0,1.98,0);box(.12,.8,.12,accent,g,.52,2.54,0);box(.52,.1,.1,accent,g,.3,2.86,0)}else{box(.32,.75,.32,accent,g,-.72,2.16,0);box(.32,.75,.32,accent,g,.72,2.16,0)}}if(s.type==='furnace'){box(1.95,1.15,1.15,dark,g,0,2.08,0);const glow=cyl(.46,.08,mat(0xff7d28,.2,.25,true,.35,C.orange),g,0,2.08,.6);glow.rotation.x=Math.PI/2;effects.push({kind:'furnace',obj:glow,index:i});box(1.55,.08,.9,mat(0xa9b9bd,.75,.15),g,0,1.7,.45)}if(s.type==='aligner'){box(1.25,.18,1.25,dark,g,0,1.87,0);box(1.05,.05,1.05,glass,g,0,2.03,0);box(.2,1.15,.2,accent,g,-.65,2.38,0);const head=box(1.35,.3,.75,accent,g,0,2.92,0),beam=cyl(.48,.72,mat(C.cyan,0,.1,true,.12,C.cyan),g,0,2.45,0);effects.push({kind:'expose',obj:beam,head,index:i})}if(s.type==='rie'){const chamber=cyl(.8,1.28,glass,g,0,2.12,0);cyl(.88,.15,accent,g,0,1.48,0);cyl(.88,.15,accent,g,0,2.75,0);const plasma=cyl(.56,.42,mat(C.magenta,0,.15,true,.08,C.magenta),g,0,2.05,0);const piston=cyl(.16,.8,mat(0xe7eff1,.9,.12),g,0,2.75,0);effects.push({kind:'plasma',obj:plasma,piston,index:i})}if(s.type==='implanter'){box(2.35,.72,.72,dark,g,0,2.23,0);for(let q=-.8;q<=.8;q+=.4){const coil=mesh(new THREE.TorusGeometry(.4,.07,10,24),accent,g,q,2.23,0);coil.rotation.y=Math.PI/2}const beam=box(1.8,.045,.045,mat(C.violet,0,.12,true,.08,C.violet),g,0,2.23,0);effects.push({kind:'beam',obj:beam,index:i})}if(s.type==='probe'){box(1.7,.12,1.1,dark,g,0,1.86,0);box(.28,1.3,.28,accent,g,-.65,2.35,.2);const scope=cyl(.3,.75,dark,g,-.15,2.74,0);scope.rotation.z=Math.PI/2;const arm1=box(.05,.85,.05,mat(C.green,.7,.15),g,.32,2.23,.1);arm1.rotation.z=.55;const arm2=box(.05,.85,.05,mat(C.green,.7,.15),g,-.02,2.23,-.1);arm2.rotation.z=-.55;effects.push({kind:'probe',obj:scope,index:i})}  
-const tray=box(.76,.06,.76,mat(0xaabcc2,.75,.18),g,0,1.72,.35),wafer=createWafer(.72);wafer.position.set(0,1.82,.35);wafer.rotation.set(-Math.PI/2,0,0);wafer.visible=false;g.add(wafer);const chamberTarget=box(1.46,1.02,.035,mat(0x000000,0,1,true,.001),g,0,2.13,.84);chamberTarget.material.depthWrite=false;chamberTarget.material.colorWrite=false;chamberTarget.userData={interactive:true,type:'button',label:'CHAMBER',kind:'machine',action:'chamber',machineIndex:i,baseColor:s.color,visualButton:false};interactives.push(chamberTarget);const door=createDoor(g,s.color,i),panel=box(1.55,1.55,.12,mat(0x0a1720,.55,.22),g,0,1.08,.98);const controls=s.controls.map((c,j)=>makeControl(g,c,j,i));const doorBtn=makeButton(g,-.85,.44,1.03,'DOOR',0x65bfff,{kind:'machine',action:'door',machineIndex:i}),loadBtn=makeButton(g,-.29,.44,1.03,'LOAD',0x57df9a,{kind:'machine',action:'load',machineIndex:i}),startBtn=makeButton(g,.29,.44,1.03,'START',0xa8e6b0,{kind:'machine',action:'start',machineIndex:i}),stopBtn=makeButton(g,.85,.44,1.03,'STOP',0xf4a6a6,{kind:'machine',action:'stop',machineIndex:i}),unloadBtn=makeButton(g,0,.16,1.03,'UNLOAD',0xffcf56,{kind:'machine',action:'unload',machineIndex:i});const m={group:g,lamp,station:s,index:i,world:new THREE.Vector3(x,1.5,s.z),door,wafer,tray,chamberTarget,controls,buttons:{door:doorBtn,load:loadBtn,start:startBtn,stop:stopBtn,unload:unloadBtn}};machines.push(m);addCollider(x,s.z,2.6,3.7)}  
+const tray=box(.76,.06,.76,mat(0xaabcc2,.75,.18),g,0,1.72,.35),wafer=createWafer(.72);wafer.position.set(0,1.82,.35);wafer.rotation.set(-Math.PI/2,0,0);wafer.visible=false;g.add(wafer);const chamberTarget=box(1.46,1.02,.035,mat(0x000000,0,1,true,.001),g,0,2.13,.84);chamberTarget.material.depthWrite=false;chamberTarget.material.colorWrite=false;chamberTarget.userData={interactive:true,type:'button',label:'CHAMBER',kind:'machine',action:'chamber',machineIndex:i,baseColor:s.color,visualButton:false};interactives.push(chamberTarget);const door=createDoor(g,s.color,i),panel=box(1.55,1.55,.12,mat(0x0a1720,.55,.22),g,0,1.08,.98);const controls=s.controls.map((c,j)=>makeControl(g,c,j,i));const doorBtn=makeButton(g,-.85,.44,1.03,'DOOR',0x65bfff,{kind:'machine',action:'door',machineIndex:i}),loadBtn=makeButton(g,-.29,.44,1.03,'LOAD',0x57df9a,{kind:'machine',action:'load',machineIndex:i}),startBtn=makeButton(g,.29,.44,1.03,'START',0xa8e6b0,{kind:'machine',action:'start',machineIndex:i}),stopBtn=makeButton(g,.85,.44,1.03,'STOP',0xf4a6a6,{kind:'machine',action:'stop',machineIndex:i}),unloadBtn=makeButton(g,0,.16,1.03,'UNLOAD',0xffcf56,{kind:'machine',action:'unload',machineIndex:i});const m={group:g,lamp,station:s,index:i,world:new THREE.Vector3(x,1.5,s.z),door,doorHandle:door.userData.handle,wafer,tray,chamberTarget,controls,buttons:{door:doorBtn,load:loadBtn,start:startBtn,stop:stopBtn,unload:unloadBtn}};machines.push(m);addCollider(x,s.z,2.6,3.7)}  
 function newRun(){state.lotId='SR-'+String(Math.floor(1000+Math.random()*9000));state.carrying=false;state.current=0;state.completed=false;state.runStart=0;state.elapsed=0;state.cycle=null;state.records=[];state.pattern='Logic grid';phys.stockRespawnAt=0;phys.stockReady=null;phys.waferEverPicked=false;setWaferDynamic(false);setWaferStaged(false);phys.waferVelocity.set(0,0,0);phys.jumpOffset=0;phys.jumpVelocity=0;phys.crouchHeld=false;player.position.set(0,renderer.xr.isPresenting?.86:2.58,7.7);yaw=Math.PI;pitch=-.03;player.rotation.y=yaw;status.forEach((st,i)=>{st.state='locked';st.values=Object.fromEntries(stations[i].controls.map(c=>[c.key,c.initial]));st.score=null;st.deviations=[];st.metric=0;st.doorTarget=0;st.doorAmount=0;st.transfer=null;machines[i+1].wafer.visible=false;machines[i+1].door.rotation.y=0});state.handWafer.visible=false;$('lotId').textContent=state.lotId;$('report').style.display='none';updateAll();toast('Traveller '+state.lotId+' prepared. Dispense one blank wafer from stock.')}  
 function formatTime(ms){const t=Math.max(0,ms),m=Math.floor(t/60000),s=Math.floor(t%60000/1000),x=Math.floor(t%1000);return`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(x).padStart(3,'0')}`}  
 function getRuns(){try{return JSON.parse(localStorage.getItem('waferFabRunsV2')||'[]').filter(r=>Number.isFinite(r.time))}catch(e){return[]}}  
