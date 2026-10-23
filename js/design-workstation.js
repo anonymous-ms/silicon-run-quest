@@ -260,8 +260,24 @@ const v6CreateMachine=createMachine;
 createMachine=function(s,i){
   v6CreateMachine(s,i);
   if(s.type==='design'){
-    const screen=effects.find(e=>e.kind==='screen'&&e.index===i)?.obj;
-    if(screen){screen.userData={interactive:true,type:'button',kind:'designTerminal',label:'DESIGN COMPUTER',machineIndex:i,visualButton:false,baseColor:s.color};interactives.push(screen);machines[i+1].designScreen=screen}
+    const machine=machines[i+1],oldChildren=[...machine.group.children];
+    oldChildren.forEach(child=>machine.group.remove(child));
+    const stale=new Set(oldChildren);
+    for(let n=interactives.length-1;n>=0;n--)if(stale.has(interactives[n])||oldChildren.some(root=>{let p=interactives[n];while(p){if(p===root)return true;p=p.parent}return false}))interactives.splice(n,1);
+    const deskMat=mat(0x263946,.25,.38),edgeMat=mat(0x638397,.55,.22),pcMat=mat(0x0b1720,.45,.24),screenMat=mat(0x087e9c,.1,.18,true,.96,C.cyan);
+    box(2.9,.12,1.25,deskMat,machine.group,0,1.34,.12);
+    [[-1.18,-.28],[1.18,-.28],[-1.18,.5],[1.18,.5]].forEach(([x,z])=>box(.14,1.22,.14,edgeMat,machine.group,x,.68,z));
+    box(.76,.9,.62,pcMat,machine.group,-.92,1.83,-.05);
+    const towerGlow=box(.055,.28,.02,screenMat,machine.group,-.55,1.86,.272);towerGlow.material.emissiveIntensity=.65;
+    box(.12,.54,.12,edgeMat,machine.group,0,1.65,.02);box(.82,.08,.44,edgeMat,machine.group,0,1.39,.12);
+    box(1.34,.78,.1,pcMat,machine.group,0,2.08,.12);
+    const screen=box(1.19,.65,.025,screenMat,machine.group,0,2.08,.18);
+    screen.userData={interactive:true,type:'button',kind:'designTerminal',label:'DESIGN COMPUTER',machineIndex:i,visualButton:false,baseColor:s.color};
+    interactives.push(screen);machine.designScreen=screen;
+    const keyboard=box(1.02,.045,.34,mat(0x152630,.35,.26),machine.group,.22,1.43,.52);keyboard.rotation.x=-.08;
+    for(let r=0;r<3;r++)for(let c=0;c<10;c++)box(.065,.018,.052,mat(0x8fb0be,.25,.35),machine.group,-.12+c*.092,1.47-r*.003,.42+r*.075);
+    const mouse=cyl(.08,.045,mat(0x8fb0be,.35,.28),machine.group,.98,1.43,.49,20);mouse.scale.z=1.35;
+    const label=labelMesh('SENSOR DESIGN WORKSTATION','#53e7ff',2.7,.45,25);label.position.set(0,2.82,.18);machine.group.add(label);
   }
 };
 const v6ButtonEnabled=buttonEnabled;

@@ -1,4 +1,5 @@
 'use strict';
+const BUILD = 'v8.1-complete-20261023';
 const SILICON_RUN_PARTS = [
   './js/base.js',
   './js/parallel-wafers.js',
@@ -8,7 +9,7 @@ const SILICON_RUN_PARTS = [
 
 async function startSiliconRun() {
   try {
-    const responses = await Promise.all(SILICON_RUN_PARTS.map(path => fetch(path, { cache: 'no-cache' })));
+    const responses = await Promise.all(SILICON_RUN_PARTS.map(path => fetch(`${path}?build=${BUILD}`, { cache: 'reload' })));
     const failed = responses.find(response => !response.ok);
     if (failed) throw new Error(`Could not load ${failed.url}: HTTP ${failed.status}`);
     const source = (await Promise.all(responses.map(response => response.text()))).join('\n\n');

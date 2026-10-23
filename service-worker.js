@@ -1,4 +1,4 @@
-const CACHE = 'silicon-run-v8-modular-2026-10-23';
+const CACHE = 'silicon-run-v8.1-complete-2026-10-23';
 const LOCAL = [
   './', './index.html', './manifest.webmanifest', './css/styles.css',
   './js/loader.js', './js/base.js', './js/parallel-wafers.js',
@@ -26,7 +26,7 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
-  if (event.request.mode === 'navigate') {
+  if (event.request.mode === 'navigate' || ['script', 'style'].includes(event.request.destination)) {
     event.respondWith(fetch(event.request).catch(() => caches.match('./index.html')));
     return;
   }

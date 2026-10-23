@@ -15,3 +15,6 @@ Upload the contents of this folder to the repository root. Keep the folder struc
 The ordered loader deliberately preserves the existing shared runtime and override order. Edit only the relevant helper file, while retaining current behaviour.
 
 After deploying a new version, update the `CACHE` constant in `service-worker.js` so installed Quest browsers replace the previous cache.
+
+## V8.1 correction
+Station 1 is a dedicated desk, PC tower, keyboard, mouse and interactive monitor. The generic chamber assembly is not rendered there. V7 feature logic is retained, and helper requests are build-versioned to prevent stale mixtures.
