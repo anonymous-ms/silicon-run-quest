@@ -1,8 +1,8 @@
-const CACHE = 'silicon-run-v8.1-complete-2026-10-23';
+const CACHE = 'silicon-run-v8.3-label-workstation-2026-10-23';
 const LOCAL = [
   './', './index.html', './manifest.webmanifest', './css/styles.css',
-  './js/loader.js', './js/base.js', './js/parallel-wafers.js',
-  './js/design-workstation.js', './js/bootstrap.js',
+  './js/loader.v83.js', './js/base.v83.js', './js/parallel-wafers.v83.js',
+  './js/design-workstation.v83.js', './js/bootstrap.v83.js',
   './icons/icon-192.png', './icons/icon-512.png'
 ];
 const THREE = 'https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js';

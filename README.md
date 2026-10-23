@@ -18,3 +18,6 @@ After deploying a new version, update the `CACHE` constant in `service-worker.js
 
 ## V8.1 correction
 Station 1 is a dedicated desk, PC tower, keyboard, mouse and interactive monitor. The generic chamber assembly is not rendered there. V7 feature logic is retained, and helper requests are build-versioned to prevent stale mixtures.
+
+## V8.3
+Canvas labels preserve physical height and derive width from texture aspect. Dial and slider labels anchor their inner corner to each graduation. Station 1 is created directly as a desk workstation and never creates a chamber door. Version-specific script filenames prevent stale V8.1 helpers loading.
