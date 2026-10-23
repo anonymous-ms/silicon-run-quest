@@ -1,7 +1,7 @@
-const CACHE = 'silicon-run-v8.7.1-dom-hotfix-2026-10-23';
+const CACHE = 'silicon-run-v8.8-direct-wall-interaction-2026-10-23';
 const LOCAL = [
   './', './index.html', './manifest.webmanifest', './css/styles.css',
-  './js/silicon-run.v87.js',
+  './js/silicon-run.v88.js',
   './icons/icon-192.png', './icons/icon-512.png'
 ];
 const THREE = 'https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js';
