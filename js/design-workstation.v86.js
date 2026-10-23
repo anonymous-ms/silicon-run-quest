@@ -76,15 +76,14 @@ function renderDesignStep(){
   $('designLot').innerHTML=`${active?.lotId||'NO ACTIVE WAFER'}<br>MANUAL ENGINEERING CHANGE CONTROL`;
   if(designMode.step===0){
     $('designTitle').textContent='Linear regression calibration';
-    $('designInstructions').textContent='Adjust the gradient m and intercept c of y = mx + c. Cyan samples include measurement jitter. The orange candidate line updates live, but fit quality is hidden until submission.';
-    $('designCriteria').innerHTML='<b>Scoring</b><br>The workstation calculates the least-squares optimum from the generated points. Submit at any time. Every submission after the first applies a further score penalty; the best penalised result is retained.';
+    $('designInstructions').textContent='Adjust m and c for y = mx + c. Fit quality remains hidden until submission.';
+    $('designCriteria').innerHTML='<b>Scoring</b><br>Actual least-squares regression is calculated from the generated points. Repeat submissions receive a penalty.';
     $('designNext').textContent='VERIFY & CONTINUE';
     updateGainState()
   }else if(designMode.step===1){
-    ensureCircuitChallenge();
-      $('designTitle').textContent=designMode.circuit.name+' connection repair';
-    $('designInstructions').textContent='The workstation selected a known transistor circuit and removed two connections. Drag a wire from any terminal to any other terminal. User wires are assessed only when SUBMIT CIRCUIT is pressed.';
-    $('designCriteria').innerHTML='<b>Assessment</b><br>Correct repairs recover missing intended nets. Missing required wires are opens. Connections between unrelated nets are shorts. PMOS is pastel pink; NMOS is pastel orange.';
+    ensureCircuitChallenge();$('designTitle').textContent=designMode.circuit.name+' connection repair';
+    $('designInstructions').textContent='Two connections have been removed. Draw wires between any terminals, then submit for open and short analysis.';
+    $('designCriteria').innerHTML='<b>Assessment</b><br>Correct repairs, remaining opens and incorrect shorts are scored on submission.';
     $('designNext').textContent='VERIFY & CONTINUE';
     updateSchematicState()
   }else{
@@ -96,52 +95,16 @@ function renderDesignStep(){
   }
   drawDesignStage()
 }
-function createRegressionChallenge(){
-    const generatedM=Number((-3.25+Math.random()*6.5).toFixed(2)),generatedC=Number((-5+Math.random()*10).toFixed(2)),points=[];
-    for(let i=0;i<13;i++){const x=-5+i*(10/12),jitter=(Math.random()-.5)*1.5;points.push({x,y:generatedM*x+generatedC+jitter})}
-    const meanX=points.reduce((a,p)=>a+p.x,0)/points.length,meanY=points.reduce((a,p)=>a+p.y,0)/points.length;
-    const denominator=points.reduce((a,p)=>a+(p.x-meanX)**2,0)||1;
-    const m=points.reduce((a,p)=>a+(p.x-meanX)*(p.y-meanY),0)/denominator,c=meanY-m*meanX;
-    const sse=points.reduce((a,p)=>a+(p.y-(m*p.x+c))**2,0);
-    designMode.regression={points,generated:{m:generatedM,c:generatedC},optimum:{m,c,sse},xMin:-5,xMax:5};
-    designMode.gain=0;designMode.intercept=0;designMode.regressionAttempts=0;designMode.regressionBest=null;designMode.gainComplete=false;
-    if($('gainSlider'))$('gainSlider').value='0';if($('interceptSlider'))$('interceptSlider').value='0'
-  }
-  function regressionScore(){
-    const r=designMode.regression,userSse=r.points.reduce((a,p)=>a+(p.y-(designMode.gain*p.x+designMode.intercept))**2,0);
-    const excess=Math.max(0,userSse-r.optimum.sse),scale=Math.max(1,r.points.reduce((a,p)=>a+p.y*p.y,0));
-    const raw=100*Math.exp(-8*excess/scale),penalty=Math.max(0,designMode.regressionAttempts-1)*7;
-    return{score:clamp(raw-penalty,0,100),raw,userSse,penalty}
-  }
-  function submitRegression(){
-    designMode.regressionAttempts++;const result=regressionScore();
-    if(!designMode.regressionBest||result.score>designMode.regressionBest.score)designMode.regressionBest={...result,m:designMode.gain,c:designMode.intercept,attempt:designMode.regressionAttempts};
-    designMode.gainComplete=true;$('designNext').disabled=false;$('designLiveLabel').textContent='BEST SUBMITTED SCORE';$('designLiveValue').textContent=designMode.regressionBest.score.toFixed(1)+'%';
-    setDesignMessage(`Attempt ${designMode.regressionAttempts}: ${result.score.toFixed(1)}%. ${result.penalty?result.penalty.toFixed(0)+' point repeat-submission penalty applied.':'First submission recorded.'} Best result retained.`,'good');drawDesignStage()
-  }
-  function updateGainState(){
-    if(!designMode.regression)createRegressionChallenge();$('gainValue').textContent=designMode.gain.toFixed(2);$('interceptValue').textContent=designMode.intercept.toFixed(2);$('designNext').disabled=!designMode.gainComplete;
-    if(!designMode.gainComplete){$('designLiveLabel').textContent='FIT QUALITY';$('designLiveValue').textContent='HIDDEN';setDesignMessage('Adjust both coefficients and submit when ready. Live fit-quality feedback is intentionally unavailable.')}
-    drawDesignStage()
-  }
-  const circuitPool=[
-    {id:'invbuf',name:'CMOS inverter buffer',devices:[['P1','p',.32,.34],['N1','n',.32,.66],['P2','p',.68,.34],['N2','n',.68,.66]],terminals:[['IN',.08,.5],['P1G',.24,.34],['N1G',.24,.66],['X1P',.32,.43],['X1N',.32,.57],['P2G',.6,.34],['N2G',.6,.66],['OUTP',.68,.43],['OUTN',.68,.57],['OUT',.92,.5],['VDD',.5,.1],['P1S',.32,.25],['P2S',.68,.25],['GND',.5,.9],['N1S',.32,.75],['N2S',.68,.75]],edges:[['IN','P1G'],['IN','N1G'],['X1P','X1N'],['X1P','P2G'],['X1P','N2G'],['OUTP','OUTN'],['OUTP','OUT'],['VDD','P1S'],['VDD','P2S'],['GND','N1S'],['GND','N2S']]},
-    {id:'nand2',name:'Two-input CMOS NAND gate',devices:[['P1','p',.34,.28],['P2','p',.66,.28],['N1','n',.5,.58],['N2','n',.5,.78]],terminals:[['A',.08,.38],['P1G',.26,.28],['N1G',.42,.58],['B',.08,.66],['P2G',.58,.28],['N2G',.42,.78],['VDD',.5,.08],['P1S',.34,.19],['P2S',.66,.19],['P1D',.34,.37],['P2D',.66,.37],['N1D',.5,.49],['Y',.9,.43],['N1S',.5,.67],['N2D',.5,.69],['N2S',.5,.87],['GND',.5,.94]],edges:[['A','P1G'],['A','N1G'],['B','P2G'],['B','N2G'],['VDD','P1S'],['VDD','P2S'],['P1D','P2D'],['P1D','N1D'],['P1D','Y'],['N1S','N2D'],['N2S','GND']]},
-    {id:'amp5t',name:'Five-transistor differential amplifier',devices:[['M3','p',.36,.25],['M4','p',.64,.25],['M1','n',.36,.58],['M2','n',.64,.58],['M5','n',.5,.8]],terminals:[['VDD',.5,.07],['M3S',.36,.16],['M4S',.64,.16],['M3G',.28,.25],['M3D',.36,.34],['M4G',.56,.25],['M4D',.64,.34],['VINP',.08,.58],['M1G',.28,.58],['VINN',.92,.58],['M2G',.72,.58],['M1D',.36,.49],['M2D',.64,.49],['M1S',.36,.67],['M2S',.64,.67],['M5D',.5,.71],['VBIAS',.16,.8],['M5G',.42,.8],['M5S',.5,.89],['GND',.5,.95],['VOUT',.9,.4]],edges:[['VDD','M3S'],['VDD','M4S'],['M3G','M3D'],['M3G','M4G'],['M3D','M1D'],['M4D','M2D'],['M4D','VOUT'],['VINP','M1G'],['VINN','M2G'],['M1S','M2S'],['M1S','M5D'],['VBIAS','M5G'],['M5S','GND']]}
-  ];
-  function edgeKey(a,b){return[a,b].sort().join('|')}
-  function ensureCircuitChallenge(force=false){
-    if(designMode.circuit&&!force)return;const template=circuitPool[Math.floor(Math.random()*circuitPool.length)],candidates=template.edges.filter(e=>!['VDD','GND'].includes(e[0])&&!['VDD','GND'].includes(e[1])),removed=[];
-    while(removed.length<2&&candidates.length)removed.push(candidates.splice(Math.floor(Math.random()*candidates.length),1)[0]);
-    designMode.circuit={...template,removed:new Set(removed.map(e=>edgeKey(...e)))};designMode.schematicLinks.clear();designMode.schematicDrag=null;designMode.schematicSubmitted=false;designMode.schematicComplete=false;designMode.schematicScore=0
-  }
-  function schematicGeometry(w,h){ensureCircuitChallenge();return designMode.circuit.terminals.map(([id,x,y])=>({id,x,y,label:id,px:x*w,py:y*h}))}
-  function submitSchematic(){
-    const required=designMode.circuit.removed,user=designMode.schematicLinks,correct=[...user].filter(k=>required.has(k)).length,opens=[...required].filter(k=>!user.has(k)).length,shorts=[...user].filter(k=>!required.has(k)).length,score=clamp(100-opens*35-shorts*25,0,100);
-    designMode.schematicSubmitted=true;designMode.schematicScore=score;designMode.schematicComplete=opens===0&&shorts===0;$('designNext').disabled=!designMode.schematicComplete;$('designLiveLabel').textContent='CIRCUIT SCORE';$('designLiveValue').textContent=score.toFixed(0)+'%';
-    setDesignMessage(`${correct} correct repair${correct===1?'':'s'}, ${opens} open${opens===1?'':'s'}, ${shorts} short${shorts===1?'':'s'}. ${designMode.schematicComplete?'Circuit verified.':'Correct the wiring and submit again.'}`,designMode.schematicComplete?'good':score>=50?'warn':'bad');drawDesignStage()
-  }
-  function updateSchematicState(){ensureCircuitChallenge();$('designNext').disabled=!designMode.schematicComplete;if(!designMode.schematicSubmitted){$('designLiveLabel').textContent='ASSESSMENT';$('designLiveValue').textContent='NOT SUBMITTED';setDesignMessage('Two intended connections are open. Draw wires between any terminals, then submit for open/short analysis.')}}
+function createRegressionChallenge(){const gm=-3.25+Math.random()*6.5,gc=-5+Math.random()*10,points=[];for(let i=0;i<13;i++){const x=-5+i*10/12;points.push({x,y:gm*x+gc+(Math.random()-.5)*1.5})}const ax=points.reduce((a,p)=>a+p.x,0)/points.length,ay=points.reduce((a,p)=>a+p.y,0)/points.length,den=points.reduce((a,p)=>a+(p.x-ax)**2,0)||1,m=points.reduce((a,p)=>a+(p.x-ax)*(p.y-ay),0)/den,c=ay-m*ax,sse=points.reduce((a,p)=>a+(p.y-(m*p.x+c))**2,0);designMode.regression={points,optimum:{m,c,sse}};designMode.gain=0;designMode.intercept=0;designMode.regressionAttempts=0;designMode.regressionBest=null;designMode.gainComplete=false;$('gainSlider').value='0';$('interceptSlider').value='0'}
+function regressionScore(){const r=designMode.regression,u=r.points.reduce((a,p)=>a+(p.y-(designMode.gain*p.x+designMode.intercept))**2,0),scale=Math.max(1,r.points.reduce((a,p)=>a+p.y*p.y,0)),raw=100*Math.exp(-8*Math.max(0,u-r.optimum.sse)/scale),penalty=Math.max(0,designMode.regressionAttempts-1)*7;return{score:clamp(raw-penalty,0,100),penalty}}
+function submitRegression(){designMode.regressionAttempts++;const q=regressionScore();if(!designMode.regressionBest||q.score>designMode.regressionBest.score)designMode.regressionBest={...q,m:designMode.gain,c:designMode.intercept};designMode.gainComplete=true;$('designNext').disabled=false;$('designLiveLabel').textContent='BEST SUBMITTED SCORE';$('designLiveValue').textContent=designMode.regressionBest.score.toFixed(1)+'%';setDesignMessage(`Attempt ${designMode.regressionAttempts}: ${q.score.toFixed(1)}%. ${q.penalty?q.penalty+' point repeat penalty.':'First submission.'}`,'good')}
+function updateGainState(){if(!designMode.regression)createRegressionChallenge();$('gainValue').textContent=designMode.gain.toFixed(2);$('interceptValue').textContent=designMode.intercept.toFixed(2);$('designNext').disabled=!designMode.gainComplete;if(!designMode.gainComplete){$('designLiveLabel').textContent='FIT QUALITY';$('designLiveValue').textContent='HIDDEN';setDesignMessage('Adjust both coefficients and submit when ready.')}drawDesignStage()}
+const circuitPool=[{id:'inv',name:'CMOS inverter buffer',devices:[['P1','p',.34,.32],['N1','n',.34,.68],['P2','p',.68,.32],['N2','n',.68,.68]],nodes:[['IN',.08,.5],['P1G',.25,.32],['N1G',.25,.68],['X1P',.34,.43],['X1N',.34,.57],['P2G',.59,.32],['N2G',.59,.68],['OUTP',.68,.43],['OUTN',.68,.57],['OUT',.92,.5],['VDD',.5,.08],['P1S',.34,.21],['P2S',.68,.21],['GND',.5,.92],['N1S',.34,.79],['N2S',.68,.79]],edges:[['IN','P1G'],['IN','N1G'],['X1P','X1N'],['X1P','P2G'],['X1P','N2G'],['OUTP','OUTN'],['OUTP','OUT'],['VDD','P1S'],['VDD','P2S'],['GND','N1S'],['GND','N2S']]},{id:'nand',name:'Two-input CMOS NAND gate',devices:[['P1','p',.34,.27],['P2','p',.66,.27],['N1','n',.5,.58],['N2','n',.5,.78]],nodes:[['A',.08,.38],['P1G',.25,.27],['N1G',.41,.58],['B',.08,.68],['P2G',.57,.27],['N2G',.41,.78],['VDD',.5,.07],['P1S',.34,.16],['P2S',.66,.16],['P1D',.34,.38],['P2D',.66,.38],['N1D',.5,.47],['Y',.91,.43],['N1S',.5,.67],['N2D',.5,.69],['N2S',.5,.88],['GND',.5,.95]],edges:[['A','P1G'],['A','N1G'],['B','P2G'],['B','N2G'],['VDD','P1S'],['VDD','P2S'],['P1D','P2D'],['P1D','N1D'],['P1D','Y'],['N1S','N2D'],['N2S','GND']]},{id:'amp',name:'Five-transistor differential amplifier',devices:[['M3','p',.36,.24],['M4','p',.64,.24],['M1','n',.36,.57],['M2','n',.64,.57],['M5','n',.5,.81]],nodes:[['VDD',.5,.06],['M3S',.36,.13],['M4S',.64,.13],['M3G',.27,.24],['M3D',.36,.35],['M4G',.55,.24],['M4D',.64,.35],['VINP',.07,.57],['M1G',.27,.57],['VINN',.93,.57],['M2G',.73,.57],['M1D',.36,.46],['M2D',.64,.46],['M1S',.36,.68],['M2S',.64,.68],['M5D',.5,.72],['VBIAS',.15,.81],['M5G',.41,.81],['M5S',.5,.9],['GND',.5,.96],['VOUT',.91,.4]],edges:[['VDD','M3S'],['VDD','M4S'],['M3G','M3D'],['M3G','M4G'],['M3D','M1D'],['M4D','M2D'],['M4D','VOUT'],['VINP','M1G'],['VINN','M2G'],['M1S','M2S'],['M1S','M5D'],['VBIAS','M5G'],['M5S','GND']]}];
+function edgeKey(a,b){return[a,b].sort().join('|')}
+function ensureCircuitChallenge(force=false){if(designMode.circuit&&!force)return;const t=circuitPool[Math.floor(Math.random()*circuitPool.length)],pool=t.edges.filter(e=>!e.includes('VDD')&&!e.includes('GND')),removed=[];while(removed.length<2)removed.push(pool.splice(Math.floor(Math.random()*pool.length),1)[0]);designMode.circuit={...t,removed:new Set(removed.map(e=>edgeKey(...e)))};designMode.schematicLinks.clear();designMode.schematicSubmitted=false;designMode.schematicComplete=false}
+function schematicGeometry(w,h){ensureCircuitChallenge();return designMode.circuit.nodes.map(([id,x,y])=>({id,label:id,px:x*w,py:y*h}))}
+function submitSchematic(){const req=designMode.circuit.removed,u=designMode.schematicLinks,opens=[...req].filter(k=>!u.has(k)).length,shorts=[...u].filter(k=>!req.has(k)).length,correct=[...u].filter(k=>req.has(k)).length,score=clamp(100-opens*35-shorts*25,0,100);designMode.schematicSubmitted=true;designMode.schematicScore=score;designMode.schematicComplete=!opens&&!shorts;$('designNext').disabled=!designMode.schematicComplete;$('designLiveLabel').textContent='CIRCUIT SCORE';$('designLiveValue').textContent=score.toFixed(0)+'%';setDesignMessage(`${correct} correct, ${opens} open, ${shorts} short.` ,designMode.schematicComplete?'good':score>=50?'warn':'bad');drawDesignStage()}
+function updateSchematicState(){ensureCircuitChallenge();$('designNext').disabled=!designMode.schematicComplete;if(!designMode.schematicSubmitted){$('designLiveLabel').textContent='ASSESSMENT';$('designLiveValue').textContent='NOT SUBMITTED';setDesignMessage('Repair both removed connections, then submit.')}}
 function layoutGeometry(w,h){
   return{
     inputs:[0,1,2].map(i=>({net:`N${i+1}`,label:`IN${i+1}`,x:55,y:h*(.24+i*.26)})),
@@ -180,19 +143,9 @@ function updateLayoutState(){
   setDesignProgress(designMode.layoutComplete,`${designMode.layoutRoutes.length} / 3`,'SIGNALS ROUTED');
   setDesignMessage(designMode.layoutComplete?`All signal nets are routed across M1 and M2 with ${vias} verified vias.`:'Start at an input pad. Add orthogonal points, change metal layer at least once, and finish on the matching output.',designMode.layoutComplete?'good':'')
 }
-function drawGain(ctx,w,h){
-    if(!designMode.regression)createRegressionChallenge();const r=designMode.regression;ctx.fillStyle='#02090e';ctx.fillRect(0,0,w,h);const p={l:w*.1,r:w*.05,t:h*.09,b:h*.13},pw=w-p.l-p.r,ph=h-p.t-p.b,ys=r.points.flatMap(q=>[q.y,designMode.gain*q.x+designMode.intercept]),ya=Math.max(8,...ys.map(Math.abs))*1.12,mx=x=>p.l+(x+5)/10*pw,my=y=>p.t+(ya-y)/(2*ya)*ph;
-    ctx.strokeStyle='#183544';ctx.lineWidth=1;for(let i=0;i<=10;i++){const x=p.l+pw*i/10;ctx.beginPath();ctx.moveTo(x,p.t);ctx.lineTo(x,h-p.b);ctx.stroke()}for(let i=0;i<=8;i++){const y=p.t+ph*i/8;ctx.beginPath();ctx.moveTo(p.l,y);ctx.lineTo(w-p.r,y);ctx.stroke()}
-    ctx.strokeStyle='#789aaa';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(p.l,my(0));ctx.lineTo(w-p.r,my(0));ctx.moveTo(mx(0),p.t);ctx.lineTo(mx(0),h-p.b);ctx.stroke();ctx.strokeStyle='#ff9d3c';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(mx(-5),my(-5*designMode.gain+designMode.intercept));ctx.lineTo(mx(5),my(5*designMode.gain+designMode.intercept));ctx.stroke();ctx.fillStyle='#53e7ff';for(const q of r.points){ctx.beginPath();ctx.arc(mx(q.x),my(q.y),6,0,Math.PI*2);ctx.fill()}
-    ctx.fillStyle='#9ab5c1';ctx.font=`${Math.max(12,w*.018)}px monospace`;ctx.fillText('INPUT x',w*.45,h*.96);ctx.save();ctx.translate(w*.025,h*.58);ctx.rotate(-Math.PI/2);ctx.fillText('OUTPUT y',0,0);ctx.restore();ctx.fillStyle='#53e7ff';ctx.fillText('● measured samples',p.l+10,p.t+22);ctx.fillStyle='#ff9d3c';ctx.fillText('— candidate y = mx + c',p.l+10,p.t+46)
-  }
-function drawMos(ctx,d,w,h){const[id,type,xn,yn]=d,x=xn*w,y=yn*h,pmos=type==='p',col=pmos?'#f59ac3':'#f2ad72';ctx.save();ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=Math.max(3,w*.004);ctx.beginPath();ctx.moveTo(x-18,y-28);ctx.lineTo(x-18,y+28);ctx.moveTo(x+5,y-24);ctx.lineTo(x+5,y+24);ctx.moveTo(x+5,y-24);ctx.lineTo(x+5,y-46);ctx.moveTo(x+5,y+24);ctx.lineTo(x+5,y+46);ctx.moveTo(x-40,y);ctx.lineTo(x-18,y);ctx.stroke();if(pmos){ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(x-12,y,6,0,Math.PI*2);ctx.fill();ctx.strokeStyle=col;ctx.stroke()}ctx.font=`700 ${Math.max(12,w*.016)}px monospace`;ctx.fillStyle='#24313a';ctx.fillText(id,x+15,y-7);ctx.fillStyle=col;ctx.fillText(pmos?'PMOS':'NMOS',x+15,y+14);ctx.restore()}
-  function drawSchematic(ctx,w,h){
-    ensureCircuitChallenge();ctx.fillStyle='#f4f5f1';ctx.fillRect(0,0,w,h);const c=designMode.circuit,nodes=schematicGeometry(w,h),by=id=>nodes.find(n=>n.id===id);c.devices.forEach(d=>drawMos(ctx,d,w,h));ctx.lineCap='round';ctx.lineJoin='round';
-    for(const[aId,bId]of c.edges){const key=edgeKey(aId,bId);if(c.removed.has(key))continue;const a=by(aId),b=by(bId),mid=(a.px+b.px)/2;ctx.strokeStyle='#163c74';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(a.px,a.py);ctx.lineTo(mid,a.py);ctx.lineTo(mid,b.py);ctx.lineTo(b.px,b.py);ctx.stroke()}
-    for(const key of designMode.schematicLinks){const[aId,bId]=key.split('|'),a=by(aId),b=by(bId),correct=c.removed.has(key);ctx.strokeStyle=designMode.schematicSubmitted?(correct?'#43c971':'#ff5f73'):'#f08a31';ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(a.px,a.py);ctx.bezierCurveTo((a.px+b.px)/2,a.py,(a.px+b.px)/2,b.py,b.px,b.py);ctx.stroke()}
-    const openIds=new Set([...c.removed].flatMap(k=>k.split('|')));ctx.font=`700 ${Math.max(10,w*.013)}px monospace`;nodes.forEach(n=>{const open=openIds.has(n.id);ctx.fillStyle=open?'#fff4a8':'#dce8ec';ctx.strokeStyle=open?'#f08a31':'#446273';ctx.lineWidth=open?4:2;ctx.beginPath();ctx.arc(n.px,n.py,open?9:6,0,Math.PI*2);ctx.fill();ctx.stroke();if(['IN','OUT','Y','A','B','VDD','GND','VINP','VINN','VOUT','VBIAS'].includes(n.id)){ctx.fillStyle='#17232a';ctx.fillText(n.id,n.px+10,n.py-10)}});if(designMode.schematicDrag){const a=by(designMode.schematicDrag.from);ctx.strokeStyle='#f0c34d';ctx.lineWidth=4;ctx.setLineDash([10,8]);ctx.beginPath();ctx.moveTo(a.px,a.py);ctx.lineTo(designMode.schematicDrag.x,designMode.schematicDrag.y);ctx.stroke();ctx.setLineDash([])}ctx.fillStyle='#17232a';ctx.font=`900 ${Math.max(14,w*.019)}px system-ui`;ctx.fillText(c.name.toUpperCase(),22,30);ctx.font=`${Math.max(10,w*.013)}px monospace`;ctx.fillStyle='#8c4b20';ctx.fillText('ORANGE RINGS: ENDS OF REMOVED CONNECTIONS',22,52)
-  }
+function drawGain(ctx,w,h){if(!designMode.regression)createRegressionChallenge();const r=designMode.regression,p={l:w*.1,r:w*.05,t:h*.09,b:h*.13},pw=w-p.l-p.r,ph=h-p.t-p.b,ys=r.points.flatMap(q=>[q.y,designMode.gain*q.x+designMode.intercept]),ya=Math.max(8,...ys.map(Math.abs))*1.12,X=x=>p.l+(x+5)/10*pw,Y=y=>p.t+(ya-y)/(2*ya)*ph;ctx.fillStyle='#02090e';ctx.fillRect(0,0,w,h);ctx.strokeStyle='#183544';for(let i=0;i<=10;i++){ctx.beginPath();ctx.moveTo(p.l+pw*i/10,p.t);ctx.lineTo(p.l+pw*i/10,h-p.b);ctx.stroke()}for(let i=0;i<=8;i++){ctx.beginPath();ctx.moveTo(p.l,p.t+ph*i/8);ctx.lineTo(w-p.r,p.t+ph*i/8);ctx.stroke()}ctx.strokeStyle='#789aaa';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(p.l,Y(0));ctx.lineTo(w-p.r,Y(0));ctx.moveTo(X(0),p.t);ctx.lineTo(X(0),h-p.b);ctx.stroke();ctx.strokeStyle='#ff9d3c';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(X(-5),Y(-5*designMode.gain+designMode.intercept));ctx.lineTo(X(5),Y(5*designMode.gain+designMode.intercept));ctx.stroke();ctx.fillStyle='#53e7ff';for(const q of r.points){ctx.beginPath();ctx.arc(X(q.x),Y(q.y),6,0,7);ctx.fill()}ctx.fillStyle='#9ab5c1';ctx.font='16px monospace';ctx.fillText('● measured samples',p.l+10,p.t+22);ctx.fillStyle='#ff9d3c';ctx.fillText('— candidate y = mx + c',p.l+10,p.t+46)}
+function drawMos(ctx,d,w,h){const[id,t,xn,yn]=d,x=xn*w,y=yn*h,c=t==='p'?'#f59ac3':'#f2ad72';ctx.strokeStyle=c;ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(x-18,y-28);ctx.lineTo(x-18,y+28);ctx.moveTo(x+5,y-24);ctx.lineTo(x+5,y+24);ctx.moveTo(x+5,y-24);ctx.lineTo(x+5,y-46);ctx.moveTo(x+5,y+24);ctx.lineTo(x+5,y+46);ctx.moveTo(x-40,y);ctx.lineTo(x-18,y);ctx.stroke();if(t==='p'){ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(x-12,y,6,0,7);ctx.fill();ctx.stroke()}ctx.fillStyle=c;ctx.font='700 14px monospace';ctx.fillText(id+' '+(t==='p'?'PMOS':'NMOS'),x+14,y)}
+function drawSchematic(ctx,w,h){ensureCircuitChallenge();const c=designMode.circuit,n=schematicGeometry(w,h),by=id=>n.find(x=>x.id===id);ctx.fillStyle='#f4f5f1';ctx.fillRect(0,0,w,h);c.devices.forEach(d=>drawMos(ctx,d,w,h));for(const[a,b]of c.edges){if(c.removed.has(edgeKey(a,b)))continue;const p=by(a),q=by(b),m=(p.px+q.px)/2;ctx.strokeStyle='#163c74';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(p.px,p.py);ctx.lineTo(m,p.py);ctx.lineTo(m,q.py);ctx.lineTo(q.px,q.py);ctx.stroke()}for(const k of designMode.schematicLinks){const[a,b]=k.split('|'),p=by(a),q=by(b);ctx.strokeStyle=designMode.schematicSubmitted?(c.removed.has(k)?'#43c971':'#ff5f73'):'#f08a31';ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(p.px,p.py);ctx.bezierCurveTo((p.px+q.px)/2,p.py,(p.px+q.px)/2,q.py,q.px,q.py);ctx.stroke()}const ends=new Set([...c.removed].flatMap(k=>k.split('|')));for(const p of n){ctx.fillStyle=ends.has(p.id)?'#fff4a8':'#dce8ec';ctx.strokeStyle=ends.has(p.id)?'#f08a31':'#446273';ctx.lineWidth=ends.has(p.id)?4:2;ctx.beginPath();ctx.arc(p.px,p.py,ends.has(p.id)?9:6,0,7);ctx.fill();ctx.stroke();if(['IN','OUT','Y','A','B','VDD','GND','VINP','VINN','VOUT','VBIAS'].includes(p.id)){ctx.fillStyle='#17232a';ctx.fillText(p.id,p.px+10,p.py-10)}}if(designMode.schematicDrag){const p=by(designMode.schematicDrag.from);ctx.strokeStyle='#f0c34d';ctx.beginPath();ctx.moveTo(p.px,p.py);ctx.lineTo(designMode.schematicDrag.x,designMode.schematicDrag.y);ctx.stroke()}ctx.fillStyle='#17232a';ctx.font='900 18px system-ui';ctx.fillText(c.name.toUpperCase(),20,28)}
 function drawLayout(ctx,w,h){
   ctx.fillStyle='#061017';ctx.fillRect(0,0,w,h);const g=layoutGeometry(w,h);
   ctx.strokeStyle='#17313e';ctx.lineWidth=1;
@@ -221,10 +174,7 @@ function onDesignPointerDown(e){
 function onDesignPointerMove(e){
   if(designMode.step===1&&designMode.schematicDrag){const p=designPointer(e);designMode.schematicDrag.x=p.x;designMode.schematicDrag.y=p.y;drawDesignStage()}
 }
-function onDesignPointerUp(e){
-    if(designMode.step!==1||!designMode.schematicDrag)return;const p=designPointer(e),nodes=schematicGeometry($('designCanvas').width,$('designCanvas').height),from=nodes.find(n=>n.id===designMode.schematicDrag.from),to=nearestDesignNode(p,nodes);
-    if(to&&to.id!==from.id){const key=edgeKey(from.id,to.id);if(designMode.schematicLinks.has(key))designMode.schematicLinks.delete(key);else designMode.schematicLinks.add(key);designMode.schematicSubmitted=false;designMode.schematicComplete=false;setDesignMessage(`User wire ${from.label} to ${to.label} recorded. Submit to assess opens and shorts.`)}else setDesignMessage('Wire cancelled. Release over a different terminal.','warn');designMode.schematicDrag=null;updateSchematicState();drawDesignStage()
-  }
+function onDesignPointerUp(e){if(designMode.step!==1||!designMode.schematicDrag)return;const p=designPointer(e),nodes=schematicGeometry($('designCanvas').width,$('designCanvas').height),from=nodes.find(n=>n.id===designMode.schematicDrag.from),to=nearestDesignNode(p,nodes);if(to&&to.id!==from.id){const k=edgeKey(from.id,to.id);designMode.schematicLinks.has(k)?designMode.schematicLinks.delete(k):designMode.schematicLinks.add(k);designMode.schematicSubmitted=false;designMode.schematicComplete=false}designMode.schematicDrag=null;updateSchematicState();drawDesignStage()}
 function snapLayoutPoint(p){
   const grid=Math.max(22,Math.round($('designCanvas').width/28));
   return{x:Math.round(p.x/grid)*grid,y:Math.round(p.y/grid)*grid,layer:designMode.layer}
@@ -263,7 +213,7 @@ function releaseDesign(){
   const body=parallel?.active;
   if(!body){setDesignMessage('Dispense a wafer before releasing a fabrication design.','warn');return}
   if(body.nextStage!==0){setDesignMessage('The active wafer already has a released sensor design.','warn');return}
-  body.pattern='Logic grid';body.records[0]={score:100,metric:24,ratio:1,processSeconds:24,values:{regressionScore:designMode.regressionBest?.score||0,gradient:designMode.regressionBest?.m??designMode.gain,intercept:designMode.regressionBest?.c??designMode.intercept,circuit:designMode.circuit?.id||'unknown',circuitScore:designMode.schematicScore,layoutNets:3,metalLayers:2}};
+  body.pattern='Logic grid';body.records[0]={score:100,metric:24,ratio:1,processSeconds:24,values:{regressionScore:designMode.regressionBest?.score||0,gradient:designMode.regressionBest?.m??designMode.gain,intercept:designMode.regressionBest?.c??designMode.intercept,circuit:designMode.circuit?.id,circuitScore:designMode.schematicScore,layoutNets:3,metalLayers:2}};
   body.nextStage=1;body.startedAt=body.startedAt||performance.now();designMode.releasedBodies.add(body.id);
   status[0].state='complete';status[0].metric=24;status[0].score=100;status[0].deviations=[];setLamp(0);
   syncActiveWafer(body);state.current=1;toast(`${body.lotId} sensor design released. Proceed to the oxidation furnace.`);updateAll();closeDesignMode()
@@ -328,9 +278,7 @@ loop=function(now){updateDesignCamera(now);v6Loop(now)};
 const v6Bind=bind;
 bind=function(){
   v6Bind();
-  $('gainSlider').addEventListener('input',e=>{designMode.gain=Number(e.target.value);updateGainState()});
-    $('interceptSlider').addEventListener('input',e=>{designMode.intercept=Number(e.target.value);updateGainState()});
-    $('regressionSubmit').onclick=submitRegression;$('schematicSubmit').onclick=submitSchematic;$('clearSchematic').onclick=()=>{designMode.schematicLinks.clear();designMode.schematicSubmitted=false;designMode.schematicComplete=false;updateSchematicState();drawDesignStage()};
+  $('gainSlider').addEventListener('input',e=>{designMode.gain=Number(e.target.value);updateGainState()});$('interceptSlider').addEventListener('input',e=>{designMode.intercept=Number(e.target.value);updateGainState()});$('regressionSubmit').onclick=submitRegression;$('schematicSubmit').onclick=submitSchematic;$('clearSchematic').onclick=()=>{designMode.schematicLinks.clear();designMode.schematicSubmitted=false;designMode.schematicComplete=false;updateSchematicState();drawDesignStage()};
   $('designCanvas').addEventListener('pointerdown',onDesignPointerDown);
   $('designCanvas').addEventListener('pointermove',onDesignPointerMove);
   $('designCanvas').addEventListener('pointerup',onDesignPointerUp);
