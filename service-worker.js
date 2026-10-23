@@ -1,7 +1,7 @@
-const CACHE = 'silicon-run-v8.10-direct-coordinate-drawing-2026-10-23';
+const CACHE = 'silicon-run-v8.11-physical-metal-depth-2026-10-23';
 const LOCAL = [
   './', './index.html', './manifest.webmanifest', './css/styles.css',
-  './js/silicon-run.v810.js',
+  './js/silicon-run.v811.js',
   './icons/icon-192.png', './icons/icon-512.png'
 ];
 const THREE = 'https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js';
