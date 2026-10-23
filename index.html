@@ -37,23 +37,23 @@
   <section class="design-shell" role="dialog" aria-modal="true" aria-label="Sensor design workstation">
     <header class="design-top"><div class="design-brand">SENSOR DESIGN // <span>MANUAL RELEASE WORKSTATION</span></div><div class="design-status" id="designLot">NO ACTIVE WAFER<br>ENGINEERING CHANGE CONTROL</div></header>
     <nav class="design-steps">
-      <div class="design-step current" data-design-step="0"><b>01 / LINEAR REGRESSION</b>Fit y = mx + c to noisy measured points.</div>
-      <div class="design-step" data-design-step="1"><b>02 / CIRCUIT REPAIR</b>Repair missing transistor-circuit connections.</div>
+      <div class="design-step current" data-design-step="0"><b>01 / TRANSFER FUNCTION</b>Determine output gain from the measured response.</div>
+      <div class="design-step" data-design-step="1"><b>02 / SCHEMATIC NETS</b>Draw the missing electrical connections.</div>
       <div class="design-step" data-design-step="2"><b>03 / TWO-LAYER LAYOUT</b>Route three signals from input pads to outputs.</div>
     </nav>
     <div class="design-body">
       <main class="design-work">
         <div class="design-canvas-wrap"><canvas id="designCanvas" class="design-canvas"></canvas></div>
-        <div id="gainControls" class="gain-controls regression-controls"><div class="regression-row"><label for="gainSlider">GRADIENT m</label><input id="gainSlider" type="range" min="-4" max="4" step=".05" value="0"><output id="gainValue" class="gain-readout">0.00</output></div><div class="regression-row"><label for="interceptSlider">INTERCEPT c</label><input id="interceptSlider" type="range" min="-8" max="8" step=".1" value="0"><output id="interceptValue" class="gain-readout">0.00</output></div><button class="design-btn" id="regressionSubmit">SUBMIT REGRESSION</button></div><div id="schematicTools" class="schematic-tools" hidden><button class="design-btn" id="clearSchematic">CLEAR USER WIRES</button><button class="design-btn primary" id="schematicSubmit">SUBMIT CIRCUIT</button></div>
+        <div id="gainControls" class="gain-controls"><label for="gainSlider">OUTPUT GAIN</label><input id="gainSlider" type="range" min="0.50" max="3.00" step="0.05" value="1.00"><output id="gainValue" class="gain-readout">1.00×</output></div>
         <div id="layoutTools" class="layout-tools" hidden><span style="font-size:9px;color:#829dab">ACTIVE METAL</span><button class="layer-btn active" data-layer="M1">M1 / CYAN</button><button class="layer-btn" data-layer="M2">M2 / MAGENTA</button><button class="design-btn" id="undoRoute" type="button">UNDO POINT</button><button class="design-btn" id="clearRoute" type="button">CLEAR NET</button></div>
         <div id="designMessage" class="design-message">Adjust the slider until the orange transfer curve overlays the cyan measured relationship.</div>
       </main>
-      <aside class="design-side"><h3 id="designTitle">Output relationship</h3><p id="designInstructions">The sensor front end has been measured but the output amplifier gain is unknown. Select the gain that makes the calculated response match the measured points.</p><div class="criteria" id="designCriteria"><b>Release criterion</b><br>Gain error must be within ±0.05 and the plotted traces must visually overlap.</div><div class="live-value"><small id="designLiveLabel">FIT QUALITY</small><strong id="designLiveValue">NOT SUBMITTED</strong></div></aside>
+      <aside class="design-side"><h3 id="designTitle">Output relationship</h3><p id="designInstructions">The sensor front end has been measured but the output amplifier gain is unknown. Select the gain that makes the calculated response match the measured points.</p><div class="criteria" id="designCriteria"><b>Release criterion</b><br>Gain error must be within ±0.05 and the plotted traces must visually overlap.</div><div class="live-value"><small id="designLiveLabel">FIT QUALITY</small><strong id="designLiveValue">0%</strong></div></aside>
     </div>
     <footer class="design-footer"><div class="left"><button class="design-btn" id="designExit" type="button">EXIT WORKSTATION</button><button class="design-btn" id="designReset" type="button">RESET STAGE</button></div><div class="right"><button class="design-btn" id="designBack" type="button" disabled>BACK</button><button class="design-btn primary" id="designNext" type="button" disabled>VERIFY &amp; CONTINUE</button></div></footer>
   </section>
 </div>
 <div id="report"><div class="reportCard glass"><div class="reportTop"><div><div class="eyebrow">FINAL MANUFACTURING RECORD</div><h2 id="reportTitle">Lot complete</h2><div class="copy" id="reportSub"></div></div><div class="grade" id="reportGrade">A</div></div><div class="kpis" id="reportKpis"></div><table class="reportTable"><thead><tr><th>STAGE</th><th>RESULT</th><th>RECORDED ENDPOINT</th><th>KEY DEVIATION</th></tr></thead><tbody id="reportRows"></tbody></table><div class="reportActions"><button class="secondary" id="closeReport">VIEW WAFER</button><button class="primary" id="newLot">START ANOTHER RUN</button></div></div></div>      
-<script src="./js/silicon-run.v86.js"></script>      
+<script src="./js/silicon-run.v87.js"></script>      
 </body>      
 </html>

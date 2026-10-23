@@ -1,7 +1,7 @@
-const CACHE = 'silicon-run-v8.6-regression-circuits-2026-10-23';
+const CACHE = 'silicon-run-v8.7-3d-design-spaces-2026-10-23';
 const LOCAL = [
   './', './index.html', './manifest.webmanifest', './css/styles.css',
-  './js/silicon-run.v86.js',
+  './js/silicon-run.v87.js',
   './icons/icon-192.png', './icons/icon-512.png'
 ];
 const THREE = 'https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js';

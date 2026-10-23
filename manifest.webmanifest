@@ -1,13 +1,11 @@
 {
   "name": "Silicon Run",
   "short_name": "Silicon Run",
-  "description": "Interactive cleanroom wafer fabrication simulator",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "background_color": "#07101a",
   "theme_color": "#07101a",
-  "orientation": "any",
   "icons": [
     {
       "src": "./icons/icon-192.png",

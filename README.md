@@ -1,1 +1,1 @@
-V8.6 complete deployable project. Upload all contents together. Runtime is js/silicon-run.v86.js. Source helpers are retained.
+Silicon Run V8.7. Stages 2 and 3 are isolated walkable 3D rooms with stationary CanvasTexture design boards. Desktop crosshair and Quest controller rays draw on the board. ENTER/E submits or advances; C clears; ESC returns. Stage 3 has a blocked outer no-go boundary with inward keepouts.
