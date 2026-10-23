@@ -1,7 +1,7 @@
-const CACHE = 'silicon-run-v8.8.1-dom-contract-2026-10-23';
+const CACHE = 'silicon-run-v8.9-wall-event-isolation-2026-10-23';
 const LOCAL = [
   './', './index.html', './manifest.webmanifest', './css/styles.css',
-  './js/silicon-run.v88.js',
+  './js/silicon-run.v89.js',
   './icons/icon-192.png', './icons/icon-512.png'
 ];
 const THREE = 'https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js';
