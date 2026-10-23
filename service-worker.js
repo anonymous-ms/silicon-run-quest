@@ -1,8 +1,7 @@
-const CACHE = 'silicon-run-v8.4-control-guard-2026-10-23';
+const CACHE = 'silicon-run-v8.5-stable-bundle-2026-10-23';
 const LOCAL = [
   './', './index.html', './manifest.webmanifest', './css/styles.css',
-  './js/loader.v84.js', './js/base.v84.js', './js/parallel-wafers.v84.js',
-  './js/design-workstation.v84.js', './js/bootstrap.v84.js',
+  './js/silicon-run.v85.js',
   './icons/icon-192.png', './icons/icon-512.png'
 ];
 const THREE = 'https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js';

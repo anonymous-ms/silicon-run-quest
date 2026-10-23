@@ -1,26 +1,15 @@
-# Silicon Run modular project
+# Silicon Run V8.5 stable modular project
 
-Upload the contents of this folder to the repository root. Keep the folder structure exactly as supplied.
+The source is separated for targeted maintenance, while GitHub Pages loads a single deterministic runtime bundle.
 
-## Runtime files
-- `index.html`: page markup only
-- `css/styles.css`: all UI styling
-- `js/base.js`: original simulator core, Three.js world, desktop and base XR systems
-- `js/parallel-wafers.js`: V6 parallel wafer, stock, breakage and concurrent-machine behaviour
-- `js/design-workstation.js`: V7 design workstation
-- `js/bootstrap.js`: simulator initialisation
-- `js/loader.js`: loads the four ordered runtime parts into one private scope
-- `service-worker.js`: offline cache and update handling
+## Editable source files
+- `js/base.v85.js`: original scene, desktop, XR and fabrication systems
+- `js/parallel-wafers.v85.js`: multi-wafer, physics, breakage and concurrent processing
+- `js/design-workstation.v85.js`: dedicated desktop design workstation and engineering tasks
+- `js/bootstrap.v85.js`: startup
 
-The ordered loader deliberately preserves the existing shared runtime and override order. Edit only the relevant helper file, while retaining current behaviour.
+## Deployed runtime
+- `js/silicon-run.v85.js`: prebuilt concatenation in the required shared private scope
+- `js/build.sh`: rebuilds and syntax-checks the runtime after source edits
 
-After deploying a new version, update the `CACHE` constant in `service-worker.js` so installed Quest browsers replace the previous cache.
-
-## V8.1 correction
-Station 1 is a dedicated desk, PC tower, keyboard, mouse and interactive monitor. The generic chamber assembly is not rendered there. V7 feature logic is retained, and helper requests are build-versioned to prevent stale mixtures.
-
-## V8.3
-Canvas labels preserve physical height and derive width from texture aspect. Dial and slider labels anchor their inner corner to each graduation. Station 1 is created directly as a desk workstation and never creates a chamber door. Version-specific script filenames prevent stale V8.1 helpers loading.
-
-## V8.4 startup correction
-The shared control-mesh updater now explicitly accepts stations with no fabrication controls. It returns for the dedicated design workstation and guards absent control references before reading `track`, `mesh` or `rotor`.
+Station objects now declare `kind: 'design'` or `kind: 'fabrication'`. Door animation, door grabbing and reset rotation explicitly exclude the design workstation. Invisible compatibility objects preserve inherited object-shape expectations without rendering a chamber.
