@@ -1,4 +1,4 @@
-const CACHE = 'silicon-run-v8.8-direct-wall-interaction-2026-10-23';
+const CACHE = 'silicon-run-v8.8.1-dom-contract-2026-10-23';
 const LOCAL = [
   './', './index.html', './manifest.webmanifest', './css/styles.css',
   './js/silicon-run.v88.js',
