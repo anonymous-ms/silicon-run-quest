@@ -21,3 +21,6 @@ Station 1 is a dedicated desk, PC tower, keyboard, mouse and interactive monitor
 
 ## V8.3
 Canvas labels preserve physical height and derive width from texture aspect. Dial and slider labels anchor their inner corner to each graduation. Station 1 is created directly as a desk workstation and never creates a chamber door. Version-specific script filenames prevent stale V8.1 helpers loading.
+
+## V8.4 startup correction
+The shared control-mesh updater now explicitly accepts stations with no fabrication controls. It returns for the dedicated design workstation and guards absent control references before reading `track`, `mesh` or `rotor`.
