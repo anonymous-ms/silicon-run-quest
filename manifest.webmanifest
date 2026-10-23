@@ -1,15 +1,23 @@
 {
-  "name": "Silicon Run - Quest WebXR",
+  "name": "Silicon Run",
   "short_name": "Silicon Run",
-  "description": "Immersive cleanroom wafer fabrication simulator for Meta Quest.",
-  "start_url": "./",
+  "description": "Interactive cleanroom wafer fabrication simulator",
+  "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "orientation": "landscape",
   "background_color": "#07101a",
   "theme_color": "#07101a",
+  "orientation": "any",
   "icons": [
-    {"src":"./icons/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
-    {"src":"./icons/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
   ]
 }
