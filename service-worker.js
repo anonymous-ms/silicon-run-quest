@@ -1,4 +1,4 @@
-const CACHE = 'silicon-run-v8.7-3d-design-spaces-2026-10-23';
+const CACHE = 'silicon-run-v8.7.1-dom-hotfix-2026-10-23';
 const LOCAL = [
   './', './index.html', './manifest.webmanifest', './css/styles.css',
   './js/silicon-run.v87.js',
