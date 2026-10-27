@@ -1,4 +1,4 @@
-const CACHE = 'silicon-run-v8.13.1-dual-controller-design-screen-2026-10-24';
+const CACHE = 'silicon-run-v8.13.1-release-indicator-2026-10-24';
 const LOCAL = [
   './', './index.html', './manifest.webmanifest', './css/styles.css',
   './js/silicon-run.v813.js',
