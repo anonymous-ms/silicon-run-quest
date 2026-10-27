@@ -1,56 +1,85 @@
-(() => { 'use strict';
-  const doc = document;
-  const body = doc.body;
+const CACHE = 'silicon-run-canonical-2026-10-27-v2';
+const VERSION = '2026-10-27-v2';
 
-  function escapeHtml(value) {
-    return String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-  }
+const LOCAL = [
+  './',
+  `./index.html?v=${VERSION}`,
+  `./manifest.webmanifest?v=${VERSION}`,
+  `./css/styles.css?v=${VERSION}`,
+  `./js/silicon-run.js?v=${VERSION}`,
+  `./icons/icon-192.png?v=${VERSION}`,
+  `./icons/icon-512.png?v=${VERSION}`
+];
 
-  function renderFatal(title, message, detail = '') {
-    if (!body) return;
-    body.innerHTML = `
-      <div style="padding:40px;color:white;font-family:system-ui;max-width:960px;line-height:1.5;">
-        <h1 style="font-size:clamp(2.2rem,4vw,5rem);margin:0 0 1.5rem;">${escapeHtml(title)}</h1>
-        <p style="font-size:clamp(1.25rem,2vw,2.4rem);margin:0 0 1rem;">${escapeHtml(message)}</p>
-        ${detail ? `<p style="font-size:clamp(1rem,1.5vw,1.8rem);margin:0;">${escapeHtml(detail)}</p>` : ''}
-      </div>
-    `;
-  }
+const THREE = 'https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js?v=0.152.2';
 
-  if (!window.WebGLRenderingContext) {
-    renderFatal('Simulator could not initialise', 'WebGL is not available in this browser session.', 'This usually means the browser is blocking the required 3D graphics capability, such as in a restrictive private/incognito mode.');
+self.addEventListener('install', event => {
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE);
+    await cache.addAll(LOCAL);
+    try {
+      await cache.add(new Request(THREE, { mode: 'no-cors' }));
+    } catch (e) {
+      // ignore CDN prefetch failure
+    }
+    self.skipWaiting();
+  })());
+});
+
+self.addEventListener('activate', event => {
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(
+      keys
+        .filter(key => key !== CACHE)
+        .map(key => caches.delete(key))
+    );
+    await self.clients.claim();
+  })());
+});
+
+self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') return;
+
+  const url = new URL(event.request.url);
+
+  // Ignore chrome-extension and non-HTTP(S) requests
+  if (!url.protocol.startsWith('http')) return;
+
+  // Bypass for CDN / third-party assets; let browser fetch fresh copy
+  if (url.origin !== self.location.origin) {
     return;
   }
 
-  if (!window.THREE) {
-    renderFatal(
-      'Simulator could not initialise',
-      'Three.js could not be loaded in this browser session.',
-      'This can happen in private/incognito browsing or when a required script is blocked. Please retry in a normal browser window or allow the required graphics script.'
+  // Always use fresh HTML for app shell navigations
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          const copy = response.clone();
+          caches.open(CACHE).then(cache => cache.put(event.request, copy));
+          return response;
+        })
+        .catch(() => caches.match(event.request))
     );
     return;
   }
 
-  const requiredIds = ['game', 'intro', 'designCanvas', 'gainSlider', 'interceptSlider', 'designExit', 'designNext'];
-  const missingIds = requiredIds.filter(id => !doc.getElementById(id));
-  if (missingIds.length) {
-    renderFatal('Simulator could not initialise', 'The app shell did not finish loading correctly.', `Missing required DOM nodes: ${missingIds.join(', ')}`);
+  // For local app assets, always prefer network, then fallback to cache
+  if (['script', 'style', 'image', 'font', 'manifest'].includes(event.request.destination) || url.pathname.endsWith('.js') || url.pathname.endsWith('.css') || url.pathname.endsWith('.png') || url.pathname.endsWith('.webmanifest')) {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          const copy = response.clone();
+          caches.open(CACHE).then(cache => cache.put(event.request, copy));
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
     return;
   }
 
-  try {
-    buildEnvironment();
-    bind();
-    updateBenchmark();
-    stations.forEach((_, i) => updateControlMeshes(i));
-    renderer.setAnimationLoop(loop);
-  } catch (err) {
-    console.error(err);
-    renderFatal(
-      'Simulator could not initialise',
-      'The app failed to start in this environment.',
-      err && err.message ? err.message : 'A runtime error occurred while booting the simulator.'
-    );
-  }
-})();
-//# sourceURL=silicon-run.js
+  event.respondWith(
+    caches.match(event.request).then(cached => cached || fetch(event.request))
+  );
+});
