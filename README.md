@@ -1,1 +1,7 @@
-Silicon Run V8.8. Stages 2 and 3 are direct wall-plane interactions in isolated 3D space. The DOM canvas is only a hidden CanvasTexture source. Mouse crosshair and Quest rays draw directly; F submit/next, R reset, X clear, Z undo, 1/2 metal layers, Escape exit. On-board buttons are clickable with the same rays.
+# Silicon Run
+
+The production bundle is `js/silicon-run.js`. Update that named file in place for every release; don't create version-numbered runtime bundles.
+
+`index.html` currently retains a legacy script reference, so `silicon-run.v812.js` is a minimal compatibility loader that immediately loads `silicon-run.js`. Once the HTML entry point is edited outside this environment, replace it with `./js/silicon-run.js` and remove the loader.
+
+The build script outputs `silicon-run.js`.
