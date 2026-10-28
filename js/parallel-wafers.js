@@ -410,6 +410,7 @@ onXRTriggerStart=function(c){
   pulseXR(.08,18)    
 };    
 onXRTriggerEnd=function(c){    
+  if(state.paused){clearHandGrab(c);return}
   const grab=getHandGrab(c);    
   if(grab?.kind==='wafer')releaseWafer(c);    
   else if(grab?.kind==='shard')releaseShard(c);    
@@ -430,6 +431,7 @@ onXRSqueezeEnd=function(c){
   }    
 };    
 updateXRMovement=function(dt,now){    
+  if(state.paused)return;
   const session=renderer.xr.getSession();if(!session)return;    
   updateXRVertical(dt);    
   const sources=[...session.inputSources];let left=null,right=null;    
@@ -604,15 +606,20 @@ activateFocused=function(){
 updateXRButtons=function(now){    
   if(!renderer.xr.isPresenting)return;    
   const l=xrLeftSource?.gamepad,r=xrRightSource?.gamepad;    
+  if(state.paused){
+    if(l){edgeButton('ls',!!l.buttons[3]?.pressed,()=>{});edgeButton('lx',!!l.buttons[4]?.pressed,()=>{});edgeButton('ly',!!l.buttons[5]?.pressed,()=>{})}
+    if(r){const resume=()=>{setXRPaused(false);pulseXR(.4,45)};edgeButton('rs',!!r.buttons[3]?.pressed,resume);edgeButton('ra',!!r.buttons[4]?.pressed,resume);edgeButton('rb',!!r.buttons[5]?.pressed,resume)}
+    drawXRPauseOverlay();return
+  }
   if(l){    
     edgeButton('ls',!!l.buttons[3]?.pressed,()=>{phys.hudVisible=!phys.hudVisible;pulseXR(.3,35)});    
     edgeButton('lx',!!l.buttons[4]?.pressed,()=>requestJump());    
     edgeButton('ly',!!l.buttons[5]?.pressed,()=>{phys.beaconVisible=!phys.beaconVisible;phys.hudVisible=true;if(xrObjectiveBeacon)xrObjectiveBeacon.visible=phys.beaconVisible;drawXRHandset(1e15)})    
   }    
   if(r){    
-    edgeButton('rs',!!r.buttons[3]?.pressed,()=>{if(state.completed){hideXROverlay()}else{state.paused=!state.paused;state.paused?showXROverlay('pause'):hideXROverlay()}pulseXR(.4,45)});    
-    edgeButton('ra',!!r.buttons[4]?.pressed,()=>{if(state.paused){state.paused=false;hideXROverlay()}else if(!sweepNearestShardPile(xrController1)&&state.focus?.userData.type==='button')activateFocused()});    
-    edgeButton('rb',!!r.buttons[5]?.pressed,()=>{state.paused=!state.paused;state.paused?showXROverlay('pause'):hideXROverlay()})    
+    edgeButton('rs',!!r.buttons[3]?.pressed,()=>{if(state.completed){hideXROverlay()}else setXRPaused(true);pulseXR(.4,45)});    
+    edgeButton('ra',!!r.buttons[4]?.pressed,()=>{if(state.completed)hideXROverlay();else if(!sweepNearestShardPile(xrController1)&&state.focus?.userData.type==='button')activateFocused()});    
+    edgeButton('rb',!!r.buttons[5]?.pressed,()=>setXRPaused(true))    
   }    
 };    
 const v5NewRun=newRun;    
