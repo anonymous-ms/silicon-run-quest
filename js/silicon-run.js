@@ -933,7 +933,7 @@ const designMode={
   gain:0,intercept:0,gainComplete:false,regression:null,regressionAttempts:0,regressionBest:null,  
   schematicComplete:false,schematicSubmitted:false,schematicScore:0,layoutComplete:false,  
   schematicDrag:null,schematicLinks:new Set(),circuit:null,  
-  layer:'M1',layoutActive:null,layoutRoutes:[],layoutDraft:[],  
+  layer:'M1',layoutActive:null,layoutNodes:[],layoutRoutes:[],layoutDraft:null,
   releasedBodies:new Set()  
 };  
 const smoothstep=t=>t*t*(3-2*t);  
@@ -999,7 +999,7 @@ function renderDesignStep(){
     el.classList.toggle('current',i===designMode.step);  
     el.classList.toggle('done',i<designMode.step||(i===0&&designMode.gainComplete)||(i===1&&designMode.schematicComplete)||(i===2&&designMode.layoutComplete))  
   });  
-  $('designBack').disabled=designMode.step===0;  
+  $('designBack').disabled=designMode.step===0;$('regressionScorePanel').hidden=designMode.step!==0||!designMode.gainComplete;
   $('gainControls').hidden=designMode.step!==0;$('schematicTools').hidden=designMode.step!==1;$('layoutTools').hidden=designMode.step!==2;  
   const active=parallel?.active;  
   $('designLot').innerHTML=`${active?.lotId||'NO ACTIVE WAFER'}<br>MANUAL ENGINEERING CHANGE CONTROL`;  
@@ -1017,16 +1017,16 @@ function renderDesignStep(){
     updateSchematicState()  
   }else{  
     $('designTitle').textContent='Two-layer physical layout';  
-    $('designInstructions').textContent='Route IN1, IN2 and IN3 to the matching output pads. Click an input to begin, click grid points to add orthogonal metal, switch M1/M2 to place a via, then click the matching output.';  
-    $('designCriteria').innerHTML='<b>Release criterion</b><br>Complete all three nets. Every route must use both metal layers and avoid same-layer shorts.';  
+    $('designInstructions').textContent='Choose a metal layer, then press and hold an existing terminal or junction. Drag to another point and release to commit an orthogonal wire. Junctions gain an automatic via when connected on both layers.';
+    $('designCriteria').innerHTML='<b>Release criterion</b><br>Connect each input to its matching output through both metal layers. Vias are placed automatically at shared junctions.';
     $('designNext').textContent='RELEASE DESIGN';  
     updateLayoutState()  
   }  
   drawDesignStage()  
 }  
-function createRegressionChallenge(){const gm=-3.25+Math.random()*6.5,gc=-5+Math.random()*10,points=[];for(let i=0;i<13;i++){const x=-5+i*10/12;points.push({x,y:gm*x+gc+(Math.random()-.5)*1.5})}const ax=points.reduce((a,p)=>a+p.x,0)/points.length,ay=points.reduce((a,p)=>a+p.y,0)/points.length,den=points.reduce((a,p)=>a+(p.x-ax)**2,0)||1,m=points.reduce((a,p)=>a+(p.x-ax)*(p.y-ay),0)/den,c=ay-m*ax,sse=points.reduce((a,p)=>a+(p.y-(m*p.x+c))**2,0);designMode.regression={points,optimum:{m,c,sse}};designMode.gain=0;designMode.intercept=0;designMode.regressionAttempts=0;designMode.regressionBest=null;designMode.gainComplete=false;$('gainSlider').value='0';$('interceptSlider').value='0'}  
+function createRegressionChallenge(){const gm=-3.25+Math.random()*6.5,gc=-5+Math.random()*10,points=[];for(let i=0;i<13;i++){const x=-5+i*10/12;points.push({x,y:gm*x+gc+(Math.random()-.5)*1.5})}const ax=points.reduce((a,p)=>a+p.x,0)/points.length,ay=points.reduce((a,p)=>a+p.y,0)/points.length,den=points.reduce((a,p)=>a+(p.x-ax)**2,0)||1,m=points.reduce((a,p)=>a+(p.x-ax)*(p.y-ay),0)/den,c=ay-m*ax,sse=points.reduce((a,p)=>a+(p.y-(m*p.x+c))**2,0);designMode.regression={points,optimum:{m,c,sse}};designMode.gain=0;designMode.intercept=0;designMode.regressionAttempts=0;designMode.regressionBest=null;designMode.gainComplete=false;$('gainSlider').value='0';$('interceptSlider').value='0';if($('regressionScorePanel'))$('regressionScorePanel').hidden=true;if($('regressionScoreValue'))$('regressionScoreValue').textContent='--%'}  
 function regressionScore(){const r=designMode.regression,u=r.points.reduce((a,p)=>a+(p.y-(designMode.gain*p.x+designMode.intercept))**2,0),scale=Math.max(1,r.points.reduce((a,p)=>a+p.y*p.y,0)),raw=100*Math.exp(-8*Math.max(0,u-r.optimum.sse)/scale),penalty=Math.max(0,designMode.regressionAttempts-1)*7;return{score:clamp(raw-penalty,0,100),penalty}}  
-function submitRegression(){designMode.regressionAttempts++;const q=regressionScore();if(!designMode.regressionBest||q.score>designMode.regressionBest.score)designMode.regressionBest={...q,m:designMode.gain,c:designMode.intercept};designMode.gainComplete=true;$('designNext').disabled=false;$('designLiveLabel').textContent='BEST SUBMITTED SCORE';$('designLiveValue').textContent=designMode.regressionBest.score.toFixed(1)+'%';setDesignMessage(`Attempt ${designMode.regressionAttempts}: ${q.score.toFixed(1)}%. ${q.penalty?q.penalty+' point repeat penalty.':'First submission.'}`,'good')}  
+function submitRegression(){designMode.regressionAttempts++;const q=regressionScore();if(!designMode.regressionBest||q.score>designMode.regressionBest.score)designMode.regressionBest={...q,m:designMode.gain,c:designMode.intercept};designMode.gainComplete=true;$('designNext').disabled=false;$('designLiveLabel').textContent='BEST SUBMITTED SCORE';$('designLiveValue').textContent=designMode.regressionBest.score.toFixed(1)+'%';$('regressionScoreValue').textContent=designMode.regressionBest.score.toFixed(1)+'%';$('regressionScorePanel').hidden=false;setDesignMessage(`Attempt ${designMode.regressionAttempts}: ${q.score.toFixed(1)}%. ${q.penalty?q.penalty+' point repeat penalty.':'First submission.'}`,'good')}
 function updateGainState(){if(!designMode.regression)createRegressionChallenge();$('gainValue').textContent=designMode.gain.toFixed(2);$('interceptValue').textContent=designMode.intercept.toFixed(2);$('designNext').disabled=!designMode.gainComplete;if(!designMode.gainComplete){$('designLiveLabel').textContent='FIT QUALITY';$('designLiveValue').textContent='HIDDEN';setDesignMessage('Adjust both coefficients and submit when ready.')}drawDesignStage()}  
 const circuitPool=[{id:'inv',name:'CMOS inverter buffer',devices:[['P1','p',.34,.32],['N1','n',.34,.68],['P2','p',.68,.32],['N2','n',.68,.68]],nodes:[['IN',.08,.5],['P1G',.25,.32],['N1G',.25,.68],['X1P',.34,.43],['X1N',.34,.57],['P2G',.59,.32],['N2G',.59,.68],['OUTP',.68,.43],['OUTN',.68,.57],['OUT',.92,.5],['VDD',.5,.08],['P1S',.34,.21],['P2S',.68,.21],['GND',.5,.92],['N1S',.34,.79],['N2S',.68,.79]],edges:[['IN','P1G'],['IN','N1G'],['X1P','X1N'],['X1P','P2G'],['X1P','N2G'],['OUTP','OUTN'],['OUTP','OUT'],['VDD','P1S'],['VDD','P2S'],['GND','N1S'],['GND','N2S']]},{id:'nand',name:'Two-input CMOS NAND gate',devices:[['P1','p',.34,.27],['P2','p',.66,.27],['N1','n',.5,.58],['N2','n',.5,.78]],nodes:[['A',.08,.38],['P1G',.25,.27],['N1G',.41,.58],['B',.08,.68],['P2G',.57,.27],['N2G',.41,.78],['VDD',.5,.07],['P1S',.34,.16],['P2S',.66,.16],['P1D',.34,.38],['P2D',.66,.38],['N1D',.5,.47],['Y',.91,.43],['N1S',.5,.67],['N2D',.5,.69],['N2S',.5,.88],['GND',.5,.95]],edges:[['A','P1G'],['A','N1G'],['B','P2G'],['B','N2G'],['VDD','P1S'],['VDD','P2S'],['P1D','P2D'],['P1D','N1D'],['P1D','Y'],['N1S','N2D'],['N2S','GND']]},{id:'amp',name:'Five-transistor differential amplifier',devices:[['M3','p',.36,.24],['M4','p',.64,.24],['M1','n',.36,.57],['M2','n',.64,.57],['M5','n',.5,.81]],nodes:[['VDD',.5,.06],['M3S',.36,.13],['M4S',.64,.13],['M3G',.27,.24],['M3D',.36,.35],['M4G',.55,.24],['M4D',.64,.35],['VINP',.07,.57],['M1G',.27,.57],['VINN',.93,.57],['M2G',.73,.57],['M1D',.36,.46],['M2D',.64,.46],['M1S',.36,.68],['M2S',.64,.68],['M5D',.5,.72],['VBIAS',.15,.81],['M5G',.41,.81],['M5S',.5,.9],['GND',.5,.96],['VOUT',.91,.4]],edges:[['VDD','M3S'],['VDD','M4S'],['M3G','M3D'],['M3G','M4G'],['M3D','M1D'],['M4D','M2D'],['M4D','VOUT'],['VINP','M1G'],['VINN','M2G'],['M1S','M2S'],['M1S','M5D'],['VBIAS','M5G'],['M5S','GND']]}];  
 function edgeKey(a,b){return[a,b].sort().join('|')}  
@@ -1035,9 +1035,12 @@ function schematicGeometry(w,h){ensureCircuitChallenge();return designMode.circu
 function submitSchematic(){const req=designMode.circuit.removed,u=designMode.schematicLinks,opens=[...req].filter(k=>!u.has(k)).length,shorts=[...u].filter(k=>!req.has(k)).length,correct=[...u].filter(k=>req.has(k)).length,score=clamp(100-opens*35-shorts*25,0,100);designMode.schematicSubmitted=true;designMode.schematicScore=score;designMode.schematicComplete=!opens&&!shorts;$('designNext').disabled=!designMode.schematicComplete;$('designLiveLabel').textContent='CIRCUIT SCORE';$('designLiveValue').textContent=score.toFixed(0)+'%';setDesignMessage(`${correct} correct, ${opens} open, ${shorts} short.` ,designMode.schematicComplete?'good':score>=50?'warn':'bad');drawDesignStage()}  
 function updateSchematicState(){ensureCircuitChallenge();$('designNext').disabled=!designMode.schematicComplete;if(!designMode.schematicSubmitted){$('designLiveLabel').textContent='ASSESSMENT';$('designLiveValue').textContent='NOT SUBMITTED';setDesignMessage('Repair both removed connections, then submit.')}}  
 function layoutGeometry(w,h){  
-    const margin=Math.max(45,w*.065),innerH=h-2*margin;  
-    return{margin,inputs:[0,1,2].map(i=>({net:`N${i+1}`,label:`IN${i+1}`,x:margin+18,y:margin+innerH*(.22+i*.28)})),outputs:[0,1,2].map(i=>({net:`N${i+1}`,label:`OUT${i+1}`,x:w-margin-18,y:margin+innerH*(.22+i*.28)})),keepouts:[{x:w*.31,y:margin,w:w*.14,h:h*.29},{x:w*.55,y:h-margin-h*.31,w:w*.14,h:h*.31}]}  
+  const paletteW=clamp(w*.18,170,230),plotW=w-paletteW,margin=Math.max(45,plotW*.065),innerH=h-2*margin;  
+  return{margin,plotW,paletteW,inputs:[0,1,2].map(i=>({id:`IN${i+1}`,kind:'input',net:`N${i+1}`,label:`IN${i+1}`,x:margin+18,y:margin+innerH*(.22+i*.28)})),outputs:[0,1,2].map(i=>({id:`OUT${i+1}`,kind:'output',net:`N${i+1}`,label:`OUT${i+1}`,x:plotW-margin-18,y:margin+innerH*(.22+i*.28)})),keepouts:[{x:plotW*.31,y:margin,w:plotW*.14,h:h*.29},{x:plotW*.55,y:h-margin-h*.31,w:plotW*.14,h:h*.31}]}  
   }  
+function initializeLayoutNodes(){const g=layoutGeometry($('designCanvas').width,$('designCanvas').height);designMode.layoutNodes=[...g.inputs,...g.outputs].map(node=>({...node,terminal:true,metals:new Set()}))}
+function layoutNode(id){return designMode.layoutNodes.find(node=>node.id===id)}
+function nearestLayoutNode(point,excludeId=null,max=Math.max(30,$('designCanvas').width*.025)){let best=null,d=max;for(const node of designMode.layoutNodes){if(node.id===excludeId)continue;const distance=Math.hypot(point.x-node.x,point.y-node.y);if(distance<d){best=node;d=distance}}return best}
 function pointSegmentDistance(p,a,b){  
   const vx=b.x-a.x,vy=b.y-a.y,wx=p.x-a.x,wy=p.y-a.y,c1=vx*wx+vy*wy,c2=vx*vx+vy*vy,t=c2?clamp(c1/c2,0,1):0;  
   return Math.hypot(p.x-(a.x+t*vx),p.y-(a.y+t*vy))  
@@ -1048,41 +1051,45 @@ function segmentsIntersect(a,b,c,d){
   return c1*c2<0&&c3*c4<0  
 }  
 function layoutPointBlocked(point){  
-  const canvas=$('designCanvas'),w=canvas.width,h=canvas.height,g=layoutGeometry(w,h);  
-  if(point.x<g.margin||point.x>w-g.margin||point.y<g.margin||point.y>h-g.margin)return true;return g.keepouts.some(r=>point.x>r.x&&point.x<r.x+r.w&&point.y>r.y&&point.y<r.y+r.h)  
+  const canvas=$('designCanvas'),h=canvas.height,g=layoutGeometry(canvas.width,h);  
+  if(point.x<g.margin||point.x>g.plotW-g.margin||point.y<g.margin||point.y>h-g.margin)return true;return g.keepouts.some(r=>point.x>r.x&&point.x<r.x+r.w&&point.y>r.y&&point.y<r.y+r.h)  
 }  
-function layoutDraftValid(){  
-  if(designMode.layoutDraft.length<2)return true;  
-  const b=designMode.layoutDraft.at(-1),a=designMode.layoutDraft.at(-2);  
-  if(layoutPointBlocked(b))return false;  
-  for(const route of designMode.layoutRoutes){  
-    for(let i=1;i<route.points.length;i++){  
-      const c=route.points[i-1],d=route.points[i];  
-      if(c.layer===a.layer&&d.layer===b.layer&&a.layer===c.layer&&segmentsIntersect(a,b,c,d))return false  
-    }  
-  }  
+function layoutDraftValid(draft){  
+  if(!draft||draft.points.length<2||draft.points.slice(1,-1).some(layoutPointBlocked))return false;  
+  const end=layoutNode(draft.toId);if(!end?.terminal&&layoutPointBlocked(draft.points.at(-1)))return false;  
+  for(const route of designMode.layoutRoutes){if(route.layer!==draft.layer)continue;for(let i=1;i<route.points.length;i++){const a=draft.points[i-1],b=draft.points[i],c=route.points[i-1],d=route.points[i];if(segmentsIntersect(a,b,c,d))return false}}  
   return true  
 }  
+function layoutNetConnected(net){
+  const start=layoutNode(`IN${net.slice(1)}`),target=`OUT${net.slice(1)}`;if(!start||!layoutNode(target))return false;
+  const queue=[...start.metals].map(layer=>({id:start.id,layer,m1:layer==='M1',m2:layer==='M2',via:false})),seen=new Set();
+  while(queue.length){const current=queue.shift(),key=`${current.id}:${current.layer}:${+current.m1}:${+current.m2}:${+current.via}`;if(seen.has(key))continue;seen.add(key);if(current.id===target&&current.m1&&current.m2&&current.via)return true;
+    for(const route of designMode.layoutRoutes){if(route.layer!==current.layer)continue;if(route.fromId===current.id)queue.push({id:route.toId,layer:current.layer,m1:current.m1||current.layer==='M1',m2:current.m2||current.layer==='M2',via:current.via});else if(route.toId===current.id)queue.push({id:route.fromId,layer:current.layer,m1:current.m1||current.layer==='M1',m2:current.m2||current.layer==='M2',via:current.via})}
+    const node=layoutNode(current.id);if(node&&!node.terminal&&node.metals.size>1)for(const layer of node.metals)if(layer!==current.layer)queue.push({id:node.id,layer,m1:current.m1||layer==='M1',m2:current.m2||layer==='M2',via:true})
+  }
+  return false
+}
+function rebuildLayoutNodeMetals(){designMode.layoutNodes.forEach(node=>node.metals.clear());for(const route of designMode.layoutRoutes){layoutNode(route.fromId)?.metals.add(route.layer);layoutNode(route.toId)?.metals.add(route.layer)}}
 function updateLayoutState(){  
-  designMode.layoutComplete=designMode.layoutRoutes.length===3;  
-  const vias=designMode.layoutRoutes.reduce((n,r)=>n+r.vias,0);  
-  setDesignProgress(designMode.layoutComplete,`${designMode.layoutRoutes.length} / 3`,'SIGNALS ROUTED');  
-  setDesignMessage(designMode.layoutComplete?`All signal nets are routed across M1 and M2 with ${vias} verified vias.`:'Start at an input pad. Add orthogonal points, change metal layer at least once, and finish on the matching output.',designMode.layoutComplete?'good':'')  
+  const connected=[1,2,3].filter(index=>layoutNetConnected(`N${index}`)).length;designMode.layoutComplete=connected===3;  
+  const vias=designMode.layoutNodes.filter(node=>!node.terminal&&node.metals.size>1).length;  
+  setDesignProgress(designMode.layoutComplete,`${connected} / 3`,'SIGNALS CONNECTED');  
+  setDesignMessage(designMode.layoutComplete?`All signal nets cross both metal layers with ${vias} automatic vias.`:'Connect each IN terminal to its matching OUT terminal. Every net needs both layers and an automatic via.',designMode.layoutComplete?'good':'')  
 }  
 function drawGain(ctx,w,h){if(!designMode.regression)createRegressionChallenge();const r=designMode.regression,p={l:w*.1,r:w*.05,t:h*.09,b:h*.13},pw=w-p.l-p.r,ph=h-p.t-p.b,ys=r.points.flatMap(q=>[q.y,designMode.gain*q.x+designMode.intercept]),ya=Math.max(8,...ys.map(Math.abs))*1.12,X=x=>p.l+(x+5)/10*pw,Y=y=>p.t+(ya-y)/(2*ya)*ph;ctx.fillStyle='#02090e';ctx.fillRect(0,0,w,h);ctx.strokeStyle='#183544';for(let i=0;i<=10;i++){ctx.beginPath();ctx.moveTo(p.l+pw*i/10,p.t);ctx.lineTo(p.l+pw*i/10,h-p.b);ctx.stroke()}for(let i=0;i<=8;i++){ctx.beginPath();ctx.moveTo(p.l,p.t+ph*i/8);ctx.lineTo(w-p.r,p.t+ph*i/8);ctx.stroke()}ctx.strokeStyle='#789aaa';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(p.l,Y(0));ctx.lineTo(w-p.r,Y(0));ctx.moveTo(X(0),p.t);ctx.lineTo(X(0),h-p.b);ctx.stroke();ctx.strokeStyle='#ff9d3c';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(X(-5),Y(-5*designMode.gain+designMode.intercept));ctx.lineTo(X(5),Y(5*designMode.gain+designMode.intercept));ctx.stroke();ctx.fillStyle='#53e7ff';for(const q of r.points){ctx.beginPath();ctx.arc(X(q.x),Y(q.y),6,0,7);ctx.fill()}ctx.fillStyle='#9ab5c1';ctx.font='16px monospace';ctx.fillText('● measured samples',p.l+10,p.t+22);ctx.fillStyle='#ff9d3c';ctx.fillText('— candidate y = mx + c',p.l+10,p.t+46)}  
 function drawMos(ctx,d,w,h){const[id,t,xn,yn]=d,x=xn*w,y=yn*h,c=t==='p'?'#f59ac3':'#f2ad72';ctx.strokeStyle=c;ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(x-18,y-28);ctx.lineTo(x-18,y+28);ctx.moveTo(x+5,y-24);ctx.lineTo(x+5,y+24);ctx.moveTo(x+5,y-24);ctx.lineTo(x+5,y-46);ctx.moveTo(x+5,y+24);ctx.lineTo(x+5,y+46);ctx.moveTo(x-40,y);ctx.lineTo(x-18,y);ctx.stroke();if(t==='p'){ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(x-12,y,6,0,7);ctx.fill();ctx.stroke()}ctx.fillStyle=c;ctx.font='700 14px monospace';ctx.fillText(id+' '+(t==='p'?'PMOS':'NMOS'),x+14,y)}  
 function drawSchematic(ctx,w,h){ensureCircuitChallenge();const c=designMode.circuit,n=schematicGeometry(w,h),by=id=>n.find(x=>x.id===id);ctx.fillStyle='#f4f5f1';ctx.fillRect(0,0,w,h);c.devices.forEach(d=>drawMos(ctx,d,w,h));for(const[a,b]of c.edges){if(c.removed.has(edgeKey(a,b)))continue;const p=by(a),q=by(b),m=(p.px+q.px)/2;ctx.strokeStyle='#163c74';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(p.px,p.py);ctx.lineTo(m,p.py);ctx.lineTo(m,q.py);ctx.lineTo(q.px,q.py);ctx.stroke()}for(const k of designMode.schematicLinks){const[a,b]=k.split('|'),p=by(a),q=by(b);ctx.strokeStyle=designMode.schematicSubmitted?(c.removed.has(k)?'#43c971':'#ff5f73'):'#f08a31';ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(p.px,p.py);const elbow=(p.px+q.px)/2;ctx.lineTo(elbow,p.py);ctx.lineTo(elbow,q.py);ctx.lineTo(q.px,q.py);ctx.stroke()}const ends=new Set([...c.removed].flatMap(k=>k.split('|')));for(const p of n){ctx.fillStyle=ends.has(p.id)?'#fff4a8':'#dce8ec';ctx.strokeStyle=ends.has(p.id)?'#f08a31':'#446273';ctx.lineWidth=ends.has(p.id)?4:2;ctx.beginPath();ctx.arc(p.px,p.py,ends.has(p.id)?9:6,0,7);ctx.fill();ctx.stroke();if(['IN','OUT','Y','A','B','VDD','GND','VINP','VINN','VOUT','VBIAS'].includes(p.id)){ctx.fillStyle='#17232a';ctx.fillText(p.id,p.px+10,p.py-10)}}if(designMode.schematicDrag){const p=by(designMode.schematicDrag.from),tx=designMode.schematicDrag.x,ty=designMode.schematicDrag.y,mx=(p.px+tx)/2;ctx.save();ctx.lineJoin='round';ctx.lineCap='round';ctx.strokeStyle='rgba(0,229,255,.24)';ctx.lineWidth=14;ctx.beginPath();ctx.moveTo(p.px,p.py);ctx.lineTo(mx,p.py);ctx.lineTo(mx,ty);ctx.lineTo(tx,ty);ctx.stroke();ctx.strokeStyle='#63f3ff';ctx.lineWidth=5;ctx.setLineDash([15,9]);ctx.beginPath();ctx.moveTo(p.px,p.py);ctx.lineTo(mx,p.py);ctx.lineTo(mx,ty);ctx.lineTo(tx,ty);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#ffffff';ctx.beginPath();ctx.arc(tx,ty,7,0,Math.PI*2);ctx.fill();ctx.restore()}ctx.fillStyle='#17232a';ctx.font='900 18px system-ui';ctx.fillText(c.name.toUpperCase(),20,28)}  
 function drawLayout(ctx,w,h){  
-  ctx.fillStyle='#061017';ctx.fillRect(0,0,w,h);const g=layoutGeometry(w,h);  
-  ctx.strokeStyle='#17313e';ctx.lineWidth=1;  
-  const grid=Math.max(22,Math.round(w/28));for(let x=0;x<w;x+=grid){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke()}for(let y=0;y<h;y+=grid){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}  
-  ctx.fillStyle='rgba(120,38,45,.3)';ctx.fillRect(0,0,w,g.margin);ctx.fillRect(0,h-g.margin,w,g.margin);ctx.fillRect(0,g.margin,g.margin,h-2*g.margin);ctx.fillRect(w-g.margin,g.margin,g.margin,h-2*g.margin);ctx.strokeStyle='#ff6579';ctx.lineWidth=4;ctx.strokeRect(g.margin,g.margin,w-2*g.margin,h-2*g.margin);ctx.fillStyle='#ff9aa8';ctx.font=`${Math.max(11,w*.014)}px monospace`;ctx.fillText('OUTER NO-GO BOUNDARY',g.margin+10,g.margin-12);g.keepouts.forEach(r=>{ctx.fillStyle='#241a1b';ctx.fillRect(r.x,r.y,r.w,r.h);ctx.strokeStyle='#81524c';ctx.strokeRect(r.x,r.y,r.w,r.h);ctx.fillStyle='#b8837a';ctx.font=`${Math.max(11,w*.014)}px monospace`;ctx.fillText('KEEP OUT',r.x+10,r.y+20)});  
-  const pad=(p,left)=>{ctx.fillStyle=left?'#ff6583':'#6c79ff';ctx.fillRect(p.x-13,p.y-18,26,36);ctx.fillStyle='#eaf7fb';ctx.font=`700 ${Math.max(11,w*.015)}px monospace`;ctx.fillText(p.label,left?p.x+20:p.x-20-ctx.measureText(p.label).width,p.y+5)};  
-  g.inputs.forEach(p=>pad(p,true));g.outputs.forEach(p=>pad(p,false));  
-  const routeDraw=points=>{for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i];ctx.strokeStyle=b.layer==='M2'?'#ff5bbd':'#53e7ff';ctx.lineWidth=8;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();if(a.layer!==b.layer){ctx.fillStyle='#ffe07a';ctx.beginPath();ctx.arc(a.x,a.y,8,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#4d3a0b';ctx.lineWidth=2;ctx.stroke()}}};  
-  designMode.layoutRoutes.forEach(r=>routeDraw(r.points));routeDraw(designMode.layoutDraft);  
-  if(designMode.layoutDraft.length){const p=designMode.layoutDraft.at(-1);ctx.fillStyle=designMode.layer==='M2'?'#ff5bbd':'#53e7ff';ctx.beginPath();ctx.arc(p.x,p.y,9,0,Math.PI*2);ctx.fill()}  
-  ctx.fillStyle='#53e7ff';ctx.fillRect(18,18,24,6);ctx.fillStyle='#8da9b5';ctx.font=`${Math.max(11,w*.014)}px monospace`;ctx.fillText('M1',50,25);ctx.fillStyle='#ff5bbd';ctx.fillRect(88,18,24,6);ctx.fillStyle='#8da9b5';ctx.fillText('M2',120,25);ctx.fillStyle='#ffe07a';ctx.beginPath();ctx.arc(173,21,6,0,Math.PI*2);ctx.fill();ctx.fillStyle='#8da9b5';ctx.fillText('VIA',187,25)  
+  const g=layoutGeometry(w,h),colors={M1:'#ffe52b',M2:'#168dff'};ctx.fillStyle='#061017';ctx.fillRect(0,0,w,h);  
+  ctx.strokeStyle='#17313e';ctx.lineWidth=1;const grid=Math.max(22,Math.round(g.plotW/28));for(let x=0;x<=g.plotW;x+=grid){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke()}for(let y=0;y<h;y+=grid){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(g.plotW,y);ctx.stroke()}  
+  ctx.fillStyle='rgba(120,38,45,.3)';ctx.fillRect(0,0,g.plotW,g.margin);ctx.fillRect(0,h-g.margin,g.plotW,g.margin);ctx.fillRect(0,g.margin,g.margin,h-2*g.margin);ctx.fillRect(g.plotW-g.margin,g.margin,g.margin,h-2*g.margin);ctx.strokeStyle='#ff6579';ctx.lineWidth=4;ctx.strokeRect(g.margin,g.margin,g.plotW-2*g.margin,h-2*g.margin);ctx.fillStyle='#ff9aa8';ctx.font=`${Math.max(11,w*.014)}px monospace`;ctx.fillText('OUTER NO-GO BOUNDARY',g.margin+10,g.margin-12);g.keepouts.forEach(r=>{ctx.fillStyle='#241a1b';ctx.fillRect(r.x,r.y,r.w,r.h);ctx.strokeStyle='#81524c';ctx.strokeRect(r.x,r.y,r.w,r.h);ctx.fillStyle='#b8837a';ctx.font=`${Math.max(11,w*.014)}px monospace`;ctx.fillText('KEEP OUT',r.x+10,r.y+20)});  
+  const routeDraw=(route,alpha=1)=>{ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=colors[route.layer];ctx.lineWidth=9;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();ctx.moveTo(route.points[0].x,route.points[0].y);route.points.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));ctx.stroke();ctx.restore()};  
+  designMode.layoutRoutes.forEach(route=>routeDraw(route));if(designMode.layoutDraft)routeDraw(designMode.layoutDraft,designMode.layoutDraft.valid?.42:.28);  
+  for(const node of designMode.layoutNodes){if(node.terminal){ctx.fillStyle='#07121a';ctx.strokeStyle=node.kind==='input'?'#ff687e':'#8c93ff';ctx.lineWidth=4;ctx.fillRect(node.x-15,node.y-19,30,38);ctx.strokeRect(node.x-15,node.y-19,30,38);ctx.fillStyle='#eaf7fb';ctx.font=`700 ${Math.max(11,w*.015)}px monospace`;ctx.textAlign=node.kind==='input'?'left':'right';ctx.fillText(node.label,node.x+(node.kind==='input'?22:-22),node.y+5);ctx.textAlign='left'}else{ctx.fillStyle=node.metals.size>1?'#d56b1f':colors[[...node.metals][0]||designMode.layer];ctx.strokeStyle='#061017';ctx.lineWidth=3;ctx.beginPath();ctx.arc(node.x,node.y,node.metals.size>1?11:8,0,Math.PI*2);ctx.fill();ctx.stroke()}}  
+  if(designMode.layoutDraft){const end=designMode.layoutDraft.points.at(-1);ctx.fillStyle=designMode.layoutDraft.valid?colors[designMode.layoutDraft.layer]:'#ff6579';ctx.beginPath();ctx.arc(end.x,end.y,10,0,Math.PI*2);ctx.fill()}  
+  ctx.fillStyle='#07141d';ctx.fillRect(g.plotW,0,g.paletteW,h);ctx.strokeStyle='#315263';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(g.plotW,0);ctx.lineTo(g.plotW,h);ctx.stroke();ctx.fillStyle='#d5e7ee';ctx.font='800 16px monospace';ctx.fillText('METAL LAYER',g.plotW+18,42);  
+  const buttonW=g.paletteW-32,buttonH=112;[['M1','#ffe52b'],['M2','#168dff']].forEach(([layer,color],index)=>{const x=g.plotW+16,y=76+index*(buttonH+22),selected=designMode.layer===layer;ctx.fillStyle=selected?'#24313a':'#0d202b';ctx.strokeStyle=selected?color:'#456071';ctx.lineWidth=selected?5:2;ctx.fillRect(x,y,buttonW,buttonH);ctx.strokeRect(x,y,buttonW,buttonH);ctx.fillStyle=color;ctx.fillRect(x+14,y+16,buttonW-28,10);ctx.fillStyle='#f0f7fa';ctx.font='900 30px monospace';ctx.fillText(layer,x+16,y+62);ctx.fillStyle='#a4bdc8';ctx.font='13px monospace';ctx.fillText(selected?'SELECTED':'SELECT LAYER',x+16,y+88)});  
+  ctx.fillStyle='#95aeb9';ctx.font='12px monospace';ctx.fillText('HOLD NODE',g.plotW+18,h-72);ctx.fillText('DRAG, RELEASE TO WIRE',g.plotW+18,h-50)  
 }  
 function drawDesignStage(){  
   const canvas=$('designCanvas');if(!canvas||!canvas.width)return;const ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height;  
@@ -1104,38 +1111,19 @@ function onDesignPointerMove(e){
 }  
 function onDesignPointerUp(e){if(designMode.step!==1||!designMode.schematicDrag)return;const p=designPointer(e),nodes=schematicGeometry($('designCanvas').width,$('designCanvas').height),from=nodes.find(n=>n.id===designMode.schematicDrag.from),to=nearestDesignNode(p,nodes);if(to&&to.id!==from.id){const k=edgeKey(from.id,to.id);designMode.schematicLinks.has(k)?designMode.schematicLinks.delete(k):designMode.schematicLinks.add(k);designMode.schematicSubmitted=false;designMode.schematicComplete=false}designMode.schematicDrag=null;updateSchematicState();drawDesignStage()}  
 function snapLayoutPoint(p){  
-  const grid=Math.max(22,Math.round($('designCanvas').width/28));  
-  return{x:Math.round(p.x/grid)*grid,y:Math.round(p.y/grid)*grid,layer:designMode.layer}  
+  const c=$('designCanvas'),g=layoutGeometry(c.width,c.height),grid=Math.max(22,Math.round(g.plotW/28));
+  return{x:clamp(Math.round(p.x/grid)*grid,g.margin,g.plotW-g.margin),y:clamp(Math.round(p.y/grid)*grid,g.margin,c.height-g.margin)}
 }  
-function nearestPad(p,pads,max=30){let best=null,d=max;for(const pad of pads){const q=Math.hypot(p.x-pad.x,p.y-pad.y);if(q<d){d=q;best=pad}}return best}  
-function onDesignClick(e){  
-  if(designMode.step!==2)return;const canvas=$('designCanvas'),p=designPointer(e),g=layoutGeometry(canvas.width,canvas.height);  
-  if(!designMode.layoutActive){  
-    const input=nearestPad(p,g.inputs);if(!input||designMode.layoutRoutes.some(r=>r.net===input.net))return;  
-    designMode.layoutActive=input.net;designMode.layoutDraft=[{x:input.x,y:input.y,layer:designMode.layer}];setDesignMessage(`${input.label} selected. Add route points and finish on ${input.net.replace('N','OUT')}.`);drawDesignStage();return  
-  }  
-  const output=nearestPad(p,g.outputs);  
-  if(output){  
-    if(output.net!==designMode.layoutActive){setDesignMessage('That output belongs to a different signal net.','warn');return}  
-    const last=designMode.layoutDraft.at(-1),end={x:output.x,y:output.y,layer:designMode.layer};  
-    if(last.x!==end.x&&last.y!==end.y)designMode.layoutDraft.push({x:last.x,y:end.y,layer:designMode.layer});  
-    designMode.layoutDraft.push(end);  
-    const layers=new Set(designMode.layoutDraft.map(q=>q.layer)),vias=designMode.layoutDraft.slice(1).filter((q,i)=>q.layer!==designMode.layoutDraft[i].layer).length;  
-    if(layers.size<2||vias<1){designMode.layoutDraft.pop();setDesignMessage('Use both M1 and M2 and place at least one via before reaching the output.','warn');drawDesignStage();return}  
-    if(!layoutDraftValid()){designMode.layoutDraft.pop();setDesignMessage('Route rejected: the final segment crosses a keep-out or same-layer trace.','warn');drawDesignStage();return}  
-    designMode.layoutRoutes.push({net:designMode.layoutActive,points:designMode.layoutDraft.map(q=>({...q})),vias});  
-    designMode.layoutActive=null;designMode.layoutDraft=[];updateLayoutState();drawDesignStage();return  
-  }  
-  const q=snapLayoutPoint(p),last=designMode.layoutDraft.at(-1);  
-  if(last.x!==q.x&&last.y!==q.y){const elbow={x:q.x,y:last.y,layer:designMode.layer};designMode.layoutDraft.push(elbow);if(!layoutDraftValid()){designMode.layoutDraft.pop();setDesignMessage('That segment would create a same-layer short or enter a keep-out.','warn');return}}  
-  designMode.layoutDraft.push(q);  
-  if(!layoutDraftValid()){designMode.layoutDraft.pop();setDesignMessage('That segment would create a same-layer short or enter a keep-out.','warn')}  
-  drawDesignStage()  
-}  
+function layoutElbowPoints(start,end,layer){const points=[{x:start.x,y:start.y,layer}];if(start.x!==end.x&&start.y!==end.y)points.push({x:end.x,y:start.y,layer});points.push({x:end.x,y:end.y,layer});return points}
+function beginLayoutWire(point){const node=nearestLayoutNode(point);if(!node){setDesignMessage('Start on one of the six terminals or a wire junction.','warn');return}designMode.layoutDraft={fromId:node.id,toId:null,layer:designMode.layer,points:[{x:node.x,y:node.y,layer:designMode.layer}],valid:false};updateLayoutWire(point)}
+function updateLayoutWire(point){const draft=designMode.layoutDraft;if(!draft)return;const target=nearestLayoutNode(point,draft.fromId),end=target?{x:target.x,y:target.y}:{...snapLayoutPoint(point)},start=layoutNode(draft.fromId);draft.toId=target?.id||null;draft.points=layoutElbowPoints(start,end,draft.layer);draft.valid=target?.id!==draft.fromId&&Math.hypot(end.x-start.x,end.y-start.y)>Math.max(18,$('designCanvas').width*.012)&&layoutDraftValid(draft);drawDesignStage()}
+function finishLayoutWire(point){if(!designMode.layoutDraft)return;updateLayoutWire(point);const draft=designMode.layoutDraft;if(!draft.valid){designMode.layoutDraft=null;setDesignMessage('Wire rejected. End on a node or clear the keep-out and same-layer traces.','warn');drawDesignStage();return}const start=layoutNode(draft.fromId);let end=layoutNode(draft.toId);if(!end){const point=draft.points.at(-1);let index=1;while(layoutNode(`J${index}`))index++;end={id:`J${index}`,kind:'junction',label:'JUNCTION',x:point.x,y:point.y,terminal:false,metals:new Set()};designMode.layoutNodes.push(end)}if(designMode.layoutRoutes.some(route=>route.layer===draft.layer&&((route.fromId===start.id&&route.toId===end.id)||(route.fromId===end.id&&route.toId===start.id)))){if(end.id.startsWith('J')&&!end.metals.size)designMode.layoutNodes.pop();designMode.layoutDraft=null;setDesignMessage('Those two points are already connected on this layer.','warn');drawDesignStage();return}start.metals.add(draft.layer);end.metals.add(draft.layer);designMode.layoutRoutes.push({fromId:start.id,toId:end.id,layer:draft.layer,points:draft.points.map(point=>({...point}))});designMode.layoutDraft=null;updateLayoutState();drawDesignStage();if(designWorld.active)syncDesignBoard()}
+function layoutPaletteAction(point){const g=layoutGeometry($('designCanvas').width,$('designCanvas').height);if(point.x<g.plotW)return false;if(point.y>=76&&point.y<=188){setWorldLayer('M1');return true}if(point.y>=210&&point.y<=322){setWorldLayer('M2');return true}return true}
+function onDesignClick(e){if(designMode.step!==2||designWorld.active)return;const point=designPointer(e);if(!Number.isFinite(point.x)||!Number.isFinite(point.y))return;if(layoutPaletteAction(point))return;if(!designMode.layoutDraft)beginLayoutWire(point);else finishLayoutWire(point)}
 function resetDesignStage(){  
   if(designMode.step===0){createRegressionChallenge();updateGainState()}  
   if(designMode.step===1){ensureCircuitChallenge(true);updateSchematicState();drawDesignStage()}  
-  if(designMode.step===2){designMode.layoutActive=null;designMode.layoutRoutes=[];designMode.layoutDraft=[];updateLayoutState();drawDesignStage()}  
+  if(designMode.step===2){designMode.layoutActive=null;designMode.layoutRoutes=[];designMode.layoutDraft=null;initializeLayoutNodes();updateLayoutState();drawDesignStage();if(designWorld.active)syncDesignBoard()}  
 }  
 function releaseDesign(){  
   const body=parallel?.active;  
@@ -1147,7 +1135,7 @@ function releaseDesign(){
   syncActiveWafer(body);state.current=1;toast(`${body.lotId} sensor design released. Proceed to the oxidation furnace.`);updateAll();closeDesignMode()  
 }  
 // V8.7 isolated 3D schematic and layout spaces.  
-const designWorld={root:null,board:null,texture:null,active:false,stage:0,returnPos:new THREE.Vector3(),returnYaw:0,returnPitch:0,dragging:false,gainDrag:null,xrDragging:new Set(),w:12,h:7.5,layout3D:null,layout3DSignature:''};
+const designWorld={root:null,board:null,texture:null,active:false,stage:0,returnPos:new THREE.Vector3(),returnYaw:0,returnPitch:0,dragging:false,gainDrag:null,xrDragging:new Set(),w:12,h:7.5,layout3D:null,layout3DSignature:'',layoutPreview3D:null};
 function ensureDesignWorld(){  
   if(designWorld.root)return;  
   const root=new THREE.Group();root.position.set(0,0,165);root.visible=false;scene.add(root);designWorld.root=root;  
@@ -1165,14 +1153,14 @@ function boardLocalFromCanvas(x,y){const c=$('designCanvas');return{x:(x/c.width
 function layoutBox(parent,x,y,w,h,z,depth,material){const q=boardLocalFromCanvas(x,y),sx=w/$('designCanvas').width*designWorld.w,sy=h/$('designCanvas').height*designWorld.h,m=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,depth),material);m.position.set(q.x,q.y,z+depth/2);m.renderOrder=20;parent.add(m);return m}  
 function layoutSegment3D(parent,a,b,layer,material){const pa=boardLocalFromCanvas(a.x,a.y),pb=boardLocalFromCanvas(b.x,b.y),z=layer==='M2'?.145:.055,thickness=.035,width=.105,dx=pb.x-pa.x,dy=pb.y-pa.y,length=Math.hypot(dx,dy);if(length<.002)return;const m=new THREE.Mesh(new THREE.BoxGeometry(length,width,thickness),material);m.position.set((pa.x+pb.x)/2,(pa.y+pb.y)/2,z);m.rotation.z=Math.atan2(dy,dx);m.renderOrder=24;parent.add(m)}  
 function layoutVia3D(parent,p,material){const q=boardLocalFromCanvas(p.x,p.y),height=.145-.055+.035,m=new THREE.Mesh(new THREE.CylinderGeometry(.12,.12,height,20),material);m.rotation.x=Math.PI/2;m.position.set(q.x,q.y,.055+height/2-.0175);m.renderOrder=26;parent.add(m)}  
-function layoutSignature(){return JSON.stringify({stage:designWorld.stage,active:designMode.layoutActive,layer:designMode.layer,routes:designMode.layoutRoutes,draft:designMode.layoutDraft})}  
+function layoutSignature(){return JSON.stringify({stage:designWorld.stage,routes:designMode.layoutRoutes})}  
 function syncLayout3D(force=false){  
   if(!designWorld.active||designWorld.stage!==2){if(designWorld.layout3D){disposeDesignObject(designWorld.layout3D);designWorld.layout3D=null;designWorld.layout3DSignature=''}return}  
   const signature=layoutSignature();if(!force&&signature===designWorld.layout3DSignature)return;designWorld.layout3DSignature=signature;if(designWorld.layout3D)disposeDesignObject(designWorld.layout3D);  
   const group=new THREE.Group();group.name='layout-depth-geometry';designWorld.board.add(group);designWorld.layout3D=group;  
-  const M1=new THREE.MeshStandardMaterial({color:0x53e7ff,metalness:.72,roughness:.24,emissive:0x0d5362,emissiveIntensity:.5});  
-  const M2=new THREE.MeshStandardMaterial({color:0xff5bbd,metalness:.72,roughness:.24,emissive:0x65143f,emissiveIntensity:.5});  
-  const VIA=new THREE.MeshStandardMaterial({color:0xffcf56,metalness:.82,roughness:.18,emissive:0x6a4d08,emissiveIntensity:.35});  
+  const M1=new THREE.MeshStandardMaterial({color:0xffe52b,metalness:.72,roughness:.24,emissive:0x665800,emissiveIntensity:.35});  
+  const M2=new THREE.MeshStandardMaterial({color:0x168dff,metalness:.72,roughness:.24,emissive:0x092e66,emissiveIntensity:.45});  
+  const VIA=new THREE.MeshStandardMaterial({color:0xd56b1f,metalness:.68,roughness:.28,emissive:0x612606,emissiveIntensity:.3});  
   const IN=new THREE.MeshStandardMaterial({color:0xff6579,metalness:.42,roughness:.3});  
   const OUT=new THREE.MeshStandardMaterial({color:0x6f78ff,metalness:.42,roughness:.3});  
   const BLOCK=new THREE.MeshStandardMaterial({color:0x4b2729,metalness:.08,roughness:.7,transparent:true,opacity:.94});  
@@ -1180,11 +1168,13 @@ function syncLayout3D(force=false){
   for(const q of g.inputs)layoutBox(group,q.x,q.y,padW,padH,0,top,IN);  
   for(const q of g.outputs)layoutBox(group,q.x,q.y,padW,padH,0,top,OUT);  
   for(const r of g.keepouts)layoutBox(group,r.x+r.w/2,r.y+r.h/2,r.w,r.h,0,top,BLOCK);  
-  const routes=[...designMode.layoutRoutes.map(r=>r.points),designMode.layoutDraft].filter(r=>r?.length>1);  
-  for(const points of routes){for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i];if(a.layer!==b.layer)layoutVia3D(group,b,VIA);else layoutSegment3D(group,a,b,b.layer,b.layer==='M2'?M2:M1)}}  
+  for(const route of designMode.layoutRoutes)for(let i=1;i<route.points.length;i++)layoutSegment3D(group,route.points[i-1],route.points[i],route.layer,route.layer==='M2'?M2:M1);  
+  for(const node of designMode.layoutNodes)if(!node.terminal&&node.metals.size>1)layoutVia3D(group,node,VIA)  
 }  
+function ensureLayoutPreview3D(){if(designWorld.layoutPreview3D)return;const group=new THREE.Group();group.name='layout-wire-preview';designWorld.board.add(group);designWorld.layoutPreview3D=group;for(let i=0;i<2;i++){const mesh=new THREE.Mesh(new THREE.BoxGeometry(1,.105,.04),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.38,depthWrite:false,toneMapped:false}));mesh.renderOrder=60;mesh.visible=false;group.add(mesh)}}
+function updateLayoutPreview3D(){if(!designWorld.active||designWorld.stage!==2||!designMode.layoutDraft){if(designWorld.layoutPreview3D)designWorld.layoutPreview3D.visible=false;return}ensureLayoutPreview3D();const group=designWorld.layoutPreview3D;group.visible=true;group.children.forEach(mesh=>mesh.visible=false);const draft=designMode.layoutDraft;draft.points.slice(1).forEach((point,index)=>{const mesh=group.children[index],a=draft.points[index],pa=boardLocalFromCanvas(a.x,a.y),pb=boardLocalFromCanvas(point.x,point.y),dx=pb.x-pa.x,dy=pb.y-pa.y,length=Math.hypot(dx,dy);mesh.visible=length>.002;mesh.position.set((pa.x+pb.x)/2,(pa.y+pb.y)/2,draft.layer==='M2'?.145:.055);mesh.rotation.z=Math.atan2(dy,dx);mesh.scale.x=Math.max(length,.001);mesh.material.color.setHex(draft.valid?(draft.layer==='M2'?0x168dff:0xffe52b):0xff6579)})}
 function drawWorldGainControls(ctx,w,h){
-  const left=w*.12,right=w*.88,trackW=right-left;
+  const left=w*.08,right=w*.66,trackW=right-left;
   ctx.fillStyle='rgba(3,14,22,.94)';ctx.fillRect(0,h*.72,w,h*.23);
   [['GRADIENT m',designMode.gain,-4,4,h*.78],['INTERCEPT c',designMode.intercept,-8,8,h*.88]].forEach(([label,value,min,max,y])=>{
     ctx.fillStyle='#d9edf4';ctx.font='700 20px monospace';ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(label,left,y-19);
@@ -1192,31 +1182,32 @@ function drawWorldGainControls(ctx,w,h){
     ctx.fillStyle='#193340';ctx.fillRect(left,y-5,trackW,10);
     ctx.fillStyle='#53e7ff';ctx.fillRect(left,y-5,trackW*(value-min)/(max-min),10);
     ctx.fillStyle='#ffffff';ctx.beginPath();ctx.arc(left+trackW*(value-min)/(max-min),y,13,0,Math.PI*2);ctx.fill()
-  })
+  });
+  const x=w*.72,y=h*.755,bw=w*.24,bh=h*.17;ctx.fillStyle='rgba(4,27,22,.98)';ctx.fillRect(x,y,bw,bh);ctx.strokeStyle='#67f6a3';ctx.lineWidth=3;ctx.strokeRect(x,y,bw,bh);ctx.fillStyle='#a8c9b8';ctx.textAlign='left';ctx.font='800 16px monospace';ctx.fillText('REGRESSION MATCH',x+14,y+27);ctx.fillStyle='#67f6a3';ctx.font='900 36px monospace';ctx.fillText(designMode.gainComplete?`${designMode.regressionBest.score.toFixed(1)}%`:'--%',x+14,y+70)
 }
-function syncDesignBoard(){if(!designWorld.active)return;const c=$('designCanvas');if(c.width<960||c.height<600){c.width=1280;c.height=800}drawDesignStage();const ctx=c.getContext('2d');if(designWorld.stage===0)drawWorldGainControls(ctx,c.width,c.height);drawWorldToolbar(ctx,c.width,c.height);const p=renderer.xr.isPresenting?null:desktopDesignPoint();if(p){ctx.strokeStyle='#53e7ff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,10,0,Math.PI*2);ctx.moveTo(p.x-15,p.y);ctx.lineTo(p.x+15,p.y);ctx.moveTo(p.x,p.y-15);ctx.lineTo(p.x,p.y+15);ctx.stroke()}syncLayout3D();designWorld.texture.needsUpdate=true}
+function syncDesignBoard(){if(!designWorld.active)return;const c=$('designCanvas');if(c.width<960||c.height<600){c.width=1280;c.height=800}drawDesignStage();const ctx=c.getContext('2d');if(designWorld.stage===0)drawWorldGainControls(ctx,c.width,c.height);drawWorldToolbar(ctx,c.width,c.height);const p=renderer.xr.isPresenting?null:desktopDesignPoint();if(p){ctx.strokeStyle='#53e7ff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,10,0,Math.PI*2);ctx.moveTo(p.x-15,p.y);ctx.lineTo(p.x+15,p.y);ctx.moveTo(p.x,p.y-15);ctx.lineTo(p.x,p.y+15);ctx.stroke()}syncLayout3D();updateLayoutPreview3D();designWorld.texture.needsUpdate=true}
 function enterDesignWorld(stage){  
   ensureDesignWorld();if(!designWorld.active){designWorld.returnPos.copy(player.position);designWorld.returnYaw=yaw;designWorld.returnPitch=pitch}  
-  designWorld.active=true;designWorld.stage=stage;designWorld.root.visible=true;if(stage===2)designWorld.layout3DSignature='';state.focus=null;state.nearest=null;$('designTerminal').className='';$('designTerminal').setAttribute('aria-hidden','true');document.body.classList.remove('design-editing');designMode.phase='world';$('designTerminal').className='';$('designTerminal').setAttribute('aria-hidden','true');document.body.classList.remove('design-editing');  
-  player.position.set(0,renderer.xr.isPresenting?.86:2.58,172);yaw=0;pitch=-.03;player.rotation.y=yaw;camera.rotation.x=pitch;Object.keys(keys).forEach(k=>keys[k]=false);if(!renderer.xr.isPresenting)renderer.domElement.requestPointerLock?.();syncDesignBoard();toast(stage===1?'Circuit space active: click-drag directly between wall terminals. F submits, R resets, X clears.':'Layout space active: click directly on the wall to draw nets. 1/2 select metal, Z undoes, F releases.')  
+  designWorld.active=true;designWorld.stage=stage;designWorld.root.visible=true;if(stage===2){if(!designMode.layoutNodes.length)initializeLayoutNodes();designWorld.layout3DSignature='';updateLayoutState()}state.focus=null;state.nearest=null;$('designTerminal').className='';$('designTerminal').setAttribute('aria-hidden','true');document.body.classList.remove('design-editing');designMode.phase='world';$('designTerminal').className='';$('designTerminal').setAttribute('aria-hidden','true');document.body.classList.remove('design-editing');  
+  player.position.set(0,renderer.xr.isPresenting?.86:2.58,172);yaw=0;pitch=-.03;player.rotation.y=yaw;camera.rotation.x=pitch;Object.keys(keys).forEach(k=>keys[k]=false);if(!renderer.xr.isPresenting)renderer.domElement.requestPointerLock?.();syncDesignBoard();toast(stage===1?'Circuit space active: click-drag directly between wall terminals. F submits, R resets, X clears.':'Layout active: choose M1 or M2, hold a terminal or junction, drag an elbow and release to commit. F releases.')  
 }  
 function leaveDesignWorld(returnOverlay=true){  
   if(!designWorld.active)return;if(designWorld.layout3D){disposeDesignObject(designWorld.layout3D);designWorld.layout3D=null;designWorld.layout3DSignature=''}designWorld.active=false;designWorld.root.visible=false;designWorld.dragging=false;state.focus=null;state.nearest=null;designWorld.xrDragging.clear();player.position.copy(designWorld.returnPos);yaw=designWorld.returnYaw;pitch=designWorld.returnPitch;player.rotation.y=yaw;camera.rotation.x=pitch;  
   if(returnOverlay&&designMode.step===0){designMode.phase='active';$('designTerminal').className='active';$('designTerminal').setAttribute('aria-hidden','false');document.body.classList.add('design-editing');renderDesignStep();setTimeout(resizeDesignCanvas,0)}else{designMode.phase='idle';$('designTerminal').className='';$('designTerminal').setAttribute('aria-hidden','true');document.body.classList.remove('design-editing')}  
 }  
-function worldToolbarButtons(w,h){const gap=12,y=h-58,bh=42,labels=designWorld.stage===0?[[designMode.gainComplete?'NEXT: CIRCUIT':'SUBMIT FIT','submit'],['EXIT','exit']]:designWorld.stage===1?[['RESET','reset'],['CLEAR WIRES','clear'],['SUBMIT / NEXT','submit'],['EXIT','exit']]:[['M1','m1'],['M2','m2'],['UNDO','undo'],['CLEAR NET','clear'],['SUBMIT / RELEASE','submit'],['EXIT','exit']],bw=(w-gap*(labels.length+1))/labels.length;return labels.map((v,i)=>({label:v[0],action:v[1],x:gap+i*(bw+gap),y,w:bw,h:bh}))}  
+function worldToolbarButtons(w,h){const gap=12,y=h-58,bh=42,labels=designWorld.stage===0?[[designMode.gainComplete?'NEXT: CIRCUIT':'SUBMIT FIT','submit'],['EXIT','exit']]:designWorld.stage===1?[['RESET','reset'],['CLEAR WIRES','clear'],['SUBMIT / NEXT','submit'],['EXIT','exit']]:[['UNDO WIRE','undo'],['CLEAR ROUTES','clear'],['RELEASE DESIGN','submit'],['EXIT','exit']],bw=(w-gap*(labels.length+1))/labels.length;return labels.map((v,i)=>({label:v[0],action:v[1],x:gap+i*(bw+gap),y,w:bw,h:bh}))}  
 function drawWorldToolbar(ctx,w,h){const buttons=worldToolbarButtons(w,h);ctx.save();ctx.fillStyle='rgba(3,14,22,.94)';ctx.fillRect(0,h-72,w,72);ctx.font=`700 ${Math.max(14,w*.014)}px monospace`;ctx.textAlign='center';ctx.textBaseline='middle';for(const b of buttons){const active=(b.action==='m1'&&designMode.layer==='M1')||(b.action==='m2'&&designMode.layer==='M2');ctx.fillStyle=active?'#15566b':'#102936';ctx.strokeStyle=active?'#53e7ff':'#4b7183';ctx.lineWidth=3;ctx.fillRect(b.x,b.y,b.w,b.h);ctx.strokeRect(b.x,b.y,b.w,b.h);ctx.fillStyle=active?'#ffffff':'#c9e5ef';ctx.fillText(b.label,b.x+b.w/2,b.y+b.h/2)}ctx.restore()}  
 function toolbarActionAt(p){const c=$('designCanvas');return worldToolbarButtons(c.width,c.height).find(b=>p.x>=b.x&&p.x<=b.x+b.w&&p.y>=b.y&&p.y<=b.y+b.h)?.action||null}  
-function setWorldLayer(layer){designMode.layer=layer;document.querySelectorAll('.layer-btn').forEach(b=>b.classList.toggle('active',b.dataset.layer===layer));if(designWorld.stage===2&&designMode.layoutDraft.length){const p=designMode.layoutDraft.at(-1);if(p.layer!==layer)designMode.layoutDraft.push({...p,layer})}syncDesignBoard()}  
+function setWorldLayer(layer){designMode.layer=layer;document.querySelectorAll('.layer-btn').forEach(b=>b.classList.toggle('active',b.dataset.layer===layer));if(designWorld.active)syncDesignBoard();else drawDesignStage()}  
 function executeWorldAction(action){  
   if(action==='exit'){leaveDesignWorld(false);closeDesignMode();return}  
   if(action==='submit'&&designWorld.stage===0){if(!designMode.gainComplete){submitRegression();syncDesignBoard();return}designMode.step=1;designMode.schematicDrag=null;renderDesignStep();designWorld.stage=1;syncDesignBoard();toast('Regression verified. Circuit repair is now active on the wall.');return}
   if(action==='reset'){resetDesignStage();syncDesignBoard();return}  
-  if(action==='clear'){if(designWorld.stage===1){designMode.schematicLinks.clear();designMode.schematicDrag=null;designMode.schematicSubmitted=false;designMode.schematicComplete=false;updateSchematicState()}else{designMode.layoutActive=null;designMode.layoutDraft=[];updateLayoutState()}syncDesignBoard();return}  
-  if(action==='undo'){if(designMode.layoutDraft.length>1)designMode.layoutDraft.pop();syncDesignBoard();return}  
+  if(action==='clear'){if(designWorld.stage===1){designMode.schematicLinks.clear();designMode.schematicDrag=null;designMode.schematicSubmitted=false;designMode.schematicComplete=false;updateSchematicState()}else{designMode.layoutDraft=null;designMode.layoutRoutes=[];initializeLayoutNodes();updateLayoutState()}syncDesignBoard();return}  
+  if(action==='undo'){const route=designMode.layoutRoutes.pop();if(route){rebuildLayoutNodeMetals();const end=layoutNode(route.toId);if(end&&!end.terminal&&!end.metals.size)designMode.layoutNodes=designMode.layoutNodes.filter(node=>node!==end);updateLayoutState()}syncDesignBoard();return}  
   if(action==='m1'||action==='m2'){setWorldLayer(action.toUpperCase());return}  
   if(action==='submit'){  
-    if(designWorld.stage===1){submitSchematic();syncDesignBoard();if(designMode.schematicComplete){designMode.step=2;designWorld.stage=2;designWorld.layout3DSignature='';designMode.layoutActive=null;designMode.layoutDraft=[];renderDesignStep();syncDesignBoard();toast('Circuit verified. Two-layer layout is now active on the wall.')}return}  
+    if(designWorld.stage===1){submitSchematic();syncDesignBoard();if(designMode.schematicComplete){designMode.step=2;designWorld.stage=2;designWorld.layout3DSignature='';designMode.layoutActive=null;designMode.layoutDraft=null;initializeLayoutNodes();renderDesignStep();syncDesignBoard();toast('Circuit verified. Two-layer layout is now active on the wall.')}return}  
     if(designMode.layoutComplete){leaveDesignWorld(false);releaseDesign()}else{setDesignMessage('Complete all three routes before release.','warn');syncDesignBoard()}return  
   }  
 }  
@@ -1226,8 +1217,8 @@ function boardPointFromRay(origin,direction){
 function desktopDesignPoint(){raycaster.setFromCamera({x:0,y:0},camera);return boardPointFromRay(raycaster.ray.origin,raycaster.ray.direction)}  
 function xrDesignPoint(c){const m=new THREE.Matrix4().identity().extractRotation(c.matrixWorld),o=new THREE.Vector3().setFromMatrixPosition(c.matrixWorld),d=new THREE.Vector3(0,0,-1).applyMatrix4(m).normalize();return boardPointFromRay(o,d)}  
 function fakeEvent(p){return{designX:p.x,designY:p.y,pointerId:1}}  
-function updateWorldGainSlider(p,index){const c=$('designCanvas'),ratio=clamp((p.x-c.width*.12)/(c.width*.76),0,1);if(index===0){designMode.gain=Number((-4+ratio*8).toFixed(2));$('gainSlider').value=String(designMode.gain)}else{designMode.intercept=Number((-8+ratio*16).toFixed(2));$('interceptSlider').value=String(designMode.intercept)}updateGainState()}
-function designBoardAction(action,p){if(action==='up'&&designWorld.stage===0)designWorld.gainDrag=null;if(!p)return;if(action==='down'){const command=toolbarActionAt(p);if(command){executeWorldAction(command);return}}if(designWorld.stage===0){const c=$('designCanvas'),x=p.x/c.width,y=p.y/c.height;if(action==='down'&&x>=.12&&x<=.88&&y>=.745&&y<=.815)designWorld.gainDrag=0;else if(action==='down'&&x>=.12&&x<=.88&&y>=.845&&y<=.915)designWorld.gainDrag=1;if((action==='down'||action==='move')&&designWorld.gainDrag!==null)updateWorldGainSlider(p,designWorld.gainDrag);syncDesignBoard();return}const e=fakeEvent(p);if(designWorld.stage===1){if(action==='down')onDesignPointerDown(e);else if(action==='move')onDesignPointerMove(e);else onDesignPointerUp(e)}else if(action==='down')onDesignClick(e);syncDesignBoard()}  
+function updateWorldGainSlider(p,index){const c=$('designCanvas'),ratio=clamp((p.x-c.width*.08)/(c.width*.58),0,1);if(index===0){designMode.gain=Number((-4+ratio*8).toFixed(2));$('gainSlider').value=String(designMode.gain)}else{designMode.intercept=Number((-8+ratio*16).toFixed(2));$('interceptSlider').value=String(designMode.intercept)}updateGainState()}
+function designBoardAction(action,p){if(action==='up'&&designWorld.stage===0)designWorld.gainDrag=null;if(!p)return;if(action==='down'){const command=toolbarActionAt(p);if(command){executeWorldAction(command);return}}if(designWorld.stage===0){const c=$('designCanvas'),x=p.x/c.width,y=p.y/c.height;if(action==='down'&&x>=.08&&x<=.66&&y>=.745&&y<=.815)designWorld.gainDrag=0;else if(action==='down'&&x>=.08&&x<=.66&&y>=.845&&y<=.915)designWorld.gainDrag=1;if((action==='down'||action==='move')&&designWorld.gainDrag!==null)updateWorldGainSlider(p,designWorld.gainDrag);syncDesignBoard();return}if(designWorld.stage===1){const e=fakeEvent(p);if(action==='down')onDesignPointerDown(e);else if(action==='move')onDesignPointerMove(e);else onDesignPointerUp(e);syncDesignBoard();return}if(action==='down'){if(layoutPaletteAction(p))return;beginLayoutWire(p)}else if(action==='move')updateLayoutWire(p);else finishLayoutWire(p);syncDesignBoard()}  
 function designDesktopDown(e){if(!designWorld.active||e.button!==0)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();if(document.pointerLockElement!==renderer.domElement)renderer.domElement.requestPointerLock?.();const p=desktopDesignPoint();if(p){designWorld.dragging=true;designBoardAction('down',p)}}  
 function blockDesignWorldActivation(e){if(!designWorld.active)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation()}  
 function designDesktopPointerDown(e){if(designWorld.active)blockDesignWorldActivation(e)}  
@@ -1324,13 +1315,9 @@ bind=function(){
   $('designExit').onclick=()=>{if(designWorld.active)leaveDesignWorld(false);closeDesignMode()};$('designReset').onclick=resetDesignStage;  
   $('designBack').onclick=()=>{if(designWorld.active)leaveDesignWorld(false);if(designMode.step>0){designMode.step--;renderDesignStep();if(designMode.step>0)enterDesignWorld(designMode.step)}};  
   $('designNext').onclick=()=>{if(designMode.step===0){designMode.step=1;renderDesignStep();enterDesignWorld(1)}else if(!designWorld.active&&designMode.step>0)enterDesignWorld(designMode.step)};  
-  document.querySelectorAll('.layer-btn').forEach(btn=>btn.onclick=()=>{  
-    designMode.layer=btn.dataset.layer;document.querySelectorAll('.layer-btn').forEach(b=>b.classList.toggle('active',b===btn));  
-    if(designMode.layoutDraft.length){const p=designMode.layoutDraft.at(-1);designMode.layoutDraft.push({...p,layer:designMode.layer})}  
-    drawDesignStage()  
-  });  
-  $('undoRoute').onclick=()=>{if(designMode.layoutDraft.length>1)designMode.layoutDraft.pop();drawDesignStage()};  
-  $('clearRoute').onclick=()=>{designMode.layoutActive=null;designMode.layoutDraft=[];drawDesignStage()};  
+  document.querySelectorAll('.layer-btn').forEach(btn=>btn.onclick=()=>setWorldLayer(btn.dataset.layer));  
+  $('undoRoute').onclick=()=>executeWorldAction('undo');  
+  $('clearRoute').onclick=()=>executeWorldAction('clear');  
   addEventListener('resize',resizeDesignCanvas);  
   addEventListener('keydown',e=>{if(designMode.phase==='active'&&e.code==='Escape'){e.preventDefault();closeDesignMode()}},true)  
 };  
@@ -1339,7 +1326,7 @@ const v7XRMove=updateXRMovement;updateXRMovement=function(dt,now){if(updateDesig
 newRun=function(){  
   v7NewRunDesign();  
   designMode.step=0;designMode.gain=0;designMode.intercept=0;designMode.gainComplete=false;designMode.regression=null;designMode.regressionAttempts=0;designMode.regressionBest=null;designMode.schematicComplete=false;designMode.schematicSubmitted=false;designMode.schematicScore=0;designMode.circuit=null;designMode.layoutComplete=false;  
-  designMode.schematicDrag=null;designMode.schematicLinks.clear();designMode.layer='M1';designMode.layoutActive=null;designMode.layoutRoutes=[];designMode.layoutDraft=[];designMode.releasedBodies.clear();  
+  designMode.schematicDrag=null;designMode.schematicLinks.clear();designMode.layer='M1';designMode.layoutActive=null;designMode.layoutNodes=[];designMode.layoutRoutes=[];designMode.layoutDraft=null;designMode.releasedBodies.clear();  
   if($('gainSlider'))$('gainSlider').value='0';if($('interceptSlider'))$('interceptSlider').value='0';  
   document.querySelectorAll('.layer-btn').forEach(btn=>btn.classList.toggle('active',btn.dataset.layer==='M1'));  
   if(designWorld.active)leaveDesignWorld(false);if(designMode.phase!=='idle'){designMode.phase='idle';$('designTerminal').className='';document.body.classList.remove('design-editing')}  
