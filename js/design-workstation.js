@@ -23,7 +23,7 @@ function designScreen(){
 function startDesignMode(){
   if(designWorld.active||designMode.phase==='world')return;
   if(designMode.step===1||designMode.step===2){enterDesignWorld(designMode.step);return;}
-  if(renderer.xr.isPresenting){toast('The desktop design workstation uses the monitor overlay. Exit VR to operate it.','warn');return}
+  if(renderer.xr.isPresenting){renderDesignStep();enterDesignWorld(designMode.step);return}
   const screen=designScreen();
   if(!screen)return;
   if(document.pointerLockElement)document.exitPointerLock?.();
@@ -221,7 +221,7 @@ function releaseDesign(){
 }
 
 // V8.7 isolated 3D schematic and layout spaces.
-const designWorld={root:null,board:null,texture:null,active:false,stage:0,returnPos:new THREE.Vector3(),returnYaw:0,returnPitch:0,dragging:false,xrDragging:new Set(),w:12,h:7.5,layout3D:null,layout3DSignature:''};
+const designWorld={root:null,board:null,texture:null,active:false,stage:0,returnPos:new THREE.Vector3(),returnYaw:0,returnPitch:0,dragging:false,gainDrag:null,xrDragging:new Set(),w:12,h:7.5,layout3D:null,layout3DSignature:''};
 function ensureDesignWorld(){
   if(designWorld.root)return;
   const root=new THREE.Group();root.position.set(0,0,165);root.visible=false;scene.add(root);designWorld.root=root;
@@ -257,7 +257,18 @@ function syncLayout3D(force=false){
   const routes=[...designMode.layoutRoutes.map(r=>r.points),designMode.layoutDraft].filter(r=>r?.length>1);
   for(const points of routes){for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i];if(a.layer!==b.layer)layoutVia3D(group,b,VIA);else layoutSegment3D(group,a,b,b.layer,b.layer==='M2'?M2:M1)}}
 }
-function syncDesignBoard(){if(!designWorld.active)return;const c=$('designCanvas');if(c.width<960||c.height<600){c.width=1280;c.height=800}drawDesignStage();const ctx=c.getContext('2d');drawWorldToolbar(ctx,c.width,c.height);const p=renderer.xr.isPresenting?null:desktopDesignPoint();if(p){ctx.strokeStyle='#53e7ff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,10,0,Math.PI*2);ctx.moveTo(p.x-15,p.y);ctx.lineTo(p.x+15,p.y);ctx.moveTo(p.x,p.y-15);ctx.lineTo(p.x,p.y+15);ctx.stroke()}syncLayout3D();designWorld.texture.needsUpdate=true}
+function drawWorldGainControls(ctx,w,h){
+  const left=w*.12,right=w*.88,trackW=right-left;
+  ctx.fillStyle='rgba(3,14,22,.94)';ctx.fillRect(0,h*.72,w,h*.23);
+  [['GRADIENT m',designMode.gain,-4,4,h*.78],['INTERCEPT c',designMode.intercept,-8,8,h*.88]].forEach(([label,value,min,max,y])=>{
+    ctx.fillStyle='#d9edf4';ctx.font='700 20px monospace';ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(label, left,y-19);
+    ctx.fillStyle='#8da9b5';ctx.textAlign='right';ctx.fillText(value.toFixed(2),right,y-19);
+    ctx.fillStyle='#193340';ctx.fillRect(left,y-5,trackW,10);
+    ctx.fillStyle='#53e7ff';ctx.fillRect(left,y-5,trackW*(value-min)/(max-min),10);
+    ctx.fillStyle='#ffffff';ctx.beginPath();ctx.arc(left+trackW*(value-min)/(max-min),y,13,0,Math.PI*2);ctx.fill()
+  })
+}
+function syncDesignBoard(){if(!designWorld.active)return;const c=$('designCanvas');if(c.width<960||c.height<600){c.width=1280;c.height=800}drawDesignStage();const ctx=c.getContext('2d');if(designWorld.stage===0)drawWorldGainControls(ctx,c.width,c.height);drawWorldToolbar(ctx,c.width,c.height);const p=renderer.xr.isPresenting?null:desktopDesignPoint();if(p){ctx.strokeStyle='#53e7ff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,10,0,Math.PI*2);ctx.moveTo(p.x-15,p.y);ctx.lineTo(p.x+15,p.y);ctx.moveTo(p.x,p.y-15);ctx.lineTo(p.x,p.y+15);ctx.stroke()}syncLayout3D();designWorld.texture.needsUpdate=true}
 function enterDesignWorld(stage){
   ensureDesignWorld();if(!designWorld.active){designWorld.returnPos.copy(player.position);designWorld.returnYaw=yaw;designWorld.returnPitch=pitch}
   designWorld.active=true;designWorld.stage=stage;designWorld.root.visible=true;if(stage===2)designWorld.layout3DSignature='';state.focus=null;state.nearest=null;$('designTerminal').className='';$('designTerminal').setAttribute('aria-hidden','true');document.body.classList.remove('design-editing');designMode.phase='world';$('designTerminal').className='';$('designTerminal').setAttribute('aria-hidden','true');document.body.classList.remove('design-editing');
@@ -267,12 +278,13 @@ function leaveDesignWorld(returnOverlay=true){
   if(!designWorld.active)return;if(designWorld.layout3D){disposeDesignObject(designWorld.layout3D);designWorld.layout3D=null;designWorld.layout3DSignature=''}designWorld.active=false;designWorld.root.visible=false;designWorld.dragging=false;state.focus=null;state.nearest=null;designWorld.xrDragging.clear();player.position.copy(designWorld.returnPos);yaw=designWorld.returnYaw;pitch=designWorld.returnPitch;player.rotation.y=yaw;camera.rotation.x=pitch;
   if(returnOverlay&&designMode.step===0){designMode.phase='active';$('designTerminal').className='active';$('designTerminal').setAttribute('aria-hidden','false');document.body.classList.add('design-editing');renderDesignStep();setTimeout(resizeDesignCanvas,0)}else{designMode.phase='idle';$('designTerminal').className='';$('designTerminal').setAttribute('aria-hidden','true');document.body.classList.remove('design-editing')}
 }
-function worldToolbarButtons(w,h){const gap=12,y=h-58,bh=42,labels=designWorld.stage===1?[['RESET','reset'],['CLEAR WIRES','clear'],['SUBMIT / NEXT','submit'],['EXIT','exit']]:[['M1','m1'],['M2','m2'],['UNDO','undo'],['CLEAR NET','clear'],['SUBMIT / RELEASE','submit'],['EXIT','exit']],bw=(w-gap*(labels.length+1))/labels.length;return labels.map((v,i)=>({label:v[0],action:v[1],x:gap+i*(bw+gap),y,w:bw,h:bh}))}
+function worldToolbarButtons(w,h){const gap=12,y=h-58,bh=42,labels=designWorld.stage===0?[[designMode.gainComplete?'NEXT: CIRCUIT':'SUBMIT FIT','submit'],['EXIT','exit']]:designWorld.stage===1?[['RESET','reset'],['CLEAR WIRES','clear'],['SUBMIT / NEXT','submit'],['EXIT','exit']]:[['M1','m1'],['M2','m2'],['UNDO','undo'],['CLEAR NET','clear'],['SUBMIT / RELEASE','submit'],['EXIT','exit']],bw=(w-gap*(labels.length+1))/labels.length;return labels.map((v,i)=>({label:v[0],action:v[1],x:gap+i*(bw+gap),y,w:bw,h:bh}))}
 function drawWorldToolbar(ctx,w,h){const buttons=worldToolbarButtons(w,h);ctx.save();ctx.fillStyle='rgba(3,14,22,.94)';ctx.fillRect(0,h-72,w,72);ctx.font=`700 ${Math.max(14,w*.014)}px monospace`;ctx.textAlign='center';ctx.textBaseline='middle';for(const b of buttons){const active=(b.action==='m1'&&designMode.layer==='M1')||(b.action==='m2'&&designMode.layer==='M2');ctx.fillStyle=active?'#15566b':'#102936';ctx.strokeStyle=active?'#53e7ff':'#4b7183';ctx.lineWidth=3;ctx.fillRect(b.x,b.y,b.w,b.h);ctx.strokeRect(b.x,b.y,b.w,b.h);ctx.fillStyle=active?'#ffffff':'#c9e5ef';ctx.fillText(b.label,b.x+b.w/2,b.y+b.h/2)}ctx.restore()}
 function toolbarActionAt(p){const c=$('designCanvas');return worldToolbarButtons(c.width,c.height).find(b=>p.x>=b.x&&p.x<=b.x+b.w&&p.y>=b.y&&p.y<=b.y+b.h)?.action||null}
 function setWorldLayer(layer){designMode.layer=layer;document.querySelectorAll('.layer-btn').forEach(b=>b.classList.toggle('active',b.dataset.layer===layer));if(designWorld.stage===2&&designMode.layoutDraft.length){const p=designMode.layoutDraft.at(-1);if(p.layer!==layer)designMode.layoutDraft.push({...p,layer})}syncDesignBoard()}
 function executeWorldAction(action){
   if(action==='exit'){leaveDesignWorld(false);closeDesignMode();return}
+  if(action==='submit'&&designWorld.stage===0){if(!designMode.gainComplete){submitRegression();syncDesignBoard();return}designMode.step=1;designMode.schematicDrag=null;renderDesignStep();designWorld.stage=1;syncDesignBoard();toast('Regression verified. Circuit repair is now active on the wall.');return}
   if(action==='reset'){resetDesignStage();syncDesignBoard();return}
   if(action==='clear'){if(designWorld.stage===1){designMode.schematicLinks.clear();designMode.schematicDrag=null;designMode.schematicSubmitted=false;designMode.schematicComplete=false;updateSchematicState()}else{designMode.layoutActive=null;designMode.layoutDraft=[];updateLayoutState()}syncDesignBoard();return}
   if(action==='undo'){if(designMode.layoutDraft.length>1)designMode.layoutDraft.pop();syncDesignBoard();return}
@@ -288,13 +300,14 @@ function boardPointFromRay(origin,direction){
 function desktopDesignPoint(){raycaster.setFromCamera({x:0,y:0},camera);return boardPointFromRay(raycaster.ray.origin,raycaster.ray.direction)}
 function xrDesignPoint(c){const m=new THREE.Matrix4().identity().extractRotation(c.matrixWorld),o=new THREE.Vector3().setFromMatrixPosition(c.matrixWorld),d=new THREE.Vector3(0,0,-1).applyMatrix4(m).normalize();return boardPointFromRay(o,d)}
 function fakeEvent(p){return{designX:p.x,designY:p.y,pointerId:1}}
-function designBoardAction(action,p){if(!p)return;if(action==='down'){const command=toolbarActionAt(p);if(command){executeWorldAction(command);return}}const e=fakeEvent(p);if(designWorld.stage===1){if(action==='down')onDesignPointerDown(e);else if(action==='move')onDesignPointerMove(e);else onDesignPointerUp(e)}else if(action==='down')onDesignClick(e);syncDesignBoard()}
+function updateWorldGainSlider(p,index){const c=$('designCanvas'),ratio=clamp((p.x-c.width*.12)/(c.width*.76),0,1);if(index===0){designMode.gain=Number((-4+ratio*8).toFixed(2));$('gainSlider').value=String(designMode.gain)}else{designMode.intercept=Number((-8+ratio*16).toFixed(2));$('interceptSlider').value=String(designMode.intercept)}updateGainState()}
+function designBoardAction(action,p){if(action==='up'&&designWorld.stage===0)designWorld.gainDrag=null;if(!p)return;if(action==='down'){const command=toolbarActionAt(p);if(command){executeWorldAction(command);return}}if(designWorld.stage===0){const c=$('designCanvas'),x=p.x/c.width,y=p.y/c.height;if(action==='down'&&x>=.12&&x<=.88&&y>=.745&&y<=.815)designWorld.gainDrag=0;else if(action==='down'&&x>=.12&&x<=.88&&y>=.845&&y<=.915)designWorld.gainDrag=1;if((action==='down'||action==='move')&&designWorld.gainDrag!==null)updateWorldGainSlider(p,designWorld.gainDrag);syncDesignBoard();return}const e=fakeEvent(p);if(designWorld.stage===1){if(action==='down')onDesignPointerDown(e);else if(action==='move')onDesignPointerMove(e);else onDesignPointerUp(e)}else if(action==='down')onDesignClick(e);syncDesignBoard()}
 function designDesktopDown(e){if(!designWorld.active||e.button!==0)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();if(document.pointerLockElement!==renderer.domElement)renderer.domElement.requestPointerLock?.();const p=desktopDesignPoint();if(p){designWorld.dragging=true;designBoardAction('down',p)}}
 function blockDesignWorldActivation(e){if(!designWorld.active)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation()}
 function designDesktopPointerDown(e){if(designWorld.active)blockDesignWorldActivation(e)}
 function designDesktopUp(e){if(!designWorld.active||!designWorld.dragging)return;e?.preventDefault?.();e?.stopImmediatePropagation?.();designBoardAction('up',desktopDesignPoint());designWorld.dragging=false}
 function designXRStart(c){if(!designWorld.active)return false;const p=xrDesignPoint(c);if(!p)return false;designWorld.xrDragging.add(handKey(c));designBoardAction('down',p);pulseXR(.35,35);return true}
-function designXREnd(c){if(!designWorld.active||!designWorld.xrDragging.has(handKey(c)))return false;designBoardAction('up',xrDesignPoint(c));designWorld.xrDragging.delete(handKey(c));return true}
+function designXREnd(c){if(!designWorld.active||!designWorld.xrDragging.has(handKey(c)))return false;designBoardAction('up',xrDesignPoint(c));if(designWorld.stage===0)designWorld.gainDrag=null;designWorld.xrDragging.delete(handKey(c));return true}
 function updateDesignInteraction(){if(!designWorld.active)return;if(designWorld.dragging)designBoardAction('move',desktopDesignPoint());for(const c of [xrController0,xrController1])if(designWorld.xrDragging.has(handKey(c)))designBoardAction('move',xrDesignPoint(c));syncDesignBoard()}
 function updateDesignLocomotion(dt){
   if(renderer.xr.isPresenting||!designWorld.active)return;let f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0),r=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0),n=Math.hypot(f,r)||1;f/=n;r/=n;const crouch=keys.ShiftLeft||keys.ShiftRight,sprint=(keys.ControlLeft||keys.ControlRight)&&!crouch,speed=crouch?1.2:sprint?5.2:2.75;player.position.x=clamp(player.position.x+(-Math.sin(yaw)*f+Math.cos(yaw)*r)*speed*dt,-10.8,10.8);player.position.z=clamp(player.position.z+(-Math.cos(yaw)*f-Math.sin(yaw)*r)*speed*dt,157,175);player.position.y=lerp(player.position.y,crouch?1.29:2.58,1-Math.exp(-dt*10));player.rotation.y=yaw;camera.rotation.x=pitch
@@ -395,7 +408,7 @@ bind=function(){
   addEventListener('resize',resizeDesignCanvas);
   addEventListener('keydown',e=>{if(designMode.phase==='active'&&e.code==='Escape'){e.preventDefault();closeDesignMode()}},true)
 };
-const v7XRMove=updateXRMovement;updateXRMovement=function(dt,now){if(updateDesignXRLocomotion(dt,now))return;v7XRMove(dt,now)};const v7XRStart=onXRTriggerStart,v7XREnd=onXRTriggerEnd;onXRTriggerStart=function(c){if(designWorld.active){designXRStart(c);return}v7XRStart(c)};onXRTriggerEnd=function(c){if(designWorld.active){designXREnd(c);return}v7XREnd(c)};  
+const v7XRMove=updateXRMovement;updateXRMovement=function(dt,now){if(updateDesignXRLocomotion(dt,now))return;v7XRMove(dt,now)};const v7XRStart=onXRTriggerStart,v7XREnd=onXRTriggerEnd;onXRTriggerStart=function(c){if(designWorld.active){designXRStart(c);return}const hit=xrInteractiveHit(c);if(hit?.object.userData.kind==='designTerminal'){state.focus=hit.object;activateFocused();pulseXR(.45,45);return}v7XRStart(c)};onXRTriggerEnd=function(c){if(designWorld.active){designXREnd(c);return}v7XREnd(c)};  
   const v7NewRunDesign=newRun;
 newRun=function(){
   v7NewRunDesign();
