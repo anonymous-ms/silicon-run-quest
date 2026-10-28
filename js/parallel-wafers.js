@@ -537,9 +537,11 @@ stopProcess=function(i){
   const st=status[i],station=stations[i],body=machines[i+1].body;    
   if(!st.cycle||!body)return;    
   syncActiveWafer(body);    
+  const activityTime=performance.now()-st.cycle.start;
   const result=scoreProcess(i);    
   st.score=result.score;st.deviations=result.deviations;st.state='done';    
-  body.records[i]={score:result.score,metric:st.metric,ratio:st.metric/station.metric.target,values:{...st.values},processSeconds:st.cycle.processSeconds};    
+  body.records[i]={score:result.score,metric:st.metric,ratio:st.metric/station.metric.target,values:{...st.values},processSeconds:st.cycle.processSeconds,elapsedMs:activityTime};      
+  recordActivity(station.short,activityTime,result.score,body.lotId);
   if(i===0)body.pattern=st.values.pattern;    
   st.cycle=null;    
   state.cycle=runningCycles()[0]?.cycle||null;    
