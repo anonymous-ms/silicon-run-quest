@@ -25,7 +25,7 @@
 <div class="recipe" id="recipeText">Approach the active station. Point at its physical controls and click or press E. Rotate dials and move sliders with the mouse wheel.</div>        
 <div class="control-readout"><small id="controlLabel">POINT AT A DIAL, SLIDER OR BUTTON</small><strong id="controlValue">—</strong><div class="spec-line" id="controlSpec"></div></div>        
 <div class="processMetric"><div class="metric-head"><span id="metricLabel">PROCESS RESULT</span><strong id="metricValue">—</strong></div><div class="metric-track"><i id="metricFill"></i></div></div>        
-<div class="machine-help">Door interlocks are enforced. LOAD and UNLOAD operate only with the door open. START and STOP operate only with the door fully closed.</div><div class="wafer-layers" id="waferLayers"><b>CARRIED WAFER</b><span>No wafer issued</span></div>        
+<div class="machine-help">Door interlocks are enforced. LOAD and UNLOAD operate only with the door open. START and STOP operate only with the door fully closed.</div><div class="wafer-layers" id="waferLayers"><b>CARRIED WAFER</b><span>No wafer issued</span></div><button id="openPhotoresist" type="button" hidden>OPEN 3D PROCESS MODULE</button>        
 </aside>        
 <div id="cycleBar" class="glass"><div class="cycleTop"><strong id="cycleName">PROCESS ACTIVE</strong><span id="cycleTime">0.0 process s</span></div><div class="cycleTrack"><i id="cycleFill"></i></div></div>        
 <div class="controls"><b>MOVE</b> WASD / arrows &nbsp; <b>LOOK</b> mouse<br><b>CROUCH</b> Shift &nbsp; <b>SPRINT</b> Ctrl &nbsp; <b>OPERATE</b> click / E &nbsp; <b>ADJUST</b> wheel</div>        
@@ -78,6 +78,7 @@
   </section>  
 </div>  
 <div id="report"><div class="reportCard glass"><div class="reportTop"><div><div class="eyebrow">FINAL MANUFACTURING RECORD</div><h2 id="reportTitle">Lot complete</h2><div class="copy" id="reportSub"></div></div><div class="grade" id="reportGrade">A</div></div><div class="kpis" id="reportKpis"></div><table class="reportTable"><thead><tr><th>STAGE</th><th>RESULT</th><th>RECORDED ENDPOINT</th><th>KEY DEVIATION</th></tr></thead><tbody id="reportRows"></tbody></table><div class="reportActions"><button class="secondary" id="closeReport">VIEW WAFER</button><button class="primary" id="newLot">START ANOTHER RUN</button></div></div></div>        
+<script src="./js/photoresist-chamber.js"></script>
 <script src="./js/silicon-run.js"></script>        
 </body>        
 </html>
