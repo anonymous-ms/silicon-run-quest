@@ -27,7 +27,7 @@ function createContext(){
 
 test('MOS source-drain path has four corners and lands on its terminals',()=>{
   const context=createContext();
-  drawMos(context,['N1','n',.34,.32],1000,800);
+  drawMos(context,['N1','n',.34,.32],1000,800,'#f4f5f1',{x:250,y:256});
   assert.deepEqual(context.paths[0],[
     ['M',340,168],['L',340,226],['L',320,226],
     ['L',320,286],['L',340,286],['L',340,344]
@@ -36,10 +36,18 @@ test('MOS source-drain path has four corners and lands on its terminals',()=>{
 
 test('PMOS gate is insulated and has a background-filled bubble',()=>{
   const context=createContext();
-  drawMos(context,['P1','p',.34,.32],1000,800,'#f4f5f1');
+  drawMos(context,['P1','p',.34,.32],1000,800,'#f4f5f1',{x:250,y:256});
   assert.deepEqual(context.paths[1],[
-    ['M',258,256],['L',300,256],['M',300,238],['L',300,274]
+    ['M',250,256],['L',300,256],['M',300,238],['L',300,274]
   ]);
   assert.deepEqual(context.paths[2],[['A',294,256,6,0,Math.PI*2]]);
   assert.deepEqual(context.fills,[{path:context.paths[2],style:'#f4f5f1'}]);
+});
+
+test('right-side gate terminal connects to a right-facing gate bar',()=>{
+  const context=createContext();
+  drawMos(context,['M2','n',.64,.57],1000,800,'#f4f5f1',{x:730,y:456});
+  assert.deepEqual(context.paths[1],[
+    ['M',730,456],['L',680,456],['M',680,438],['L',680,474]
+  ]);
 });
