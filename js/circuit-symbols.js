@@ -37,7 +37,9 @@
     }
     ctx.fillStyle=color;
     ctx.font='700 14px monospace';
-    ctx.fillText(`${id} ${type==='p'?'PMOS':'NMOS'}`,centerX+28,centerY)
+    ctx.textAlign=gateDirection<0?'left':'right';
+    ctx.fillText(`${id} ${type==='p'?'PMOS':'NMOS'}`,centerX-gateDirection*28,centerY);
+    ctx.textAlign='left'
   }
   return{drawMos}
 });
