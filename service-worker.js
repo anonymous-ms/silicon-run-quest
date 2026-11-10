@@ -1,7 +1,7 @@
 const CACHE = 'silicon-run-photoresist-2026-11-06';
 const LOCAL = [
   './', './index.html', './manifest.webmanifest', './css/styles.css',
-  './js/photoresist-chamber.js', './js/silicon-run.js',
+  './js/photoresist-chamber.js', './js/circuit-symbols.js', './js/silicon-run.js',
   './icons/icon-192.png', './icons/icon-512.png'
 ];
 const THREE = 'https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js';
