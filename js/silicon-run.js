@@ -1069,7 +1069,7 @@ function renderDesignStep(){
     el.classList.toggle('done',i<designMode.step||(i===0&&designMode.gainComplete)||(i===1&&designMode.schematicComplete)||(i===2&&designMode.layoutComplete))  
   });  
   $('designBack').disabled=designMode.step===0;$('regressionScorePanel').hidden=designMode.step!==0||!designMode.gainComplete;
-  $('gainControls').hidden=designMode.step!==0;$('schematicTools').hidden=designMode.step!==1;$('layoutTools').hidden=designMode.step!==2;  
+  $('gainControls').hidden=designMode.step!==0;$('schematicTools').hidden=designMode.step!==1;$('layoutTools').hidden=designMode.step!==2;$('designReset').hidden=designMode.step===1;  
   const active=parallel?.active;  
   $('designLot').innerHTML=`${active?.lotId||'NO ACTIVE WAFER'}<br>MANUAL ENGINEERING CHANGE CONTROL`;  
   if(designMode.step===0){  
@@ -1107,6 +1107,7 @@ function ensureCircuitChallenge(force=false){if(designMode.circuit&&!force)retur
 function schematicGeometry(w,h){ensureCircuitChallenge();return designMode.circuit.nodes.map(([id,x,y])=>({id,label:id,px:x*w,py:y*h}))}  
 function submitSchematic(){const req=designMode.circuit.removed,u=designMode.schematicLinks,opens=[...req].filter(k=>!u.has(k)).length,shorts=[...u].filter(k=>!req.has(k)).length,correct=[...u].filter(k=>req.has(k)).length,score=clamp(100-opens*35-shorts*25,0,100);designMode.schematicSubmitted=true;designMode.schematicScore=score;designMode.schematicComplete=!opens&&!shorts;recordActivity('Circuit repair',performance.now()-designMode.stageStartedAt,score);$('designNext').disabled=!designMode.schematicComplete;$('designLiveLabel').textContent='CIRCUIT SCORE';$('designLiveValue').textContent=score.toFixed(0)+'%';setDesignMessage(`${correct} correct, ${opens} open, ${shorts} short.` ,designMode.schematicComplete?'good':score>=50?'warn':'bad');drawDesignStage()}  
 function updateSchematicState(){ensureCircuitChallenge();$('designNext').disabled=!designMode.schematicComplete;if(!designMode.schematicSubmitted){$('designLiveLabel').textContent='ASSESSMENT';$('designLiveValue').textContent='NOT SUBMITTED';setDesignMessage('Repair both removed connections, then submit.')}}  
+function clearSchematicWires(){designMode.schematicLinks.clear();designMode.schematicDrag=null;designMode.schematicSubmitted=false;designMode.schematicComplete=false;updateSchematicState();drawDesignStage()}
 function layoutGeometry(w,h){  
   const paletteW=0,plotW=w,margin=Math.max(45,plotW*.065),innerH=h-2*margin;  
   const outputNets=[2,3,1];return{margin,plotW,paletteW,inputs:[0,1,2].map(i=>({id:`IN${i+1}`,kind:'input',net:`N${i+1}`,label:String(i+1),x:margin+18,y:margin+innerH*(.22+i*.28)})),outputs:outputNets.map((labelNet,i)=>({id:`OUT${labelNet}`,kind:'output',net:`N${i+1}`,label:String(labelNet),x:plotW-margin-18,y:margin+innerH*(.22+i*.28)})),keepouts:[{x:plotW*.31,y:margin,w:plotW*.14,h:h*.29},{x:plotW*.55,y:h-margin-h*.31,w:plotW*.14,h:h*.31}]}  
@@ -1218,10 +1219,11 @@ function drawSchematic(ctx,w,h){
   }
   const supplyTerminals=(c.supplies||[]).map(([id,nodeId])=>{const node=by(nodeId);return{id,px:node.px,py:node.py}});
   CircuitSymbols.drawPowerTerminals(ctx,supplyTerminals,w,h);
-  const ends=new Set([...c.removed].flatMap(key=>key.split('|')));
+  const missingPairs=[...c.removed].map(key=>key.split('|')),ends=new Set(missingPairs.flat()),pairColors=['#ed334d','#1675e8'];
   for(const node of n){
-    const missing=ends.has(node.id);
-    ctx.fillStyle=missing?'#fff4a8':'#dce8ec';ctx.strokeStyle=missing?'#f08a31':'#446273';ctx.lineWidth=missing?8:4;ctx.beginPath();ctx.arc(node.px,node.py,missing?9:6,0,Math.PI*2);ctx.fill();ctx.stroke();
+    const pairIndex=missingPairs.findIndex(pair=>pair.includes(node.id)),missing=pairIndex>=0;
+    if(missing){ctx.strokeStyle=pairColors[pairIndex];ctx.lineWidth=7;ctx.beginPath();ctx.arc(node.px,node.py,18,0,Math.PI*2);ctx.stroke()}
+    ctx.fillStyle=missing?'#fff4a8':'#dce8ec';ctx.strokeStyle=missing?pairColors[pairIndex]:'#446273';ctx.lineWidth=missing?5:4;ctx.beginPath();ctx.arc(node.px,node.py,missing?10:6,0,Math.PI*2);ctx.fill();ctx.stroke();
     if(['IN','OUT','Y','A','B','VDD','GND','VINP','VINN','VOUT','VBIAS'].includes(node.id)){ctx.fillStyle='#17232a';ctx.fillText(node.id,node.px+10,node.py-10)}
   }
   if(designMode.schematicDrag){
@@ -1250,13 +1252,13 @@ function designPointer(e){
 }  
 function nearestDesignNode(p,nodes,max=designWorld?.active?42:24){let best=null,d=max;for(const n of nodes){const q=Math.hypot(p.x-n.px,p.y-n.py);if(q<d){d=q;best=n}}return best}  
 function onDesignPointerDown(e){  
-  if(designMode.step!==1)return;const p=designPointer(e);if(!Number.isFinite(p.x)||!Number.isFinite(p.y))return;const nodes=schematicGeometry($('designCanvas').width,$('designCanvas').height),n=nearestDesignNode(p,nodes);  
+  if(designMode.step!==1)return;const p=designPointer(e);if(!Number.isFinite(p.x)||!Number.isFinite(p.y))return;const nodes=schematicGeometry($('designCanvas').width,$('designCanvas').height),n=nearestDesignNode(p,nodes,designWorld.active?42:Math.max(30,$('designCanvas').width*.025));  
   if(n){designMode.schematicDrag={from:n.id,x:p.x,y:p.y};if(!designWorld.active)$('designCanvas').setPointerCapture?.(e.pointerId);drawDesignStage()}  
 }  
 function onDesignPointerMove(e){  
   if(designMode.step===1&&designMode.schematicDrag){const p=designPointer(e);if(!Number.isFinite(p.x)||!Number.isFinite(p.y))return;designMode.schematicDrag.x=p.x;designMode.schematicDrag.y=p.y;drawDesignStage()}  
 }  
-function onDesignPointerUp(e){if(designMode.step!==1||!designMode.schematicDrag)return;const p=designPointer(e),nodes=schematicGeometry($('designCanvas').width,$('designCanvas').height),from=nodes.find(n=>n.id===designMode.schematicDrag.from),to=nearestDesignNode(p,nodes);if(to&&to.id!==from.id){const k=edgeKey(from.id,to.id);designMode.schematicLinks.has(k)?designMode.schematicLinks.delete(k):designMode.schematicLinks.add(k);designMode.schematicSubmitted=false;designMode.schematicComplete=false}designMode.schematicDrag=null;updateSchematicState();drawDesignStage()}  
+function onDesignPointerUp(e){if(designMode.step!==1||!designMode.schematicDrag)return;const p=designPointer(e),nodes=schematicGeometry($('designCanvas').width,$('designCanvas').height),from=nodes.find(n=>n.id===designMode.schematicDrag.from),to=nearestDesignNode(p,nodes,designWorld.active?42:Math.max(30,$('designCanvas').width*.025));if(to&&to.id!==from.id){const k=edgeKey(from.id,to.id);designMode.schematicLinks.has(k)?designMode.schematicLinks.delete(k):designMode.schematicLinks.add(k);designMode.schematicSubmitted=false;designMode.schematicComplete=false}designMode.schematicDrag=null;updateSchematicState();drawDesignStage()}  
 function freeLayoutPoint(p){const c=$('designCanvas'),g=layoutGeometry(c.width,c.height);return{x:clamp(p.x,g.margin,g.plotW-g.margin),y:clamp(p.y,g.margin,c.height-g.margin)}}
 function layoutElbowPoints(start,end,layer){const dx=end.x-start.x,dy=end.y-start.y,points=[{x:start.x,y:start.y,layer}];if(Math.abs(dx)>=Math.abs(dy)){if(Math.abs(dy)<1){points.push({x:end.x,y:end.y,layer});return points}const midX=start.x+dx/2;points.push({x:midX,y:start.y,layer},{x:midX,y:end.y,layer})}else{if(Math.abs(dx)<1){points.push({x:end.x,y:end.y,layer});return points}const midY=start.y+dy/2;points.push({x:start.x,y:midY,layer},{x:end.x,y:midY,layer})}points.push({x:end.x,y:end.y,layer});return points}
 function beginLayoutWire(point){const node=nearestLayoutNode(point);if(!node){setDesignMessage('Start on one of the six terminals or a wire junction.','warn');return}designMode.layoutDraft={fromId:node.id,toId:null,layer:designMode.layer,points:[{x:node.x,y:node.y,layer:designMode.layer}],valid:false};updateLayoutWire(point)}
@@ -1266,7 +1268,7 @@ function layoutPaletteAction(){return false}
 function onDesignClick(e){if(designMode.step!==2||designWorld.active)return;const point=designPointer(e);if(!Number.isFinite(point.x)||!Number.isFinite(point.y))return;if(layoutPaletteAction(point))return;if(!designMode.layoutDraft)beginLayoutWire(point);else finishLayoutWire(point)}
 function resetDesignStage(){  
   if(designMode.step===0){createRegressionChallenge();updateGainState()}  
-  if(designMode.step===1){ensureCircuitChallenge(true);updateSchematicState();drawDesignStage()}  
+  if(designMode.step===1){clearSchematicWires()}  
   if(designMode.step===2){designMode.layoutActive=null;designMode.layoutRoutes=[];designMode.layoutDraft=null;designMode.layoutKeepOutViolations=0;initializeLayoutNodes();updateLayoutState();drawDesignStage();if(designWorld.active)syncDesignBoard()}  
 }  
 function releaseDesign(){  
@@ -1293,7 +1295,7 @@ function ensureDesignWorld(){
   const head=labelMesh('INTERACTIVE DESIGN SPACE','#53e7ff',6,.5,28);head.position.set(-1.5,8.65,-8.54);root.add(head);  
   const leftLight=new THREE.PointLight(0x53e7ff,.75,8,2);leftLight.position.set(-5,6,1);root.add(leftLight);const rightLight=new THREE.PointLight(0x53e7ff,.75,8,2);rightLight.position.set(5,6,1);root.add(rightLight);ensureDesignActionPanel()  
 }  
-function worldActionList(){if(designWorld.stage===0)return[['SUBMIT FIT','submit'],['EXIT','exit']];if(designWorld.stage===1)return[['RESET','reset'],['CLEAR WIRES','clear'],['SUBMIT / NEXT','submit'],['EXIT','exit']];return[['M1','m1'],['M2','m2'],['UNDO WIRE','undo'],['CLEAR ROUTES','clear'],['RELEASE DESIGN','submit'],['EXIT','exit']]}
+function worldActionList(){if(designWorld.stage===0)return[['SUBMIT FIT','submit'],['EXIT','exit']];if(designWorld.stage===1)return[['CLEAR WIRES','clear'],['SUBMIT / NEXT','submit'],['EXIT','exit']];return[['M1','m1'],['M2','m2'],['UNDO WIRE','undo'],['CLEAR ROUTES','clear'],['RELEASE DESIGN','submit'],['EXIT','exit']]}
 function ensureDesignActionPanel(){if(designWorld.actionPanel)return;const panel=new THREE.Group();panel.position.set(6.4,4.3,-8.72);designWorld.root.add(panel);box(3.55,8.1,.18,mat(0x0a1a24,.2,.55),panel,0,0,0);const title=labelMesh('DESIGN CONTROLS','#53e7ff',2.8,.32,30);title.position.set(0,3.55,.105);panel.add(title);designWorld.actionPanel=panel;rebuildDesignActionButtons()}
 function rebuildDesignActionButtons(){if(!designWorld.actionPanel)return;for(const button of designWorld.actionButtons){button.parent?.remove(button);button.userData.labelMesh?.parent?.remove(button.userData.labelMesh);button.geometry.dispose();button.material.dispose();button.userData.labelMesh?.material.map?.dispose();button.userData.labelMesh?.material.dispose();button.userData.labelMesh?.geometry.dispose()}designWorld.actionButtons=[];const actions=worldActionList(),buttonH=.82,gap=.22,total=actions.length*buttonH+(actions.length-1)*gap,top=total/2-buttonH/2;actions.forEach(([label,action],index)=>{const y=top-index*(buttonH+gap),layer=action==='m1'||action==='m2',selected=layer&&designMode.layer===action.toUpperCase(),color=layer?(action==='m1'?0xffe52b:0x168dff):action==='submit'?0x67f6a3:0x54717f,surface=box(3.1,buttonH,.09,mat(selected?color:0x142a35,.24,.4,false,1,selected?color:0),designWorld.actionPanel,0,y,.15);surface.material.emissiveIntensity=selected?.32:0;surface.userData={action,label,baseColor:color,layer,selected};const caption=labelMesh(label,'#eff8fb',2.6,layer?.68:.34,layer?60:30);caption.position.set(0,y,.205);designWorld.actionPanel.add(caption);surface.userData.labelMesh=caption;designWorld.actionButtons.push(surface)});designWorld.actionSignature=`${designWorld.stage}:${designMode.layer}:${designMode.layoutComplete}`}
 function setDesignPanelStatus(text,color='#a9c0cb'){if(!designWorld.actionPanel)return;if(designWorld.actionStatus?.userData.text===text&&designWorld.actionStatus.userData.color===color)return;if(designWorld.actionStatus){const old=designWorld.actionStatus;old.parent?.remove(old);old.material.map?.dispose();old.material.dispose();old.geometry.dispose()}const label=labelMesh(text,color,3.1,.28,23);label.position.set(0,-3.62,.105);label.userData.text=text;label.userData.color=color;designWorld.actionPanel.add(label);designWorld.actionStatus=label}
@@ -1343,7 +1345,7 @@ function drawWorldGainControls(ctx,w,h){
 function syncDesignBoard(){if(!designWorld.active)return;const c=$('designCanvas');if(c.width<960||c.height<600){c.width=1280;c.height=800}drawDesignStage();const ctx=c.getContext('2d');if(designWorld.stage===0)drawWorldGainControls(ctx,c.width,c.height);const p=renderer.xr.isPresenting?null:desktopDesignPoint();if(p){ctx.strokeStyle='#53e7ff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,10,0,Math.PI*2);ctx.moveTo(p.x-15,p.y);ctx.lineTo(p.x+15,p.y);ctx.moveTo(p.x,p.y-15);ctx.lineTo(p.x,p.y+15);ctx.stroke()}const labels=designWorld.labelCanvas.getContext('2d');labels.clearRect(0,0,designWorld.labelCanvas.width,designWorld.labelCanvas.height);if(designWorld.stage===2)drawLayoutLabels(labels,c.width,c.height);designWorld.labelTexture.needsUpdate=true;syncDesignActionPanel();syncLayout3D();updateLayoutPreview3D();designWorld.texture.needsUpdate=true}
 function enterDesignWorld(stage){  
   ensureDesignWorld();if(!designWorld.active){designWorld.returnPos.copy(player.position);designWorld.returnYaw=yaw;designWorld.returnPitch=pitch}  
-  designWorld.active=true;designWorld.stage=stage;designWorld.root.visible=true;if(stage===2){if(!designMode.layoutNodes.length)initializeLayoutNodes();designWorld.layout3DSignature='';updateLayoutState()}state.focus=null;state.nearest=null;$('designTerminal').className='';$('designTerminal').setAttribute('aria-hidden','true');document.body.classList.remove('design-editing');designMode.phase='world';$('designTerminal').className='';$('designTerminal').setAttribute('aria-hidden','true');document.body.classList.remove('design-editing');  
+  designWorld.active=true;designWorld.stage=stage;$('designReset').hidden=stage===1;designWorld.root.visible=true;if(stage===2){if(!designMode.layoutNodes.length)initializeLayoutNodes();designWorld.layout3DSignature='';updateLayoutState()}state.focus=null;state.nearest=null;$('designTerminal').className='';$('designTerminal').setAttribute('aria-hidden','true');document.body.classList.remove('design-editing');designMode.phase='world';$('designTerminal').className='';$('designTerminal').setAttribute('aria-hidden','true');document.body.classList.remove('design-editing');  
   player.position.set(0,renderer.xr.isPresenting?.86:2.58,172);yaw=0;pitch=-.03;player.rotation.y=yaw;camera.rotation.x=pitch;Object.keys(keys).forEach(k=>keys[k]=false);if(!renderer.xr.isPresenting)renderer.domElement.requestPointerLock?.();syncDesignBoard();toast(stage===1?'Circuit space active: click-drag directly between wall terminals. F submits, R resets, X clears.':'Layout active: choose M1 or M2, hold a terminal or junction, drag an elbow and release to commit. F releases.')  
 }  
 function leaveDesignWorld(returnOverlay=true){  
@@ -1464,7 +1466,7 @@ bind=function(){
     addEventListener('mouseup',designDesktopUp,true);  
     addEventListener('keydown',e=>{if(designWorldCommand(e.code)){e.preventDefault();e.stopPropagation();e.stopImmediatePropagation()}},true);  
     document.querySelectorAll('.design-step').forEach((tab,index)=>{tab.onclick=e=>{e.preventDefault();e.stopImmediatePropagation();if(index===0&&designMode.step===0)return;if(index===1||index===2){designMode.step=index;enterDesignWorld(index)}}});  
-    $('gainSlider').addEventListener('input',e=>{designMode.gain=Number(e.target.value);updateGainState()});$('interceptSlider').addEventListener('input',e=>{designMode.intercept=Number(e.target.value);updateGainState()});$('regressionSubmit').onclick=submitRegression;$('schematicSubmit').onclick=submitSchematic;$('clearSchematic').onclick=()=>{designMode.schematicLinks.clear();designMode.schematicSubmitted=false;designMode.schematicComplete=false;updateSchematicState();drawDesignStage()};  
+    $('gainSlider').addEventListener('input',e=>{designMode.gain=Number(e.target.value);updateGainState()});$('interceptSlider').addEventListener('input',e=>{designMode.intercept=Number(e.target.value);updateGainState()});$('regressionSubmit').onclick=submitRegression;$('schematicSubmit').onclick=submitSchematic;$('clearSchematic').onclick=clearSchematicWires;  
   $('designCanvas').addEventListener('pointerdown',onDesignPointerDown);  
   $('designCanvas').addEventListener('pointermove',onDesignPointerMove);  
   $('designCanvas').addEventListener('pointerup',onDesignPointerUp);  
