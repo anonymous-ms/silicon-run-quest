@@ -1,0 +1,1768 @@
+(() => { 'use strict';        
+if(!window.THREE){document.body.innerHTML='<div style="padding:40px;color:white;font-family:system-ui"><h1>Simulator could not initialise</h1><p>Three.js did not load. An internet connection is required for the rendering library.</p></div>';return;}        
+const $=id=>document.getElementById(id),clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),lerp=(a,b,t)=>a+(b-a)*t;        
+const C={cyan:0x53e7ff,blue:0x177ddc,white:0xe9f7fb,dark:0x07121d,orange:0xff9d3c,amber:0xffcf56,violet:0xb16cff,green:0x67f6a3,red:0xff5f73,magenta:0xff4fe1};        
+const num=(key,label,min,max,step,target,tol,unit,initial,style='dial',weight=1)=>({kind:'number',key,label,min,max,step,target,tol,unit,initial,style,weight});        
+const choice=(key,label,options,target,initial,weight=1)=>({kind:'choice',key,label,options,target,initial,style:'dial',weight});        
+const stations=[        
+{name:'Sensor Design Terminal',short:'Design release',zone:'DESIGN',color:C.cyan,side:-1,z:7,type:'design',desc:'Validate the pixel architecture and record the reticle pattern before fabrication.',note:'Match pixel width, row-driver geometry and ADC crossover. Select the desired physical wafer pattern.',targetSeconds:24,metric:{label:'Design verification',unit:'s',target:24,tol:2,calc:(v,t)=>t},controls:[choice('pattern','Device pattern',['Logic grid','Memory array','Sensor rings'],'Logic grid','Sensor rings',1),num('pixels','Pixel array width',512,1536,128,1024,64,'px',768,'slider',1.3),num('driver','Row-driver width',8,22,1,14,1,'µm',11,'dial',1),num('adc','ADC crossover',55,92,1,74,3,'% FS',84,'slider',1.2)]},        
+{name:'Oxidation Furnace',short:'Grow masking oxide',zone:'CLEANROOM A',color:0x31aaff,side:1,z:3,type:'deposition',desc:'Grow a controlled silicon-dioxide masking layer in an oxygen furnace.',note:'Oxide thickness is growth rate multiplied by elapsed process time. Temperature and oxygen flow influence film quality.',targetSeconds:30,metric:{label:'Oxide thickness',unit:'nm',target:120,tol:8,calc:(v,t)=>v.rate*t},controls:[num('rate','Growth rate',2,7,.1,4,.5,'nm/s',5.6,'dial',1.3),num('temp','Furnace temperature',850,1150,5,1000,20,'°C',1070,'slider',1.2),num('flow','O₂ flow',12,36,1,24,3,'sccm',30,'dial',1)]},        
+{name:'Photoresist Spin Coater',short:'Coat photoresist',zone:'CLEANROOM A',color:0x42e8ff,side:-1,z:-1,type:'spinner',desc:'Dispense photoresist onto a magnet-coupled turntable beneath a clear hood.',note:'Chuck speed and dispense flow set coating thickness and uniformity. Stop near the nominal spin endpoint.',targetSeconds:30,metric:{label:'Resist coating',unit:'µm',target:1.4,tol:.12,calc:(v,t)=>1.4*(t/30)*Math.pow(v.flow/1.8,.65)*Math.pow(3000/v.rpm,.55)},controls:[num('rpm','Chuck speed',1800,4200,50,3000,200,'rpm',2450,'dial',1.2),num('flow','Resist flow',.8,3,.1,1.8,.2,'mL/s',2.5,'slider',1.1),num('volume','Dispense volume',2,5,.1,3,.3,'mL',4.1,'dial',1)]},        
+{name:'Soft-Bake Furnace',short:'Temper photoresist',zone:'CLEANROOM A',color:C.orange,side:1,z:-5,type:'furnace',desc:'Drive solvent from the resist using a temperature-controlled quartz rail furnace.',note:'Over-bake reduces developer sensitivity. Tempering progress responds continuously to temperature and elapsed time.',targetSeconds:60,metric:{label:'Tempering / solvent removal',unit:'%',target:100,tol:6,calc:(v,t)=>100*(t/60)*Math.exp((v.temp-105)/85)},controls:[num('temp','Bake temperature',80,135,1,105,3,'°C',116,'slider',1.4),num('exhaust','Exhaust flow',8,24,1,16,3,'L/min',11,'dial',1)]},        
+{name:'Mask Aligner & I-Line Exposure',short:'Align and expose',zone:'CLEANROOM A',color:0x35ffe0,side:-1,z:-9,type:'aligner',desc:'Align the photomask, then expose the coated wafer with a controlled ultraviolet dose.',note:'Overlay error propagates to every patterned feature. Spectral line and accumulated dose determine the latent image.',targetSeconds:30,metric:{label:'Accumulated UV dose',unit:'mJ/cm²',target:95,tol:5,calc:(v,t)=>v.doseRate*t},controls:[num('overlay','Overlay error',0,3,.1,.8,.3,'µm',1.9,'slider',1.5),num('doseRate','Dose rate',1.8,4.5,.1,3.2,.25,'mJ/cm²/s',2.5,'dial',1.2),choice('line','Exposure source',['365 nm I-line','405 nm H-line','248 nm DUV'],'365 nm I-line','405 nm H-line',1.4)]},        
+{name:'Developer Wet Bench',short:'Develop pattern',zone:'CLEANROOM A',color:0x54f49c,side:1,z:-13,type:'wetbench',desc:'Develop exposed resist, rinse and spin-dry to reveal the photomask pattern.',note:'Correct chemistry and agitation are essential. Developing continues until STOP is pressed.',targetSeconds:45,metric:{label:'Pattern developed',unit:'%',target:100,tol:7,calc:(v,t)=>100*(t/45)*(v.chem==='TMAH 2.38%'?1:v.chem==='KOH 5%'?1.35:.18)*Math.pow(v.rpm/600,.18)},controls:[choice('chem','Developer chemistry',['TMAH 2.38%','KOH 5%','DI water only'],'TMAH 2.38%','KOH 5%',1.5),num('rpm','Rinse agitation',300,900,25,600,100,'rpm',425,'dial',1),num('temp','Bath temperature',18,30,.5,23,.8,'°C',27,'slider',1.2)]},        
+{name:'Reactive Ion Etcher',short:'Etch oxide window',zone:'CLEANROOM B',color:C.magenta,side:-1,z:-21,type:'rie',desc:'Use directional plasma to transfer the resist pattern into the oxide surface.',note:'RF power, pressure and fluorine flow set etch rate and anisotropy. Stop at the required depth.',targetSeconds:55,metric:{label:'Etched depth',unit:'nm',target:110,tol:8,calc:(v,t)=>2*t*(v.power/180)*Math.pow(35/v.pressure,.3)*Math.pow(v.flow/28,.18)},controls:[num('power','RF power',110,260,5,180,15,'W',225,'dial',1.3),num('pressure','Chamber pressure',18,60,1,35,5,'mTorr',48,'slider',1.1),num('flow','CF₄ flow',18,42,1,28,3,'sccm',35,'dial',1)]},        
+{name:'Ion Implant Beamline',short:'Implant P regions',zone:'CLEANROOM B',color:C.violet,side:1,z:-25,type:'implanter',desc:'Bombard exposed silicon with a controlled p-type dopant dose.',note:'Dopant polarity is critical. Beam current controls delivered dose; energy controls junction depth.',targetSeconds:40,metric:{label:'Implant dosage',unit:'×10¹² ions/cm²',target:12,tol:1,calc:(v,t)=>v.current*t},controls:[choice('dopant','Dopant polarity',['Boron / P-type','Phosphorus / N-type','Arsenic / N-type'],'Boron / P-type','Phosphorus / N-type',1.8),num('current','Beam dose rate',.15,.48,.01,.3,.03,'×10¹²/cm²/s',.4,'dial',1.4),num('energy','Beam energy',20,70,1,40,4,'keV',53,'slider',1.2)]},        
+{name:'Rapid Thermal Anneal',short:'Activate dopants',zone:'CLEANROOM B',color:0xffb144,side:-1,z:-29,type:'furnace',desc:'Repair lattice damage and electrically activate implanted dopants.',note:'The rapid thermal budget is narrow. Temperature changes activation rate and excessive dwell diffuses the junction.',targetSeconds:30,metric:{label:'Dopant activation',unit:'%',target:100,tol:7,calc:(v,t)=>100*(t/30)*Math.exp((v.temp-980)/190)},controls:[num('temp','Peak temperature',880,1080,5,980,15,'°C',1035,'slider',1.5),num('ramp','Ramp rate',35,90,1,65,7,'°C/s',48,'dial',1.1),choice('ambient','Process ambient',['N₂ inert','O₂ oxidising','Forming gas'],'N₂ inert','O₂ oxidising',1.2)]},        
+{name:'Metal Film Depositor',short:'Deposit interconnect',zone:'CLEANROOM B',color:0x6ab8ff,side:1,z:-33,type:'metal',desc:'Build the sensor interconnect layer in a vacuum bell-jar deposition system.',note:'Material, vacuum and deposition rate control film conductivity. Watch the live thickness monitor.',targetSeconds:200,metric:{label:'Metal film thickness',unit:'nm',target:500,tol:25,calc:(v,t)=>v.rate*t},controls:[choice('metal','Target material',['Aluminium','Copper','Gold'],'Aluminium','Copper',1.4),num('rate','Deposition rate',1,4.5,.1,2.5,.3,'nm/s',3.4,'dial',1.3),num('vacuum','Chamber vacuum',1,9,.5,5,1,'×10⁻⁶ mbar',8,'slider',1.1)]},        
+{name:'Microscope & Probe Test',short:'Inspect and probe',zone:'TEST',color:C.green,side:-1,z:-37,type:'probe',desc:'Place spring probes on the test pads and verify electrical response under the microscope.',note:'Centre both probes and apply the specified sensor bias. Hold until the sample set is complete.',targetSeconds:10,metric:{label:'Electrical samples',unit:'samples',target:100,tol:8,calc:(v,t)=>10*t},controls:[num('probeX','Probe X position',20,80,1,62,4,'%',49,'slider',1.4),num('probeY','Probe Y position',20,80,1,38,4,'%',54,'slider',1.4),num('bias','Sensor bias',2.5,4,.05,3.3,.1,'V',3.65,'dial',1.2)]}        
+];        
+const state={started:false,username:'',lotId:'',carrying:false,current:0,completed:false,runStart:0,elapsed:0,stamina:1,crouching:false,sprinting:false,nearest:null,focus:null,cycle:null,records:[],pattern:'Logic grid',waferBroken:false,paused:false};        
+const status=stations.map(s=>({state:'locked',values:Object.fromEntries(s.controls.map(c=>[c.key,c.initial])),score:null,deviations:[],metric:0,doorTarget:0,doorAmount:0,transfer:null}));        
+let scene,camera,renderer,player,clock,yaw=Math.PI,pitch=-.03,lastFrame=0,stockMachine=null;let xrController0=null,xrController1=null,xrGrip0=null,xrGrip1=null,xrRay=null,xrAdjustAt=0,xrTurnLatch=false,xrHandset=null,xrHandsetCanvas=null,xrHandsetCtx=null,xrHandsetTexture=null,xrHandsetUpdated=0,xrTargetRing=null,xrObjectiveBeacon=null,xrLeftSource=null,xrRightSource=null,xrOverlay=null,xrOverlayCanvas=null,xrOverlayCtx=null,xrOverlayTexture=null;const machines=[],interactives=[],effects=[],colliders=[],keys={},sharpsBins=[],waferShards=[];const raycaster=new THREE.Raycaster();const xrTempMatrix=new THREE.Matrix4(),xrOrigin=new THREE.Vector3(),xrDirection=new THREE.Vector3(),xrHeadDirection=new THREE.Vector3();const phys={grab:null,doorGrab:null,waferBody:null,waferVelocity:new THREE.Vector3(),waferLastPos:new THREE.Vector3(),waferReleaseY:0,waferFree:false,lastHandPos:new THREE.Vector3(),handVelocity:new THREE.Vector3(),doorVelocities:[],buttons:{},hudVisible:true,beaconVisible:true,handData:[],waferStaged:false,waferEverPicked:false,pickupGuide:null,pinchDistance:.12,stockReady:null,stockRespawnAt:0,stockRespawnMs:5000,jumpVelocity:0,jumpOffset:0,crouchHeld:false,baseRigY:.86};        
+let xrRay0=null,xrHitBlobs=[];
+const XR_POINTER_REACH=30;
+const PREFERENCES_KEY='siliconRunPreferencesV1',ACTIVITY_RECORDS_KEY='waferFabActivitiesV1',GUI_TEXT_SIZES=[5,8,12,20,30,50];
+const userPreferences=loadUserPreferences();
+let tutorialMode=false,tutorialLastObjective='',tutorialDismissed=false;
+function loadUserPreferences(){try{const value=JSON.parse(localStorage.getItem(PREFERENCES_KEY)||'{}'),guiTextSize=GUI_TEXT_SIZES.includes(Number(value.guiTextSize))?Number(value.guiTextSize):12;return{username:String(value.username||''),lookSensitivity:clamp(Number(value.lookSensitivity)||1,.5,2),tutorialHints:value.tutorialHints!==false,guiTextSize,developerPanel:value.developerPanel===true}}catch{return{username:'',lookSensitivity:1,tutorialHints:true,guiTextSize:12,developerPanel:false}}}
+function saveUserPreferences(){try{localStorage.setItem(PREFERENCES_KEY,JSON.stringify(userPreferences))}catch{}}
+const GUI_TEXT_SCALE=[.72,.84,1,1.14,1.3,1.5];
+let desktopDeveloperBuffer='',desktopDeveloperBufferAt=0,xrPausePage='pause';
+let fpsFrameCount=0,fpsSampleAt=0,currentFPS=0;
+function applyGuiTextSize(size=userPreferences.guiTextSize){const index=Math.max(0,GUI_TEXT_SIZES.indexOf(Number(size)));document.documentElement.style.setProperty('--gui-scale',String(GUI_TEXT_SCALE[index]));if($('guiTextSize'))$('guiTextSize').value=String(index);if($('guiTextSizeValue'))$('guiTextSizeValue').textContent=String(GUI_TEXT_SIZES[index])}
+function setGuiTextSize(size){const index=typeof size==='number'&&Number.isInteger(size)&&size>=0&&size<GUI_TEXT_SIZES.length?size:GUI_TEXT_SIZES.indexOf(Number(size));if(index<0)return;userPreferences.guiTextSize=GUI_TEXT_SIZES[index];applyGuiTextSize();saveUserPreferences();if(renderer?.xr?.isPresenting){drawXRHandset(performance.now());drawXRPauseOverlay()}}
+function adjustGuiTextSize(delta){const current=Math.max(0,GUI_TEXT_SIZES.indexOf(userPreferences.guiTextSize));setGuiTextSize(clamp(current+delta,0,GUI_TEXT_SIZES.length-1))}
+function toggleDeveloperPanel(){userPreferences.developerPanel=!userPreferences.developerPanel;saveUserPreferences();updateDeveloperPaneVisibility();if(renderer?.xr?.isPresenting)drawXRHandset(performance.now())}
+function updateDeveloperPaneVisibility(){const visible=userPreferences.developerPanel&&!renderer?.xr?.isPresenting;$('developerDebugPane').hidden=!visible;$('performancePane').hidden=!visible;if(visible)renderDeveloperPane()}
+function installScaledCanvasText(ctx){if(!ctx||ctx.__scaledGuiText)return;const fillText=ctx.fillText.bind(ctx);ctx.fillText=(text,x,y,maxWidth)=>{const original=ctx.font,scaled=original.replace(/(\d+(?:\.\d+)?)px(?=\/|\s)/,(_,value)=>`${Number(value)*GUI_TEXT_SCALE[Math.max(0,GUI_TEXT_SIZES.indexOf(userPreferences.guiTextSize))]}px`);ctx.font=scaled;fillText(text,x,y,maxWidth);ctx.font=original};ctx.__scaledGuiText=true}
+const mat=(color,metal=.05,rough=.55,transparent=false,opacity=1,emissive=0)=>new THREE.MeshStandardMaterial({color,metalness:metal,roughness:rough,transparent,opacity,emissive,emissiveIntensity:emissive?1:0});        
+function mesh(geo,material,parent=scene,x=0,y=0,z=0){const m=new THREE.Mesh(geo,material);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m}        
+function box(w,h,d,material,parent,x=0,y=0,z=0){return mesh(new THREE.BoxGeometry(w,h,d),material,parent,x,y,z)}        
+function cyl(r,h,material,parent,x=0,y=0,z=0,seg=28){return mesh(new THREE.CylinderGeometry(r,r,h,seg),material,parent,x,y,z)}        
+function canvasTexture(text,color='#9eeeff',bg='#06121b',w=640,h=116,font=34){    
+const value=String(text).toUpperCase(),fontPx=Math.max(48,font*4),padX=2,padY=1;    
+const c=document.createElement('canvas'),probe=c.getContext('2d');    
+probe.font=`900 ${fontPx}px ui-monospace,monospace`;    
+const measured=probe.measureText(value);    
+c.width=Math.max(8,Math.ceil(measured.width+padX*2));    
+c.height=Math.max(8,Math.ceil(fontPx*1.04+padY*2));    
+const g=c.getContext('2d'),line=Math.max(2,Math.round(fontPx*.035));    
+g.fillStyle=bg;g.fillRect(0,0,c.width,c.height);    
+g.strokeStyle='#31566b';g.lineWidth=line;    
+g.strokeRect(line/2,line/2,c.width-line,c.height-line);    
+g.font=`900 ${fontPx}px ui-monospace,monospace`;    
+g.fillStyle=color;g.textAlign='center';g.textBaseline='middle';    
+g.fillText(value,c.width/2,c.height/2+fontPx*.02);    
+const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;    
+t.minFilter=THREE.LinearFilter;t.magFilter=THREE.LinearFilter;t.needsUpdate=true;    
+return t    
+}    
+function labelMesh(text,color='#9eeeff',w=2.7,h=.48,font=32){  
+  const texture=canvasTexture(text,color,'#06121b',640,116,font),aspect=texture.image.width/texture.image.height;  
+  const correctedWidth=h*aspect;  
+  const label=new THREE.Mesh(new THREE.PlaneGeometry(correctedWidth,h),new THREE.MeshBasicMaterial({map:texture,transparent:true,toneMapped:false}));  
+  label.userData.labelWidth=correctedWidth;label.userData.labelHeight=h;label.userData.requestedWidth=w;  
+  return label  
+}        
+function addCollider(x,z,w,d){colliders.push({x,z,w,d})}        
+function createWafer(scale=1){const g=new THREE.Group();const base=cyl(.34*scale,.045*scale,mat(0xb8c5cb,.88,.12),g);base.rotation.x=Math.PI/2;const flat=box(.22*scale,.05*scale,.08*scale,mat(0x89969c,.8,.14),g,0,-.31*scale,0);flat.rotation.x=Math.PI/2;const oxide=cyl(.332*scale,.012*scale,mat(0x5076a0,.35,.24,true,0),g,0,0,.025*scale);oxide.rotation.x=Math.PI/2;oxide.userData.layer='oxide';const resist=cyl(.33*scale,.014*scale,mat(0xff5a32,.05,.2,true,0),g,0,0,.038*scale);resist.rotation.x=Math.PI/2;resist.userData.layer='resist';const pattern=mesh(new THREE.CircleGeometry(.326*scale,64),mat(0x5ef2dd,.5,.16,true,0),g,0,0,.05*scale);pattern.userData.layer='pattern';const metal=cyl(.329*scale,.013*scale,new THREE.MeshPhysicalMaterial({color:0x8fdcff,transparent:true,opacity:0,metalness:.65,roughness:.12,iridescence:1,iridescenceIOR:1.8,iridescenceThicknessRange:[120,700]}),g,0,0,.058*scale);metal.rotation.x=Math.PI/2;metal.userData.layer='metal';return g}        
+function refreshWaferVisual(group){if(!group)return;const ox=state.records[1]?.ratio||0,coat=state.records[2]?.ratio||0,dev=state.records[5]?.ratio||0,etch=state.records[6]?.ratio||0,film=state.records[9]?.ratio||0;group.traverse(o=>{if(!o.userData.layer)return;if(o.userData.layer==='oxide')o.material.opacity=clamp(ox*.7,0,.78);if(o.userData.layer==='resist')o.material.opacity=clamp(coat*.68*(1-.55*clamp(dev,0,1)),0,.72);if(o.userData.layer==='pattern')o.material.opacity=clamp(etch*.85,0,.9);if(o.userData.layer==='metal')o.material.opacity=clamp(film*.7,0,.82)});}        
+function buildEnvironment(){scene=new THREE.Scene();scene.background=new THREE.Color(0x07101a);scene.fog=new THREE.Fog(0x07101a,20,66);camera=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,.05,130);player=new THREE.Object3D();player.position.set(0,1.72,7.7);player.rotation.y=Math.PI;player.add(camera);scene.add(player);renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.08;renderer.xr.enabled=true;renderer.xr.setReferenceSpaceType('local-floor');$('game').appendChild(renderer.domElement);clock=new THREE.Clock();setupXR();scene.add(new THREE.HemisphereLight(0xcbefff,0x0b1620,1.4));const sun=new THREE.DirectionalLight(0xffffff,1.25);sun.position.set(4,12,8);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);scene.add(sun);        
+box(18,.14,54,mat(0xdce8ea,.08,.24),scene,0,-.08,-15);for(let z=11;z>-41;z-=2)box(17.6,.016,.025,mat(0x7392a1,0,.9,true,.25),scene,0,.01,z);box(.12,.012,53,mat(0x1684b8,.1,.28,true,.55),scene,-2.1,.01,-15);box(.12,.012,53,mat(0x1684b8,.1,.28,true,.55),scene,2.1,.01,-15);const wall=mat(0xeaf3f3,0,.5);box(.18,4.2,54,wall,scene,-9,2,-15);box(.18,4.2,54,wall,scene,9,2,-15);box(18,4.2,.18,wall,scene,0,2,12);box(18,4.2,.18,wall,scene,0,2,-42);const windowMat=mat(0x5fbddd,.05,.12,true,.2);for(let z=8;z>-41;z-=6){box(.05,1.7,3.8,windowMat,scene,-8.88,2.05,z);box(.05,1.7,3.8,windowMat,scene,8.88,2.05,z)}for(let z=10;z>-42;z-=4){const col=z>-17?0x8deeff:0xc7bcff;const light=new THREE.PointLight(col,1.7,9,2);light.position.set(0,3.45,z);scene.add(light);const p=box(3.5,.05,.36,mat(col,0,.25),scene,0,3.72,z);p.material.emissive.setHex(col);p.material.emissiveIntensity=1.1}        
+box(17.5,.035,6,mat(0x32b8d8,0,.4,true,.13),scene,0,.025,7);box(17.5,.035,23,mat(0x43bce7,0,.4,true,.08),scene,0,.026,-5.5);box(17.5,.035,23,mat(0x9b65ef,0,.4,true,.07),scene,0,.027,-29.5);const frame=mat(0x425d6d,.7,.24);box(.35,3.9,.4,frame,scene,-4.7,1.95,-17);box(.35,3.9,.4,frame,scene,4.7,1.95,-17);box(9.7,.3,.4,frame,scene,0,3.75,-17);box(9.1,3.35,.04,mat(0x80d9f1,.1,.08,true,.12),scene,0,1.85,-17);const air=labelMesh('AIR SHOWER • ISO TRANSFER','#72eeff',4.6,.55,28);air.position.set(0,3.35,-16.76);scene.add(air);const zoneA=labelMesh('CLEANROOM A • LITHOGRAPHY','#53e7ff',4.5,.65,27);zoneA.position.set(0,3.25,1);scene.add(zoneA);const zoneB=labelMesh('CLEANROOM B • IMPLANT + FILMS','#b889ff',4.8,.65,25);zoneB.position.set(0,3.25,-24);scene.add(zoneB);        
+// The old player capsule was parented to yaw-only movement, so it could swing across the first-person view without following pitch. Keep the unobstructed camera and render only the carried wafer in first person.        
+state.handWafer=createWafer(.72);state.handWafer.position.set(.48,-.38,-.8);state.handWafer.rotation.set(.6,-.25,.15);state.handWafer.visible=false;camera.add(state.handWafer);bindWaferPhysics(state.handWafer);createStockMachine();stations.forEach((s,i)=>createMachine(s,i));const arrowGeo=new THREE.ConeGeometry(.22,.55,4);for(let z=8;z>-39;z-=2.5){const col=z>-17?C.cyan:C.violet,a=mesh(arrowGeo,mat(col,0,.35,true,.5,col),scene,0,.035,z);a.rotation.x=Math.PI/2;a.rotation.z=Math.PI/4;effects.push({kind:'route',obj:a,base:z})}createSharpsBins();createXROverlay()}        
+function createGhostHand(grip,handedness,index){        
+const mirror=handedness==='left'?-1:1,root=new THREE.Group(),ghostMat=new THREE.MeshStandardMaterial({color:0xf4f8f8,transparent:true,opacity:.48,roughness:.72,metalness:0,depthWrite:false}),jointMat=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.78,depthWrite:false,toneMapped:false});root.position.set(0,-.012,-.018);root.rotation.set(-.3,mirror*.12,mirror*.08);root.scale.x=mirror;grip.add(root);
+const glovePalm=mesh(new THREE.SphereGeometry(1,16,12),ghostMat,root,0,-.005,-.025);glovePalm.scale.set(.052,.073,.028);const fingers=[];
+const makeFinger=(x,z,name,len)=>{const base=new THREE.Group();base.position.set(x,.014,z);root.add(base);const mid=new THREE.Group();mid.position.set(0,0,-len*.55);base.add(mid);const tip=new THREE.Group();tip.position.set(0,0,-len*.45);mid.add(tip);const upper=mesh(new THREE.CapsuleGeometry(.009,len*.27,3,6),ghostMat,base,0,0,-len*.27);upper.rotation.x=Math.PI/2;const lower=mesh(new THREE.CapsuleGeometry(.008,len*.22,3,6),ghostMat,mid,0,0,-len*.2);lower.rotation.x=Math.PI/2;const cap=mesh(new THREE.SphereGeometry(.009,10,8),jointMat,tip,0,0,0);fingers.push({name,base,mid,tip,cap});return tip};
+makeFinger(-.033,-.064,'index',.066);makeFinger(-.011,-.073,'middle',.076);makeFinger(.012,-.072,'ring',.071);makeFinger(.033,-.063,'little',.061);
+const thumbBase=new THREE.Group();thumbBase.position.set(-.049,-.004,-.022);thumbBase.rotation.set(-.18,0,.56);root.add(thumbBase);const thumbMid=new THREE.Group();thumbMid.position.set(-.028,0,-.012);thumbBase.add(thumbMid);const thumbUpper=mesh(new THREE.CapsuleGeometry(.01,.025,3,6),ghostMat,thumbBase,-.014,0,-.008);thumbUpper.rotation.z=Math.PI/2+.5;const thumbLower=mesh(new THREE.CapsuleGeometry(.009,.021,3,6),ghostMat,thumbMid,-.013,0,-.01);thumbLower.rotation.z=Math.PI/2+.58;const thumbTip=mesh(new THREE.SphereGeometry(.01,10,8),jointMat,thumbMid,-.027,0,-.021);
+const device=new THREE.Group();device.position.set(0,-.055,.042);grip.add(device);const shellMat=mat(0x26343b,.38,.32),deviceMat=mat(0xdbe4e7,.42,.3),buttonIdle=mat(0x344750,.25,.35);const head=mesh(new THREE.SphereGeometry(1,18,14),deviceMat,device,0,.005,-.018);head.scale.set(.092,.086,.027);const gripBody=mesh(new THREE.CapsuleGeometry(.028,.12,5,8),shellMat,device,0,-.093,.008);gripBody.rotation.x=Math.PI/2;const trigger=box(.018,.056,.025,buttonIdle,device,.056,-.043,-.043);trigger.rotation.z=-.2;const stickBase=cyl(.024,.012,shellMat,device,-.03,.026,-.036,16),stick=mesh(new THREE.SphereGeometry(.018,12,8),buttonIdle,device,-.03,.037,-.036);const faceButtons=[cyl(.014,.009,buttonIdle,device,.033,.026,-.038,12),cyl(.014,.009,buttonIdle,device,.057,.006,-.038,12)],menuButton=cyl(.012,.008,buttonIdle,device,-.059,-.014,-.035,12),gripButton=box(.016,.052,.025,buttonIdle,device,-.044,-.04,.012);faceButtons.forEach(button=>button.rotation.x=Math.PI/2);menuButton.rotation.x=Math.PI/2;
+const pinchAnchor=new THREE.Group();pinchAnchor.position.set(mirror*.002,.005,-.121);grip.add(pinchAnchor);const marker=mesh(new THREE.TorusGeometry(.014,.0035,8,24),new THREE.MeshBasicMaterial({color:C.cyan,transparent:true,opacity:.9,depthTest:false,toneMapped:false}),pinchAnchor);marker.rotation.x=Math.PI/2;marker.renderOrder=50;const dot=mesh(new THREE.SphereGeometry(.0055,10,7),new THREE.MeshBasicMaterial({color:0xffffff,depthTest:false,toneMapped:false}),pinchAnchor);dot.renderOrder=51;
+const data={index,handedness,grip,root,fingers,thumbBase,thumbMid,thumbTip,pinchAnchor,marker,dot,device,triggerMesh:trigger,gripButton,stick,faceButtons,menuButton,trigger:0,gripValue:0};phys.handData[index]=data;return data}      
+function updateGhostHandPose(data,source,dt){if(!data)return;const gp=source?.gamepad,trigger=gp?.buttons?.[0]?.value||0,grip=gp?.buttons?.[1]?.value||0,primary=gp?.buttons?.[4]?.touched||gp?.buttons?.[4]?.pressed,secondary=gp?.buttons?.[5]?.touched||gp?.buttons?.[5]?.pressed,stick=gp?.buttons?.[3]?.touched||false;data.trigger=lerp(data.trigger,trigger,1-Math.exp(-dt*18));data.gripValue=lerp(data.gripValue,grip,1-Math.exp(-dt*15));for(const f of data.fingers){const neutral=f.name==='index'?.03:.1,curl=f.name==='index'?Math.max(neutral,data.trigger):Math.max(neutral,data.gripValue,data.trigger*.18);f.base.rotation.x=lerp(f.base.rotation.x,-curl*.8,.34);f.mid.rotation.x=lerp(f.mid.rotation.x,-curl*1.1,.34);f.tip.rotation.x=lerp(f.tip.rotation.x,-curl*.65,.34)}const thumbTouch=(primary||secondary||stick)?1:0;data.thumbBase.rotation.x=lerp(data.thumbBase.rotation.x,-.12-thumbTouch*.38,.3);data.thumbMid.rotation.x=lerp(data.thumbMid.rotation.x,-.06-thumbTouch*.42,.3);const setButton=(mesh,active)=>{mesh.material.color.setHex(active?C.green:0x344750);mesh.material.emissive.setHex(active?C.green:0x000000);mesh.material.emissiveIntensity=active?.8:0};setButton(data.triggerMesh,data.trigger>.08);setButton(data.gripButton,data.gripValue>.12);setButton(data.stick,stick||Math.hypot(gp?.axes?.[2]||0,gp?.axes?.[3]||0)>.18);setButton(data.faceButtons[0],!!primary);setButton(data.faceButtons[1],!!secondary);setButton(data.menuButton,!!gp?.buttons?.[6]?.pressed);const near=nearestPinchTarget(data.pinchAnchor),allowed=near&&near.distance<=phys.pinchDistance;data.marker.visible=true;data.marker.material.color.setHex(allowed?C.green:near?C.amber:C.cyan);data.dot.material.color.setHex(allowed?0xffffff:C.cyan);data.marker.scale.setScalar(.9+.18*Math.sin(performance.now()*.012))}      
+function createXRHandset(){        
+xrHandsetCanvas=document.createElement('canvas');xrHandsetCanvas.width=768;xrHandsetCanvas.height=512;xrHandsetCtx=xrHandsetCanvas.getContext('2d');installScaledCanvasText(xrHandsetCtx);xrHandsetTexture=new THREE.CanvasTexture(xrHandsetCanvas);xrHandsetTexture.colorSpace=THREE.SRGBColorSpace;const g=new THREE.Group(),body=box(.31,.205,.018,mat(0x06131d,.25,.3),g,0,0,0),screen=mesh(new THREE.PlaneGeometry(.286,.181),new THREE.MeshBasicMaterial({map:xrHandsetTexture,toneMapped:false}),g,0,0,.012);const rim=box(.325,.219,.012,mat(C.cyan,.25,.3,true,.55,C.cyan),g,0,0,-.006);rim.scale.set(1,1,.45);screen.renderOrder=3;g.position.set(.115,.115,-.13);g.rotation.set(-.72,.18,.1);xrGrip0.add(g);xrHandset=g;return g}        
+function createXRSpatialAids(){        
+xrTargetRing=mesh(new THREE.RingGeometry(.035,.052,32),new THREE.MeshBasicMaterial({color:C.cyan,side:THREE.DoubleSide,transparent:true,opacity:.9,depthTest:false}),scene);xrTargetRing.visible=false;xrTargetRing.renderOrder=20;xrHitBlobs=[0,1].map(()=>{const blob=mesh(new THREE.SphereGeometry(.055,16,12),new THREE.MeshBasicMaterial({color:C.green,depthTest:false,toneMapped:false}),scene);blob.visible=false;blob.renderOrder=1001;return blob});const beacon=new THREE.Group();const halo=mesh(new THREE.TorusGeometry(.23,.018,10,30),new THREE.MeshBasicMaterial({color:C.green,transparent:true,opacity:.75,toneMapped:false}),beacon);halo.rotation.x=Math.PI/2;const arrow=mesh(new THREE.ConeGeometry(.09,.24,12),new THREE.MeshBasicMaterial({color:C.green,toneMapped:false}),beacon,0,-.22,0);arrow.rotation.x=Math.PI;scene.add(beacon);xrObjectiveBeacon=beacon;beacon.visible=false}        
+function drawXRHandset(now){        
+if(!xrHandsetCtx||now-xrHandsetUpdated<120)return;xrHandsetUpdated=now;const g=xrHandsetCtx,w=xrHandsetCanvas.width,h=xrHandsetCanvas.height,s=stations[state.current],st=status[state.current],done=state.records.filter(Boolean).length;g.fillStyle='#04101a';g.fillRect(0,0,w,h);g.strokeStyle='#53e7ff';g.lineWidth=10;g.strokeRect(6,6,w-12,h-12);g.fillStyle='#53e7ff';g.font='900 38px system-ui';g.fillText('SILICON RUN // WRIST',34,56);g.fillStyle='#7594a6';g.font='700 22px monospace';g.fillText('LOT',34,104);g.fillText('STAGE',34,145);g.fillText('WAFER',34,186);g.fillText('QUALITY',34,227);g.fillStyle='#eefcff';g.fillText(state.lotId||'—',170,104);g.fillText(state.completed?'COMPLETE':(s?.short||'WAfer stock').toUpperCase(),170,145);g.fillText(state.carrying?'IN LEFT HAND':state.cycle?'IN PROCESS':'AT STATION / STOCK',170,186);g.fillText(state.runStart?quality().toFixed(1)+'%':'AWAITING RUN',170,227);g.fillStyle='#132936';g.fillRect(34,258,700,22);g.fillStyle='#67f6a3';g.fillRect(34,258,700*(done/stations.length),22);g.fillStyle='#ffcf56';g.font='900 23px monospace';g.fillText(state.completed?'LOT COMPLETE':!state.runStart?'DISPENSE BLANK WAFER':s?.name.toUpperCase()||'PROCEED',34,328);g.fillStyle='#a9c0cb';g.font='19px monospace';const target=st&&s?`${s.metric.label}: ${s.metric.target} ± ${s.metric.tol} ${s.metric.unit}`:'Follow active route';g.fillText(target.slice(0,66),34,366);if(s){g.font='16px monospace';s.controls.slice(0,3).forEach((c,i)=>{g.fillStyle='#a9c0cb';g.fillText((c.kind==='choice'?`${c.label}: ${c.target}`:`${c.label}: ${c.target} ± ${c.tol} ${c.unit}`).slice(0,76),34,398+i*28)})}if(st&&s&&st.state==='running'){g.fillStyle='#67f6a3';g.font='900 25px monospace';g.fillText(`LIVE: ${formatMetric(st.metric,s.metric)} ${s.metric.unit}`,420,454)}g.fillStyle='#7894a3';g.font='15px monospace';g.fillText('Left stick click toggles this specification HUD',34,488);xrHandsetTexture.needsUpdate=true}        
+function pulseXR(strength=.35,duration=35){const src=xrRightSource||xrLeftSource,act=src?.gamepad?.hapticActuators?.[0];if(act?.pulse)act.pulse(strength,duration).catch(()=>{})}        
+function setupXR(){        
+const makeRay=()=>{const g=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,-1)]),l=new THREE.Line(g,new THREE.LineBasicMaterial({color:C.cyan,transparent:true,opacity:.62}));l.name='XR interaction ray';l.scale.z=XR_POINTER_REACH;return l};        
+xrController0=renderer.xr.getController(0);xrController1=renderer.xr.getController(1);xrGrip0=renderer.xr.getControllerGrip(0);xrGrip1=renderer.xr.getControllerGrip(1);player.add(xrController0,xrController1,xrGrip0,xrGrip1);createGhostHand(xrGrip0,'left',0);createGhostHand(xrGrip1,'right',1);xrController0.userData.grip=xrGrip0;xrController0.userData.pinchAnchor=phys.handData[0].pinchAnchor;xrController0.userData.handIndex=0;xrController1.userData.grip=xrGrip1;xrController1.userData.pinchAnchor=phys.handData[1].pinchAnchor;xrController1.userData.handIndex=1;xrRay0=makeRay();xrController0.add(xrRay0);xrRay=makeRay();xrController1.add(xrRay);createXRHandset();createXRSpatialAids();        
+xrController0.addEventListener('connected',e=>{xrController0.userData.handedness=e.data.handedness;if(e.data.handedness==='left')xrLeftSource=e.data;else if(e.data.handedness==='right')xrRightSource=e.data});xrController1.addEventListener('connected',e=>{xrController1.userData.handedness=e.data.handedness;if(e.data.handedness==='right')xrRightSource=e.data;else if(e.data.handedness==='left')xrLeftSource=e.data});        
+[xrController0,xrController1].forEach((c,i)=>{c.userData.hand=i===0?'left':'right';c.addEventListener('selectstart',()=>onXRTriggerStart(c));c.addEventListener('selectend',()=>onXRTriggerEnd(c));c.addEventListener('squeezestart',()=>onXRSqueezeStart(c));c.addEventListener('squeezeend',()=>onXRSqueezeEnd(c))});        
+renderer.xr.addEventListener('sessionstart',()=>{document.body.classList.add('xr-presenting');$('xrButton').style.display='none';if(document.pointerLockElement)document.exitPointerLock?.();player.position.y=.86;if(state.handWafer&&state.handWafer.parent===camera){camera.remove(state.handWafer);scene.add(state.handWafer);state.handWafer.visible=false}toast('Quest physical-space mode active. Left wrist shows the traveller.');});        
+renderer.xr.addEventListener('sessionend',()=>{document.body.classList.remove('xr-presenting');$('xrButton').style.display=state.started?'block':'none';player.position.y=2.58;if(state.handWafer){state.handWafer.parent?.remove(state.handWafer);camera.add(state.handWafer);state.handWafer.position.set(.48,-.38,-.8);state.handWafer.rotation.set(.6,-.25,.15);state.handWafer.scale.setScalar(1)}});        
+if(!navigator.xr){$('xrButton').disabled=true;$('xrButton').textContent='WEBXR NOT AVAILABLE'}        
+}        
+async function enterXR(){        
+if(!navigator.xr){toast('WebXR is unavailable. Open this HTTPS page in Quest Browser.','bad');return}        
+try{const supported=await navigator.xr.isSessionSupported('immersive-vr');if(!supported){toast('Immersive VR is not supported by this browser.','bad');return}const session=await navigator.xr.requestSession('immersive-vr',{requiredFeatures:['local-floor'],optionalFeatures:['bounded-floor','hand-tracking']});await renderer.xr.setSession(session)}catch(err){console.error(err);toast('Could not enter VR: '+err.message,'bad')}        
+}        
+function xrInteractiveHit(controller,maxDistance=XR_POINTER_REACH){
+if(!controller)return null;controller.updateMatrixWorld(true);xrTempMatrix.identity().extractRotation(controller.matrixWorld);xrOrigin.setFromMatrixPosition(controller.matrixWorld);xrDirection.set(0,0,-1).applyMatrix4(xrTempMatrix).normalize();raycaster.set(xrOrigin,xrDirection);return raycaster.intersectObjects(interactives,false).find(hit=>hit.distance<maxDistance)||null
+}
+function xrPointerHit(controller){
+if(!controller)return null;controller.updateMatrixWorld(true);xrTempMatrix.identity().extractRotation(controller.matrixWorld);xrOrigin.setFromMatrixPosition(controller.matrixWorld);xrDirection.set(0,0,-1).applyMatrix4(xrTempMatrix).normalize();raycaster.set(xrOrigin,xrDirection);const hit=raycaster.intersectObjects(interactives,false).find(value=>value.distance<XR_POINTER_REACH);let point=hit?.point||null,distance=hit?.distance||XR_POINTER_REACH;if(designWorld.active){const boardHit=boardPointFromRay(xrOrigin,xrDirection);if(boardHit){const boardDistance=boardHit.world.distanceTo(xrOrigin);if(boardDistance<XR_POINTER_REACH&&boardDistance<distance){point=boardHit.world;distance=boardDistance}}}return{point,distance,direction:xrDirection.clone(),origin:xrOrigin.clone()}
+}
+function updateXRInteractionBeams(){
+if(!renderer.xr.isPresenting)return;[xrController0,xrController1].forEach((controller,index)=>{if(!controller)return;const beam=index===0?xrRay0:xrRay,blob=xrHitBlobs[index],hit=xrPointerHit(controller);if(beam){beam.scale.z=hit.distance;beam.material.color.setHex(hit.point?C.green:C.cyan);beam.material.opacity=hit.point?.95:.55}if(blob){blob.visible=!!hit.point;if(hit.point){blob.position.copy(hit.point).addScaledVector(hit.direction,-.015);blob.scale.setScalar(.85+.15*Math.sin(performance.now()*.012))}}})
+}
+function setXRFocus(){        
+if(!xrController1)return;const hit=xrInteractiveHit(xrController1,3.4),found=hit?.object||null,hitDistance=hit?.distance||XR_POINTER_REACH,point=hit?.point||null;if(state.focus!==found&&found)pulseXR(.12,18);state.focus=found;if(xrRay){xrRay.scale.z=hitDistance;xrRay.material.color.setHex(found?(found.userData.type==='control'||buttonEnabled(found.userData)?C.green:C.red):C.cyan)}if(xrTargetRing){xrTargetRing.visible=!!point;if(point){xrTargetRing.position.copy(point);xrTargetRing.quaternion.copy(xrController1.quaternion);xrTargetRing.scale.setScalar(.9+.12*Math.sin(performance.now()*.012))}}updateMachineGui()        
+}        
+function updateXRSpatial(now){        
+drawXRHandset(now);if(renderer.xr.isPresenting&&userPreferences.developerPanel){drawXRDeveloperPane(xrHandsetCtx);xrHandsetTexture.needsUpdate=true}if(xrHandset)xrHandset.visible=renderer.xr.isPresenting&&(phys.hudVisible||userPreferences.developerPanel)&&!state.paused;if(xrObjectiveBeacon){const target=!state.runStart?stockMachine:machines[state.current+1];xrObjectiveBeacon.visible=renderer.xr.isPresenting&&phys.beaconVisible&&!state.completed&&!!target;if(target){target.group.getWorldPosition(xrObjectiveBeacon.position);xrObjectiveBeacon.position.y=3.45;xrObjectiveBeacon.rotation.y=now*.0015;const q=.85+.12*Math.sin(now*.004);xrObjectiveBeacon.scale.setScalar(q)}}if(renderer.xr.isPresenting)updateXRInteractionBeams()}        
+function updateXRVertical(dt){const crouchTarget=phys.crouchHeld?-.62:0;phys.jumpVelocity-=5.8*dt;phys.jumpOffset+=phys.jumpVelocity*dt;if(phys.jumpOffset<0){phys.jumpOffset=0;phys.jumpVelocity=0}const currentBase=player.position.y-phys.jumpOffset;const desired=phys.baseRigY+crouchTarget;player.position.y=lerp(currentBase,desired,1-Math.exp(-dt*12))+phys.jumpOffset}        
+function requestJump(){if(phys.jumpOffset<=.002&&!phys.crouchHeld){phys.jumpVelocity=2.6;pulseXR(.45,45)}}        
+function updateXRMovement(dt,now){        
+const session=renderer.xr.getSession();if(!session)return;updateXRVertical(dt);const sources=[...session.inputSources];let left=null,right=null;for(const src of sources){if(src.handedness==='left')left=src;if(src.handedness==='right')right=src}xrLeftSource=left||xrLeftSource;xrRightSource=right||xrRightSource;const lg=left?.gamepad,rg=right?.gamepad;        
+if(lg&&lg.axes.length>=4){let sx=lg.axes[2]||0,sy=lg.axes[3]||0;if(Math.abs(sx)<.15)sx=0;if(Math.abs(sy)<.15)sy=0;camera.getWorldDirection(xrHeadDirection);xrHeadDirection.y=0;if(xrHeadDirection.lengthSq()<.001)xrHeadDirection.set(0,0,-1);xrHeadDirection.normalize();const side=new THREE.Vector3().crossVectors(xrHeadDirection,new THREE.Vector3(0,1,0)).normalize();let nx=clamp(player.position.x+(side.x*sx+xrHeadDirection.x*-sy)*2.45*dt,-8.25,8.25),nz=clamp(player.position.z+(side.z*sx+xrHeadDirection.z*-sy)*2.45*dt,-40.5,11.2);for(const c of colliders){if(Math.abs(nx-c.x)<c.w/2+.34&&Math.abs(nz-c.z)<c.d/2+.34){nx=player.position.x;nz=player.position.z;break}}player.position.x=nx;player.position.z=nz}        
+if(rg&&rg.axes.length>=4){const ax=rg.axes[2]||0,ay=rg.axes[3]||0;if(Math.abs(ay)>.7&&state.focus?.userData.type==='control'&&now-xrAdjustAt>180){adjustControl(state.focus.userData,ay<0?1:-1);pulseXR(.18,22);xrAdjustAt=now}if(Math.abs(ax)>.75&&!xrTurnLatch){player.rotation.y-=Math.sign(ax)*Math.PI/6;pulseXR(.22,28);xrTurnLatch=true}else if(Math.abs(ax)<.3)xrTurnLatch=false}        
+updateXRSpatial(now)        
+}        
+function createSharpsBins(){        
+[[-7.4,8],[7.4,-14],[-7.4,-35]].forEach(([x,z],i)=>{const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);box(.48,.6,.48,mat(0xffcf22,.05,.7),g,0,.3,0);box(.38,.02,.3,mat(0x161616,.1,.7),g,0,.615,0);const l=labelMesh('SHARPS','#161616',.43,.12,25);l.position.set(0,.48,.246);g.add(l);sharpsBins.push({group:g,x,z})})}        
+function ensureWaferPickupGuide(){if(phys.pickupGuide)return phys.pickupGuide;const g=new THREE.Group(),ring=mesh(new THREE.TorusGeometry(.42,.016,10,48),new THREE.MeshBasicMaterial({color:C.cyan,transparent:true,opacity:.9,toneMapped:false}),g);ring.rotation.x=Math.PI/2;const pillar=mesh(new THREE.CylinderGeometry(.008,.008,.5,8),new THREE.MeshBasicMaterial({color:C.cyan,transparent:true,opacity:.55,toneMapped:false}),g,0,.27,0);const arrow=mesh(new THREE.ConeGeometry(.065,.16,12),new THREE.MeshBasicMaterial({color:C.green,toneMapped:false}),g,0,.58,0);arrow.rotation.x=Math.PI;const label=labelMesh('PINCH WAFER HERE','#ffffff',1.25,.24,28);label.position.set(0,.78,0);label.rotation.x=-.18;g.add(label);g.visible=false;scene.add(g);phys.pickupGuide=g;return g}        
+function updateWaferPickupGuide(now){const g=ensureWaferPickupGuide();g.visible=renderer.xr.isPresenting&&phys.waferStaged&&!phys.waferEverPicked&&state.handWafer?.visible;if(g.visible){const p=state.handWafer.getWorldPosition(new THREE.Vector3());g.position.set(p.x,p.y+.025,p.z);g.rotation.y=now*.001;const q=.95+.08*Math.sin(now*.006);g.scale.setScalar(q)}}        
+function createXROverlay(){xrOverlayCanvas=document.createElement('canvas');xrOverlayCanvas.width=1024;xrOverlayCanvas.height=640;xrOverlayCtx=xrOverlayCanvas.getContext('2d');installScaledCanvasText(xrOverlayCtx);xrOverlayTexture=new THREE.CanvasTexture(xrOverlayCanvas);xrOverlayTexture.colorSpace=THREE.SRGBColorSpace;xrOverlay=mesh(new THREE.PlaneGeometry(1.35,.84),new THREE.MeshBasicMaterial({map:xrOverlayTexture,transparent:true,depthTest:false,toneMapped:false}),camera,0,0,-1.45);xrOverlay.renderOrder=999;xrOverlay.visible=false}
+function showXROverlay(mode='pause'){if(mode==='pause'){drawXRPauseOverlay();if(xrOverlay)xrOverlay.visible=true;return}const g=xrOverlayCtx;g.fillStyle='rgba(3,12,20,.96)';g.fillRect(0,0,1024,640);g.strokeStyle='#67f6a3';g.lineWidth=14;g.strokeRect(10,10,1004,620);g.textAlign='center';g.fillStyle='#67f6a3';g.font='900 64px system-ui';g.fillText('LOT COMPLETE',512,110);g.fillStyle='#eefcff';g.font='32px monospace';g.fillText(`${state.lotId} // QUALITY ${quality().toFixed(1)}%`,512,190);g.fillText(`TIME ${formatTime(state.elapsed)}`,512,245);g.fillStyle='#a9c0cb';g.fillText('Right stick click: close report',512,520);xrOverlayTexture.needsUpdate=true;xrOverlay.visible=true}
+function xrButtonPressed(source,index){const button=source?.gamepad?.buttons?.[index];return!!(button?.pressed||(button?.value||0)>.28)}
+function drawXRDiagramLabel(ctx,x,y,width,title,action,active){ctx.fillStyle=active?'rgba(13,66,41,.96)':'rgba(5,16,24,.94)';ctx.strokeStyle=active?'#67f6a3':'#466170';ctx.lineWidth=active?3:2;ctx.fillRect(x,y,width,46);ctx.strokeRect(x,y,width,46);ctx.textAlign='left';ctx.fillStyle=active?'#8cffb8':'#e5f1f5';ctx.font='800 13px monospace';ctx.fillText(title,x+9,y+18);ctx.fillStyle=active?'#c5ffda':'#9db3bd';ctx.font='11px monospace';ctx.fillText(action,x+9,y+35)}
+function drawXRControllerGlyph(ctx,cx,cy,hand,source){const gp=source?.gamepad,axes=gp?.axes||[],stickX=axes[2]||0,stickY=axes[3]||0,stickActive=Math.hypot(stickX,stickY)>.18,stickClick=xrButtonPressed(source,3),faceOne=xrButtonPressed(source,4),faceTwo=xrButtonPressed(source,5),trigger=clamp(gp?.buttons?.[0]?.value||0,0,1),grip=clamp(gp?.buttons?.[1]?.value||0,0,1),active='#67f6a3';ctx.save();ctx.translate(cx,cy);ctx.fillStyle='#111e27';ctx.strokeStyle='#91a5af';ctx.lineWidth=4;ctx.beginPath();ctx.ellipse(0,-54,77,82,0,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.beginPath();ctx.moveTo(-44,7);ctx.lineTo(-34,44);ctx.lineTo(-27,133);ctx.quadraticCurveTo(0,159,27,133);ctx.lineTo(34,44);ctx.lineTo(44,7);ctx.closePath();ctx.fill();ctx.stroke();ctx.fillStyle=trigger>.08?active:'#273740';ctx.fillRect(-57,-137,42,12);ctx.fillStyle=grip>.08?active:'#273740';ctx.fillRect(40,-8,13,44);ctx.fillStyle='#07121a';ctx.strokeStyle=stickActive?active:'#80949e';ctx.lineWidth=4;ctx.beginPath();ctx.arc(-30,-67,24,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle=stickActive?active:'#536773';ctx.beginPath();ctx.arc(-30+clamp(stickX,-1,1)*13,-67+clamp(stickY,-1,1)*13,10,0,Math.PI*2);ctx.fill();const firstLabel=hand==='left'?'X':'A',secondLabel=hand==='left'?'Y':'B';[[30,-75,firstLabel,faceOne],[55,-39,secondLabel,faceTwo]].forEach(([x,y,label,pressed])=>{ctx.fillStyle=pressed?active:'#1d2b34';ctx.strokeStyle=pressed?'#b8ffcf':'#80949e';ctx.lineWidth=3;ctx.beginPath();ctx.arc(x,y,15,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle=pressed?'#03130a':'#eaf4f7';ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='900 12px monospace';ctx.fillText(label,x,y)});ctx.fillStyle=stickClick?active:'#24343d';ctx.strokeStyle=stickClick?'#b8ffcf':'#80949e';ctx.beginPath();ctx.arc(-51,-5,9,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.restore();const panelLeft=hand==='left'?20:520,labelLeft=panelLeft+14,labelRight=panelLeft+328,buttonW=142;drawXRDiagramLabel(ctx,labelLeft,196,buttonW,'TRIGGER','GRAB / SELECT',trigger>.08);drawXRDiagramLabel(ctx,labelLeft,250,buttonW,'GRIP',hand==='left'?'CROUCH':'DOOR / SPRINT',grip>.08);drawXRDiagramLabel(ctx,labelRight,250,buttonW,'STICK',hand==='left'?'MOVE':'TURN / ADJUST',stickActive);drawXRDiagramLabel(ctx,labelRight,302,buttonW,hand==='left'?'L3 CLICK':'R3 CLICK',hand==='left'?'SPEC HUD':'PAUSE / RESUME',stickClick);drawXRDiagramLabel(ctx,labelRight,354,buttonW,`${firstLabel} BUTTON`,hand==='left'?'JUMP':'OPERATE / RESUME',faceOne);drawXRDiagramLabel(ctx,labelRight,406,buttonW,`${secondLabel} BUTTON`,hand==='left'?'OBJECTIVE':'PAUSE / RESUME',faceTwo)}
+function drawXRPauseOverlay(){
+  if(!xrOverlayCtx||!xrOverlayTexture)return;
+  const g=xrOverlayCtx;g.fillStyle='rgba(3,12,20,.98)';g.fillRect(0,0,1024,640);g.strokeStyle='#53e7ff';g.lineWidth=8;g.strokeRect(8,8,1008,624);g.textAlign='center';g.textBaseline='alphabetic';g.fillStyle='#53e7ff';g.font='900 44px system-ui';g.fillText(xrPausePage==='more'?'MORE SETTINGS':'PAUSED',512,62);
+  if(xrPausePage==='more'){
+    g.fillStyle='#d9e8ed';g.font='800 19px monospace';g.fillText('DEVELOPER DIAGNOSTICS',512,160);g.fillStyle=userPreferences.developerPanel?'#67f6a3':'#a9c0cb';g.font='900 27px monospace';g.fillText(userPreferences.developerPanel?'ON':'OFF',512,205);g.fillStyle='#d9e8ed';g.font='800 19px monospace';g.fillText(`GUI TEXT SIZE: ${userPreferences.guiTextSize}`,512,292);g.fillStyle='#a9c0cb';g.font='16px monospace';g.fillText('LEFT Y: TOGGLE DIAGNOSTICS',512,375);g.fillText('RIGHT A / B: SMALLER / LARGER TEXT',512,413);g.fillText('LEFT X: BACK',512,471);if(userPreferences.developerPanel){g.fillStyle='#67f6a3';g.fillText(`${currentFPS} FPS · FoM ${developerSnapshot().score?.toFixed(1)??'--'}%`,512,526)}g.fillStyle='#67f6a3';g.font='800 16px monospace';g.fillText('RIGHT STICK: RESUME',512,592)
+  }else{
+    g.fillStyle='#b8cbd3';g.font='16px monospace';g.fillText('PLAYER AND WORLD INPUTS LOCKED',512,94);g.fillStyle='rgba(9,24,33,.88)';g.strokeStyle='#315163';g.lineWidth=2;g.fillRect(18,122,484,484);g.strokeRect(18,122,484,484);g.fillRect(522,122,484,484);g.strokeRect(522,122,484,484);g.fillStyle='#d9e8ed';g.font='800 16px monospace';g.fillText('LEFT TOUCH CONTROLLER',260,154);g.fillText('RIGHT TOUCH CONTROLLER',764,154);drawXRControllerGlyph(g,260,400,'left',xrLeftSource);drawXRControllerGlyph(g,764,400,'right',xrRightSource);g.fillStyle='#b8cbd3';g.font='14px monospace';g.fillText('LEFT X: MORE SETTINGS',512,558);g.fillStyle='#67f6a3';g.font='800 14px monospace';g.fillText('PRESS RIGHT STICK, A OR B TO RESUME',512,592)
+  }
+  xrOverlayTexture.needsUpdate=true
+}
+function freezeXRWorldForPause(){for(const controller of [xrController0,xrController1]){if(!controller)continue;const grab=parallel.grabs.get(handKey(controller));if(!grab)continue;if(grab.kind==='wafer'){detachPreserve(grab.body.view,scene);grab.body.heldBy=null;grab.body.dynamic=false;grab.body.velocity.set(0,0,0)}else if(grab.kind==='shard'){detachPreserve(grab.shard.mesh,scene);grab.shard.v.set(0,0,0)}clearHandGrab(controller)}phys.grab=null;phys.doorGrab=null;phys.doorVelocities.fill(0);phys.crouchHeld=false;parallel.sprintHeld=false;state.carrying=carriedWafers().length>0}
+function setXRPaused(paused){if(state.paused===paused)return;state.paused=paused;if(paused){xrPausePage='pause';freezeXRWorldForPause();showXROverlay('pause')}else hideXROverlay()}
+function hideXROverlay(){if(xrOverlay)xrOverlay.visible=false}        
+function controllerWorld(c){return c.getWorldPosition(new THREE.Vector3())}        
+function pinchAnchorFor(c){return c?.userData?.pinchAnchor||c}        
+function pinchWorld(c){return pinchAnchorFor(c).getWorldPosition(new THREE.Vector3())}        
+function nearestWaferDistance(c){if(!state.handWafer||!state.handWafer.visible)return Infinity;return pinchWorld(c).distanceTo(state.handWafer.getWorldPosition(new THREE.Vector3()))}        
+function nearestPinchTarget(anchor){if(!anchor)return null;const p=anchor.getWorldPosition(new THREE.Vector3());let best=null,d=.34;if(state.handWafer?.visible&&!state.waferBroken){const q=state.handWafer.getWorldPosition(new THREE.Vector3()),n=p.distanceTo(q);if(n<d){d=n;best={kind:'wafer',object:state.handWafer,distance:n,point:q}}}for(const shard of waferShards){const q=shard.mesh.getWorldPosition(new THREE.Vector3()),n=p.distanceTo(q);if(n<d){d=n;best={kind:'shard',object:shard.mesh,distance:n,point:q}}}if(state.focus){const q=state.focus.getWorldPosition(new THREE.Vector3()),n=p.distanceTo(q);if(n<d){d=n;best={kind:state.focus.userData.type,object:state.focus,distance:n,point:q}}}return best}        
+function nearestInteractiveAtPinch(c,max=phys.pinchDistance){const p=pinchWorld(c);let best=null,d=max;for(const object of interactives){const q=object.getWorldPosition(new THREE.Vector3()),n=p.distanceTo(q);if(n<=d){d=n;best={object,data:object.userData,distance:n,point:q}}}return best}        
+function detachPreserve(obj,newParent){obj.updateMatrixWorld(true);newParent.attach(obj)}        
+function bindWaferPhysics(view){phys.waferBody={view,velocity:phys.waferVelocity,dynamic:false,staged:false};view.userData.physicsBody=phys.waferBody;return phys.waferBody}        
+function setWaferDynamic(dynamic){phys.waferFree=dynamic;if(phys.waferBody)phys.waferBody.dynamic=dynamic}        
+function setWaferStaged(staged){phys.waferStaged=staged;if(phys.waferBody)phys.waferBody.staged=staged}        
+function stockSpawnWorld(){return stockMachine.group.localToWorld(stockMachine.spawnLocal.clone())}        
+function stockSpawnQuaternion(){const q=stockMachine.group.getWorldQuaternion(new THREE.Quaternion()),flat=new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI/2,0,0));return q.multiply(flat)}        
+function placeWaferAtStock(){const wafer=phys.waferBody?.view||state.handWafer;if(wafer.parent)wafer.parent.remove(wafer);scene.add(wafer);wafer.position.copy(stockSpawnWorld());wafer.quaternion.copy(stockSpawnQuaternion());wafer.scale.setScalar(1);wafer.visible=true;phys.stockReady=wafer;phys.waferVelocity.set(0,0,0);setWaferDynamic(false);setWaferStaged(true);phys.stockRespawnAt=0;state.carrying=false;ensureWaferPickupGuide()}        
+function exposeCompletedWafer(){const i=state.current,st=status[i],m=machines[i+1],wafer=phys.waferBody?.view||state.handWafer;if(st?.state==='done'&&st.doorAmount>.45&&m.wafer.visible&&!state.carrying&&!state.waferBroken){const wp=m.wafer.getWorldPosition(new THREE.Vector3()),wq=m.wafer.getWorldQuaternion(new THREE.Quaternion());m.wafer.visible=false;if(wafer.parent)wafer.parent.remove(wafer);scene.add(wafer);wafer.position.copy(wp);wafer.quaternion.copy(wq);wafer.scale.setScalar(1);wafer.visible=true;phys.waferVelocity.set(0,0,0);setWaferDynamic(true);setWaferStaged(false)}}        
+function nearestShard(c){const p=pinchWorld(c);let best=null,d=phys.pinchDistance;for(const q of waferShards){const n=p.distanceTo(q.mesh.position);if(n<d){d=n;best=q}}return best}        
+function grabShard(c){const q=nearestShard(c);if(!q)return false;const anchor=pinchAnchorFor(c);detachPreserve(q.mesh,anchor);q.mesh.position.set(0,0,0);q.v.set(0,0,0);phys.grab={kind:'shard',controller:c,shard:q};pulseXR(.2,25);return true}        
+function releaseShard(c){const g=phys.grab;if(g?.kind!=='shard'||g.controller!==c)return;detachPreserve(g.shard.mesh,scene);g.shard.v.copy(phys.handVelocity);phys.grab=null}        
+function updateStockSupply(now){if(phys.stockRespawnAt&&now>=phys.stockRespawnAt&&!phys.stockReady){const spare=createWafer(.72);spare.position.copy(stockSpawnWorld());spare.quaternion.copy(stockSpawnQuaternion());spare.scale.setScalar(1);scene.add(spare);phys.stockReady=spare;phys.stockRespawnAt=0;toast('A replacement blank wafer is ready on the stock worktop.')}if(stockMachine?.ring){const pulse=.88+.14*Math.sin(now*.005);stockMachine.ring.scale.setScalar(pulse);stockMachine.ring.material.color.setHex(phys.stockReady?C.green:C.cyan)}}        
+function grabWafer(c){const d=nearestWaferDistance(c);if(state.waferBroken||d>phys.pinchDistance)return false;const wafer=phys.waferBody?.view||state.handWafer,anchor=pinchAnchorFor(c);detachPreserve(wafer,anchor);wafer.position.set(0,0,0);wafer.rotation.set(-.08,0,0);wafer.scale.setScalar(1);wafer.visible=true;state.carrying=true;setWaferDynamic(false);setWaferStaged(false);phys.waferEverPicked=true;phys.stockReady=null;phys.stockRespawnAt=performance.now()+phys.stockRespawnMs;if(phys.pickupGuide)phys.pickupGuide.visible=false;if(status[state.current]?.state==='done')status[state.current].state='unloadedDoorOpen';phys.grab={kind:'wafer',controller:c,anchor};phys.lastHandPos.copy(pinchWorld(c));pulseXR(.6,65);toast(`${c.userData.handedness||'Controller'} hand attached at pinch marker.`);return true}        
+function releaseWafer(c){if(phys.grab?.kind!=='wafer'||phys.grab.controller!==c)return;const wafer=phys.waferBody?.view||state.handWafer;detachPreserve(wafer,scene);phys.waferVelocity.copy(phys.handVelocity);phys.waferReleaseY=wafer.getWorldPosition(new THREE.Vector3()).y;wafer.visible=true;setWaferDynamic(true);setWaferStaged(false);state.carrying=false;phys.grab=null;tryPlaceWafer();pulseXR(.25,28)}        
+function tryPlaceWafer(){const wafer=phys.waferBody?.view||state.handWafer;if(!wafer?.visible||state.waferBroken)return;const i=state.current,m=machines[i+1],st=status[i],wp=wafer.getWorldPosition(new THREE.Vector3()),target=m.wafer.getWorldPosition(new THREE.Vector3());if(st.doorAmount>.45&&wp.distanceTo(target)<.52&&['ready','done'].includes(st.state)){setWaferDynamic(false);wafer.visible=false;if(st.state==='ready'){m.wafer.visible=true;refreshWaferVisual(m.wafer);st.state='loadedDoorOpen';toast('Wafer seated physically. Close the door to enable START.')}else{m.wafer.visible=false;wafer.visible=true;wafer.position.copy(target);setWaferDynamic(true);toast('Completed wafer removed. Pick it up with trigger.')}pulseXR(.65,70);updateAll()}}        
+function shatterWafer(point,impact){if(state.waferBroken)return;state.waferBroken=true;state.carrying=false;setWaferDynamic(false);setWaferStaged(false);if(phys.pickupGuide)phys.pickupGuide.visible=false;if(state.handWafer)state.handWafer.visible=false;for(let i=0;i<14;i++){const shard=mesh(crackedFragmentGeometry(.035+Math.random()*.035),mat(0xb9ccd2,.72,.18),scene,point.x,point.y,point.z);const v=new THREE.Vector3((Math.random()-.5)*impact,(Math.random()*.7+.15)*impact,(Math.random()-.5)*impact);waferShards.push({mesh:shard,v,life:0})}toast('WAFER FRACTURE. Dispose of every shard in a yellow sharps bin.','bad');pulseXR(1,160)}        
+function beginControlGrab(c,d){const m=machines[d.machineIndex+1],ref=m.controls[stations[d.machineIndex].controls.findIndex(x=>x.key===d.controlKey)],wp=pinchWorld(c);phys.grab={kind:'control',controller:c,data:d,ref,start:wp.clone(),last:wp.clone()};pulseXR(.35,35)}        
+function updateControlGrab(){const g=phys.grab;if(g?.kind!=='control')return;const i=g.data.machineIndex,spec=stations[i].controls.find(x=>x.key===g.data.controlKey),m=machines[i+1],p=pinchWorld(g.controller),local=m.group.worldToLocal(p.clone());const ref=g.ref;if(spec.style==='slider'){const motion=local.y-m.group.worldToLocal(g.last.clone()).y;if(Math.abs(motion)>.008)adjustControl(g.data,Math.sign(motion))}else{const center=(ref.rotor||ref.mesh).getWorldPosition(new THREE.Vector3()),a=Math.atan2(p.y-center.y,p.x-center.x),b=Math.atan2(g.last.y-center.y,g.last.x-center.x),delta=a-b;if(Math.abs(delta)>.035)adjustControl(g.data,Math.sign(delta))}g.last.copy(p)}        
+function beginDoorGrab(c){      
+const p=pinchWorld(c);      
+let best=null,bestD=1.05;      
+status.forEach((st,i)=>{      
+const m=machines[i+1];if(!m||m.kind!=='fabrication'||!m.door)return;const grip=m.doorHandle||m.door.userData.handle||m.door;      
+const gripP=grip.getWorldPosition(new THREE.Vector3()),d=p.distanceTo(gripP);      
+if(d<bestD){bestD=d;best={i,m,grip}}      
+});      
+if(!best)return false;      
+state.focus=best.grip;      
+phys.doorGrab={i:best.i,controller:c,last:p.clone(),handle:best.grip};      
+phys.doorVelocities[best.i]=0;      
+pulseXR(.48,45);      
+toast('Door handle grip attached. Pull or push the handle to swing the door.');      
+return true      
+}        
+function updateDoorGrab(dt){const g=phys.doorGrab;if(!g)return;const m=machines[g.i+1],st=status[g.i],p=pinchWorld(g.controller),pivot=m.door.getWorldPosition(new THREE.Vector3()),lp=m.group.worldToLocal(p.clone()),lh=m.group.worldToLocal(g.last.clone()),a=Math.atan2(lp.z,lp.x),b=Math.atan2(lh.z,lh.x),delta=a-b;st.doorAmount=clamp(st.doorAmount+delta/(Math.PI/2),0,1);phys.doorVelocities[g.i]=delta/(Math.PI/2)/Math.max(dt,.001);g.last.copy(p)}        
+function onXRTriggerStart(c){if(state.paused)return;if(grabShard(c))return;if(grabWafer(c))return;const rayHit=xrInteractiveHit(c);if(rayHit?.object.userData.kind==='designTerminal'){state.focus=rayHit.object;activateFocused();pulseXR(.45,45);return}const near=nearestInteractiveAtPinch(c),d=near?.data;if(d?.type==='control'){state.focus=near.object;beginControlGrab(c,d);return}if(d?.type==='button'){state.focus=near.object;activateFocused();pulseXR(.45,45);return}pulseXR(.08,18)}        
+function onXRTriggerEnd(c){if(phys.grab?.kind==='wafer')releaseWafer(c);else if(phys.grab?.kind==='shard')releaseShard(c);else if(phys.grab?.kind==='control'&&phys.grab.controller===c)phys.grab=null}        
+function onXRSqueezeStart(c){if(state.paused)return;if(c.userData.handedness==='left'){phys.crouchHeld=true;pulseXR(.16,20)}else beginDoorGrab(c)}        
+function onXRSqueezeEnd(c){if(c.userData.handedness==='left')phys.crouchHeld=false;if(phys.doorGrab?.controller===c){const i=phys.doorGrab.i,st=status[i];phys.doorGrab=null;if(st.doorAmount<5/90){st.doorAmount=0;phys.doorVelocities[i]=0;pulseXR(.75,70)}}}        
+function updateWaferPhysics(dt){const body=phys.waferBody,wafer=body?.view;if(!body?.dynamic||!wafer?.visible||state.waferBroken)return;body.velocity.y-=9.81*dt;wafer.position.addScaledVector(body.velocity,dt);const p=wafer.position;if(p.y<.08){const drop=phys.waferReleaseY-p.y,impact=Math.abs(body.velocity.y);if(drop>.5||impact>2.2){shatterWafer(p.clone(),Math.max(1.4,impact*.35));return}p.y=.08;body.velocity.y=Math.abs(body.velocity.y)*.18;body.velocity.x*=.65;body.velocity.z*=.65}if(Math.abs(p.x)>8.8||p.z>11.8||p.z<-41.8){shatterWafer(p.clone(),2.2);return}for(const c of colliders){if(Math.abs(p.x-c.x)<c.w/2&&Math.abs(p.z-c.z)<c.d/2&&p.y<2.8&&body.velocity.length()>1.7){shatterWafer(p.clone(),body.velocity.length());return}}tryPlaceWafer()}        
+function updateShards(dt){for(let i=waferShards.length-1;i>=0;i--){const q=waferShards[i];if(phys.grab?.kind==='shard'&&phys.grab.shard===q)continue;q.v.y-=9.81*dt;q.mesh.position.addScaledVector(q.v,dt);q.life+=dt;if(q.mesh.position.y<.03){q.mesh.position.y=.03;q.v.y=Math.abs(q.v.y)*.2;q.v.x*=.75;q.v.z*=.75}const bin=sharpsBins.find(b=>Math.abs(q.mesh.position.x-b.x)<.24&&Math.abs(q.mesh.position.z-b.z)<.24&&q.mesh.position.y<.75);if(bin){scene.remove(q.mesh);waferShards.splice(i,1)}}if(state.waferBroken&&waferShards.length===0){toast('Sharps cleared. Start another run for a replacement wafer.');state.waferBroken=false}}        
+function updatePhysicalSystem(dt,now){if(!renderer.xr.isPresenting)return;exposeCompletedWafer();if(phys.grab?.kind==='wafer'||phys.grab?.kind==='shard'){const p=pinchWorld(phys.grab.controller);phys.handVelocity.copy(p).sub(phys.lastHandPos).divideScalar(Math.max(dt,.001));phys.lastHandPos.copy(p)}updateGhostHandPose(phys.handData[0],xrController0.userData.handedness==='right'?xrRightSource:xrLeftSource,dt);updateGhostHandPose(phys.handData[1],xrController1.userData.handedness==='left'?xrLeftSource:xrRightSource,dt);updateWaferPickupGuide(now);updateStockSupply(now);updateControlGrab();updateDoorGrab(dt);updateWaferPhysics(dt);updateShards(dt)}        
+function edgeButton(key,pressed,fn){if(pressed&&!phys.buttons[key])fn();phys.buttons[key]=pressed}        
+function updateXRButtons(now){if(!renderer.xr.isPresenting)return;const l=xrLeftSource?.gamepad,r=xrRightSource?.gamepad;if(l){edgeButton('ls',!!l.buttons[3]?.pressed,()=>{phys.hudVisible=!phys.hudVisible;pulseXR(.3,35)});edgeButton('lx',!!l.buttons[4]?.pressed,()=>requestJump());edgeButton('ly',!!l.buttons[5]?.pressed,()=>{phys.beaconVisible=!phys.beaconVisible;phys.hudVisible=true;if(xrObjectiveBeacon)xrObjectiveBeacon.visible=phys.beaconVisible;drawXRHandset(performance.now())})}if(r){edgeButton('rs',!!r.buttons[3]?.pressed,()=>{if(state.completed){hideXROverlay()}else{state.paused=!state.paused;state.paused?showXROverlay('pause'):hideXROverlay()}pulseXR(.4,45)});edgeButton('ra',!!r.buttons[4]?.pressed,()=>{if(state.paused){state.paused=false;hideXROverlay()}else if(state.focus?.userData.type==='button')activateFocused()});edgeButton('rb',!!r.buttons[5]?.pressed,()=>{state.paused=!state.paused;state.paused?showXROverlay('pause'):hideXROverlay()})}}        
+function machineShell(g,s){box(3.1,.28,2.2,mat(0x263e4c,.55,.25),g,0,.18,0);box(2.85,1.35,1.8,mat(0x172b38,.5,.3),g,0,.92,0);box(3.08,.11,2.12,mat(s.color,.35,.22),g,0,1.62,0);const lamp=cyl(.07,.12,mat(0x263846,.2,.22),g,1.22,1.77,.76);const label=labelMesh(s.name,'#'+s.color.toString(16).padStart(6,'0'),2.7,.48,27);label.position.set(0,2.82,.18);g.add(label);return lamp}        
+function createStockMachine(){const spec={name:'Blank Wafer Stock',color:C.cyan,side:0,z:10,type:'stock'},g=new THREE.Group();g.position.set(0,0,10);g.rotation.y=Math.PI;scene.add(g);const lamp=machineShell(g,spec);for(let i=0;i<8;i++){const w=createWafer(.72);w.position.set(-.55+i%4*.36,1.85+Math.floor(i/4)*.18,.25);w.rotation.x=-Math.PI/2;g.add(w)}const pad=cyl(.47,.035,mat(0x132c38,.25,.42,true,.35,C.cyan),g,0,1.89,.58,32);pad.userData.stockPad=true;const ring=mesh(new THREE.RingGeometry(.31,.43,48),new THREE.MeshBasicMaterial({color:C.cyan,transparent:true,opacity:.75,side:THREE.DoubleSide,toneMapped:false}),g,0,1.915,.58);ring.rotation.x=-Math.PI/2;const pickupLabel=labelMesh('WAFER PICKUP','#ffffff',1.2,.2,27);pickupLabel.position.set(0,2.42,.58);pickupLabel.rotation.y=Math.PI;g.add(pickupLabel);const button=makeButton(g,-.62,1.02,1.03,'DISPENSE',0x43e8ff,{kind:'stock'});stockMachine={group:g,lamp,world:new THREE.Vector3(0,1.4,10),button,pad,ring,spawnLocal:new THREE.Vector3(0,1.94,.58)};machines.push(stockMachine);addCollider(0,10,3.8,2.2)}        
+function makeButton(parent,x,y,z,label,color,data){const m=cyl(.13,.08,mat(color,.35,.22,false,1,color),parent,x,y,z,20);m.rotation.x=Math.PI/2;m.material.emissiveIntensity=.25;m.userData={interactive:true,type:'button',label,...data,baseColor:color};interactives.push(m);const l=labelMesh(label,'#ffffff',.72,.19,28);l.position.set(x,y-.23,z+.045);parent.add(l);return m}        
+function controlScaleValue(c,v,includeUnit=false){      
+if(c.kind==='choice')return String(v);      
+const decimals=c.step<1?(String(c.step).split('.')[1]||'').length:0;      
+const value=Number(v).toFixed(decimals);      
+return includeUnit&&c.unit?`${value} ${c.unit}`:value      
+}      
+function addControlScaleLabel(parent,text,anchorX,anchorY,z,w=.46,h=.105,font=17,centreX=0,centreY=0){  
+const label=labelMesh(String(text),'#c9e1e9',w,h,font),lw=label.userData.labelWidth||w,lh=label.userData.labelHeight||h;  
+const dx=anchorX-centreX,dy=anchorY-centreY;  
+const sx=Math.abs(dx)<1e-5?0:Math.sign(dx),sy=Math.abs(dy)<1e-5?0:Math.sign(dy);  
+// The inner corner, not the label centre, is attached to the graduation point.  
+label.position.set(anchorX+sx*lw*.5,anchorY+sy*lh*.5,z);  
+label.renderOrder=8;label.userData.anchor={x:anchorX,y:anchorY,cornerX:-sx,cornerY:-sy};  
+parent.add(label);  
+return label  
+}      
+function makeControl(parent,c,index,machineIndex){      
+const col=index%2?0x78ffbd:0x52dfff,x=index%2?.55:-.55,y=1.36-Math.floor(index/2)*.64,z=1.04,data={interactive:true,type:'control',machineIndex,controlKey:c.key,label:c.label,baseColor:col};      
+const values=c.kind==='choice'?[c.options[0],c.options[Math.floor(c.options.length/2)],c.options[c.options.length-1]]:[c.min,(c.min+c.max)/2,c.max];      
+if(c.style==='slider'){      
+const frameColor=index%2?0x31473f:0x263f52;      
+const frame=box(.39,.56,.055,mat(frameColor,.55,.28),parent,x,y,z-.025);      
+const slot=box(.075,.43,.045,mat(0x071119,.25,.32),parent,x,y,z+.012);      
+const knob=box(.29,.095,.09,mat(col,.35,.22,false,1,col),parent,x,y,z+.075);      
+knob.material.emissiveIntensity=.3;      
+const side=index%2?1:-1,labelX=x+side*.34,tickX=x+side*.14;      
+[-.215,0,.215].forEach((dy,k)=>{      
+const tick=box(.09,.012,.025,mat(0xb9d3dd,.55,.2),parent,tickX,y+dy,z+.065);      
+const includeUnit=k===2&&c.kind!=='choice';      
+addControlScaleLabel(parent,controlScaleValue(c,values[k],includeUnit),tickX+side*.075,y+dy,z+.078,c.kind==='choice'?.58:.42,.105,c.kind==='choice'?14:17,x,y)      
+});      
+const hit=box(.52,.64,.035,mat(0x000000,0,1,true,.001),parent,x,y,z+.135);      
+hit.material.depthWrite=false;      
+hit.material.colorWrite=false;      
+hit.userData={...data,sliderTarget:true,visualButton:false};      
+interactives.push(hit);      
+return{mesh:knob,track:true,frame,slot,hit}      
+}      
+const rotor=new THREE.Group();      
+rotor.position.set(x,y,z);      
+parent.add(rotor);      
+const dial=cyl(.15,.1,mat(col,.45,.18,false,1,col),rotor,0,0,0,28);      
+dial.rotation.x=Math.PI/2;      
+dial.material.emissiveIntensity=.25;      
+const pointer=box(.025,.13,.035,mat(0xffffff,0,.18),rotor,0,.07,.061);      
+const angles=[-2.25,0,2.25],radius=.255;      
+angles.forEach((angle,k)=>{      
+const tx=x-Math.sin(angle)*radius,ty=y+Math.cos(angle)*radius;      
+const tick=box(.012,.055,.024,mat(0xb9d3dd,.55,.2),parent,x-Math.sin(angle)*.19,y+Math.cos(angle)*.19,z+.064);      
+tick.rotation.z=angle;      
+const includeUnit=k===2&&c.kind!=='choice';      
+addControlScaleLabel(parent,controlScaleValue(c,values[k],includeUnit),x-Math.sin(angle)*.225,y+Math.cos(angle)*.225,z+.078,c.kind==='choice'?.54:.39,.105,c.kind==='choice'?13:16,x,y)      
+});      
+dial.userData=data;      
+pointer.userData=data;      
+interactives.push(dial,pointer);      
+return{mesh:dial,rotor,track:false,pointer}      
+}        
+function createDoor(g,color,machineIndex){      
+const pivot=new THREE.Group();      
+pivot.position.set(-.92,2.13,.92);      
+g.add(pivot);      
+const data={interactive:true,type:'button',label:'DOOR HANDLE',kind:'machine',action:'door',machineIndex,baseColor:color,visualButton:false};      
+const door=box(1.84,1.22,.1,mat(color,.35,.2,true,.68),pivot,.92,0,0);      
+const handleMat=mat(0xc6d5db,.82,.14);      
+const upperMount=box(.13,.065,.22,handleMat,pivot,1.61,.31,.115);      
+const lowerMount=box(.13,.065,.22,handleMat,pivot,1.61,-.31,.115);      
+const handle=cyl(.038,.82,handleMat,pivot,1.67,0,.22,20);      
+door.userData=data;      
+handle.userData={...data,gripPoint:true};      
+upperMount.userData=handle.userData;      
+lowerMount.userData=handle.userData;      
+interactives.push(door,handle,upperMount,lowerMount);      
+pivot.userData.surface=door;      
+pivot.userData.handle=handle;      
+return pivot      
+}        
+function createMachine(s,i){const g=new THREE.Group(),x=s.side*6.65;g.position.set(x,0,s.z);g.rotation.y=s.side<0?Math.PI/2:-Math.PI/2;scene.add(g);const lamp=machineShell(g,s),accent=mat(s.color,.35,.25),dark=mat(0x07121a,.6,.2),glass=mat(s.color,.12,.08,true,.22,s.color);if(s.type==='design'){box(2.2,1.1,.14,dark,g,0,2.05,.05);const screen=box(1.95,.86,.04,mat(0x0b85a5,.1,.2,true,.9,C.cyan),g,0,2.05,.14);effects.push({kind:'screen',obj:screen,index:i})}if(s.type==='deposition'||s.type==='metal'){const chamber=cyl(.72,1.35,glass,g,0,2.08,0);cyl(.83,.13,accent,g,0,1.42,0);cyl(.83,.13,accent,g,0,2.69,0);cyl(.3,.35,dark,g,0,2.96,0);effects.push({kind:s.type==='metal'?'metal':'vapor',obj:chamber,index:i})}if(s.type==='spinner'||s.type==='wetbench'){cyl(.78,.35,dark,g,0,1.92,0);const chuck=cyl(.37,.12,accent,g,0,2.11,0);effects.push({kind:'spin',obj:chuck,index:i});if(s.type==='spinner'){mesh(new THREE.SphereGeometry(.92,26,14,0,Math.PI*2,0,Math.PI/2),glass,g,0,1.98,0);box(.12,.8,.12,accent,g,.52,2.54,0);box(.52,.1,.1,accent,g,.3,2.86,0)}else{box(.32,.75,.32,accent,g,-.72,2.16,0);box(.32,.75,.32,accent,g,.72,2.16,0)}}if(s.type==='furnace'){box(1.95,1.15,1.15,dark,g,0,2.08,0);const glow=cyl(.46,.08,mat(0xff7d28,.2,.25,true,.35,C.orange),g,0,2.08,.6);glow.rotation.x=Math.PI/2;effects.push({kind:'furnace',obj:glow,index:i});box(1.55,.08,.9,mat(0xa9b9bd,.75,.15),g,0,1.7,.45)}if(s.type==='aligner'){box(1.25,.18,1.25,dark,g,0,1.87,0);box(1.05,.05,1.05,glass,g,0,2.03,0);box(.2,1.15,.2,accent,g,-.65,2.38,0);const head=box(1.35,.3,.75,accent,g,0,2.92,0),beam=cyl(.48,.72,mat(C.cyan,0,.1,true,.12,C.cyan),g,0,2.45,0);effects.push({kind:'expose',obj:beam,head,index:i})}if(s.type==='rie'){const chamber=cyl(.8,1.28,glass,g,0,2.12,0);cyl(.88,.15,accent,g,0,1.48,0);cyl(.88,.15,accent,g,0,2.75,0);const plasma=cyl(.56,.42,mat(C.magenta,0,.15,true,.08,C.magenta),g,0,2.05,0);const piston=cyl(.16,.8,mat(0xe7eff1,.9,.12),g,0,2.75,0);effects.push({kind:'plasma',obj:plasma,piston,index:i})}if(s.type==='implanter'){box(2.35,.72,.72,dark,g,0,2.23,0);for(let q=-.8;q<=.8;q+=.4){const coil=mesh(new THREE.TorusGeometry(.4,.07,10,24),accent,g,q,2.23,0);coil.rotation.y=Math.PI/2}const beam=box(1.8,.045,.045,mat(C.violet,0,.12,true,.08,C.violet),g,0,2.23,0);effects.push({kind:'beam',obj:beam,index:i})}if(s.type==='probe'){box(1.7,.12,1.1,dark,g,0,1.86,0);box(.28,1.3,.28,accent,g,-.65,2.35,.2);const scope=cyl(.3,.75,dark,g,-.15,2.74,0);scope.rotation.z=Math.PI/2;const arm1=box(.05,.85,.05,mat(C.green,.7,.15),g,.32,2.23,.1);arm1.rotation.z=.55;const arm2=box(.05,.85,.05,mat(C.green,.7,.15),g,-.02,2.23,-.1);arm2.rotation.z=-.55;effects.push({kind:'probe',obj:scope,index:i})}        
+const tray=box(.76,.06,.76,mat(0xaabcc2,.75,.18),g,0,1.72,.35),wafer=createWafer(.72);wafer.position.set(0,1.82,.35);wafer.rotation.set(-Math.PI/2,0,0);wafer.visible=false;g.add(wafer);const chamberTarget=box(1.46,1.02,.035,mat(0x000000,0,1,true,.001),g,0,2.13,.84);chamberTarget.material.depthWrite=false;chamberTarget.material.colorWrite=false;chamberTarget.userData={interactive:true,type:'button',label:'CHAMBER',kind:'machine',action:'chamber',machineIndex:i,baseColor:s.color,visualButton:false};interactives.push(chamberTarget);const door=createDoor(g,s.color,i),panel=box(1.55,1.55,.12,mat(0x0a1720,.55,.22),g,0,1.08,.98);const controls=s.controls.map((c,j)=>makeControl(g,c,j,i));const doorBtn=makeButton(g,-.85,.44,1.03,'DOOR',0x65bfff,{kind:'machine',action:'door',machineIndex:i}),loadBtn=makeButton(g,-.29,.44,1.03,'LOAD',0x57df9a,{kind:'machine',action:'load',machineIndex:i}),startBtn=makeButton(g,.29,.44,1.03,'START',0xa8e6b0,{kind:'machine',action:'start',machineIndex:i}),stopBtn=makeButton(g,.85,.44,1.03,'STOP',0xf4a6a6,{kind:'machine',action:'stop',machineIndex:i}),unloadBtn=makeButton(g,0,.16,1.03,'UNLOAD',0xffcf56,{kind:'machine',action:'unload',machineIndex:i});const m={group:g,lamp,station:s,index:i,world:new THREE.Vector3(x,1.5,s.z),door,doorHandle:door.userData.handle,wafer,tray,chamberTarget,controls,buttons:{door:doorBtn,load:loadBtn,start:startBtn,stop:stopBtn,unload:unloadBtn}};machines.push(m);addCollider(x,s.z,2.6,3.7)}        
+function newRun(){state.lotId='SR-'+String(Math.floor(1000+Math.random()*9000));state.carrying=false;state.current=0;state.completed=false;state.runStart=0;state.elapsed=0;state.cycle=null;state.records=[];state.pattern='Logic grid';phys.stockRespawnAt=0;phys.stockReady=null;phys.waferEverPicked=false;setWaferDynamic(false);setWaferStaged(false);phys.waferVelocity.set(0,0,0);phys.jumpOffset=0;phys.jumpVelocity=0;phys.crouchHeld=false;player.position.set(0,renderer.xr.isPresenting?.86:2.58,7.7);yaw=Math.PI;pitch=-.03;player.rotation.y=yaw;status.forEach((st,i)=>{st.state='locked';st.values=Object.fromEntries(stations[i].controls.map(c=>[c.key,c.initial]));st.score=null;st.deviations=[];st.metric=0;st.doorTarget=0;st.doorAmount=0;st.transfer=null;machines[i+1].wafer.visible=false;if(machines[i+1].kind==='fabrication'&&machines[i+1].door)machines[i+1].door.rotation.y=0});state.handWafer.visible=false;$('lotId').textContent=state.lotId;$('report').style.display='none';updateAll();toast('Traveller '+state.lotId+' prepared. Dispense one blank wafer from stock.')}        
+function formatTime(ms){const t=Math.max(0,ms),m=Math.floor(t/60000),s=Math.floor(t%60000/1000),x=Math.floor(t%1000);return`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(x).padStart(3,'0')}`}        
+function getRuns(){try{return JSON.parse(localStorage.getItem('waferFabRunsV2')||'[]').filter(r=>Number.isFinite(r.time))}catch(e){return[]}}        
+function benchmarks(){const a=getRuns().map(r=>r.time).sort((x,y)=>x-y);if(!a.length)return{best:null,median:null};return{best:a[0],median:a.length%2?a[(a.length-1)/2]:(a[a.length/2-1]+a[a.length/2])/2}}        
+function escapeHtml(s){const d=document.createElement('div');d.textContent=String(s);return d.innerHTML}        
+function updateBenchmark(){const runs=getRuns().sort((a,b)=>a.time-b.time),b=benchmarks();$('benchmark').textContent=`Best ${b.best==null?'—':formatTime(b.best)} · Median ${b.median==null?'—':formatTime(b.median)}`;$('leaderboard').innerHTML='<b>LOCAL SPEEDRUN LOG</b><br>'+(runs.length?runs.slice(0,5).map((r,i)=>`${i+1}. ${escapeHtml(r.user||'Operator')} — ${formatTime(r.time)} — Q${Number(r.quality||0).toFixed(0)}%`).join('<br>'):'No completed runs yet.')}        
+function getActivityRecords(){try{const stored=localStorage.getItem(ACTIVITY_RECORDS_KEY);if(stored!==null){const records=JSON.parse(stored);return Array.isArray(records)?records:[]}const migrated=[];for(const run of getRuns())(run.processes||[]).forEach((process,index)=>{if(!process)return;migrated.push({user:run.user||'Operator',lotId:run.lotId||'',activity:stations[index]?.short||`Process ${index+1}`,timeMs:Math.round((process.processSeconds||0)*1000),success:Number(process.score)||0,date:run.date||''})});localStorage.setItem(ACTIVITY_RECORDS_KEY,JSON.stringify(migrated));return migrated}catch{return[]}}
+function recordActivity(activity,timeMs,success,lotId=state.lotId){const records=getActivityRecords();records.push({user:state.username||'Operator',lotId,activity,timeMs:Math.max(0,Math.round(timeMs)),success:clamp(Number(success)||0,0,100),date:new Date().toISOString(),mode:tutorialMode?'Tutorial':'Run'});try{localStorage.setItem(ACTIVITY_RECORDS_KEY,JSON.stringify(records.slice(-1500)))}catch{}updateActivityLeaderboard()}
+function updateActivityLeaderboard(){const body=$('activityLeaderboard');if(!body)return;const user=$('username')?.value.trim().toLowerCase()||'',records=getActivityRecords().filter(record=>!user||(record.user||'').toLowerCase()===user),activities=['Linear regression','Circuit repair','Two-layer layout',...stations.slice(1).map(station=>station.short)],bestByActivity=new Map();for(const record of records){const best=bestByActivity.get(record.activity);if(!best||record.timeMs<best.timeMs)bestByActivity.set(record.activity,record)}body.innerHTML=activities.map(activity=>{const record=bestByActivity.get(activity);return`<tr><td>${escapeHtml(activity)}</td><td>${record?formatTime(record.timeMs):'--:--.---'}</td><td>${record?Number(record.success).toFixed(1)+'%':'--'}</td></tr>`}).join('');const bestSuccess=records.length?Math.max(...records.map(record=>Number(record.success)||0)):null;$('activitySummary').textContent=`${records.length} completed activities · Best success ${bestSuccess==null?'--':bestSuccess.toFixed(1)+'%'}`;$('scoreboardOperator').textContent=user?escapeHtml($('username').value.trim().toUpperCase()):'ALL OPERATORS'}
+function beginMenuRun(tutorial){const username=$('username').value.trim();if(!username){$('menuNotice').textContent='Enter a username to save your activity records.';$('username').focus();return}userPreferences.username=username;saveUserPreferences();state.username=username;$('operator').textContent=username;tutorialMode=tutorial;tutorialLastObjective='';tutorialDismissed=false;state.started=true;$('intro').style.display='none';$('xrButton').style.display='block';newRun();try{renderer.domElement.requestPointerLock?.()?.catch(()=>{})}catch{}refreshTutorialCoach()}
+function showDesktopPause(){if(!state.started||renderer.xr.isPresenting)return;state.paused=true;$('desktopPausePanel').hidden=false;$('controlHelpPanel').hidden=true;$('settingsPanel').hidden=true;document.exitPointerLock?.();$('pauseResume').focus()}
+function resumeDesktop(){state.paused=false;$('desktopPausePanel').hidden=true;$('controlHelpPanel').hidden=true;if(state.started)renderer.domElement.requestPointerLock?.()}
+function showControlHelp(){if(state.started){state.paused=true;document.exitPointerLock?.()}$('desktopPausePanel').hidden=true;$('controlHelpPanel').hidden=false;$('closeControlHelp').focus()}
+function returnToPause(){ $('controlHelpPanel').hidden=true;if(state.started){state.paused=true;$('desktopPausePanel').hidden=false}else state.paused=false }
+function onDesktopKeydown(event){
+  if(renderer.xr.isPresenting)return;
+  const target=event.target,editing=target instanceof Element&&!!target.closest('input,textarea,select,[contenteditable="true"]');
+  const developerInputAllowed=!state.started||state.paused||document.pointerLockElement!==renderer.domElement||designWorld.active;
+  if(developerInputAllowed&&!editing&&!event.ctrlKey&&!event.altKey&&!event.metaKey&&event.key.length===1&&/[a-z]/i.test(event.key)){const now=performance.now();if(now-desktopDeveloperBufferAt>3000)desktopDeveloperBuffer='';desktopDeveloperBufferAt=now;desktopDeveloperBuffer=(desktopDeveloperBuffer+event.key.toUpperCase()).slice(-9);if('DEVELOPER'.startsWith(desktopDeveloperBuffer)){event.preventDefault();event.stopImmediatePropagation();if(desktopDeveloperBuffer==='DEVELOPER'){desktopDeveloperBuffer='';desktopDeveloperBufferAt=0;toggleDeveloperPanel()}return}}else{desktopDeveloperBuffer='';desktopDeveloperBufferAt=0}
+  if(designWorld.active||designMode.phase!=='idle')return;
+  if(event.code==='Escape'){
+    if(!$('settingsPanel').hidden){event.preventDefault();$('settingsPanel').hidden=true;applyGuiTextSize();if(state.paused)$('desktopPausePanel').hidden=false;return}
+    if(!$('controlHelpPanel').hidden){event.preventDefault();returnToPause();return}
+    if(!state.started)return;
+    event.preventDefault();if(!$('desktopPausePanel').hidden)resumeDesktop();else showDesktopPause();return
+  }
+  if(event.code==='F1'&&!editing){event.preventDefault();if(!$('controlHelpPanel').hidden)returnToPause();else showControlHelp()}
+}
+function refreshTutorialCoach(){const panel=$('tutorialCoach');if(!panel)return;if(!tutorialMode||!userPreferences.tutorialHints||!state.started){panel.hidden=true;return}let title=$('objectiveMain').textContent,description=$('objectiveSub').textContent;const inDesign=designMode.phase==='active'||designMode.phase==='world'||designWorld.active;if(inDesign){if(designMode.step===0){title='Calibrate the sensor response';description=designMode.gainComplete?'Regression submitted. Verify and continue to circuit repair.':'Adjust gradient and intercept, then submit the regression fit.'}else if(designMode.step===1){title='Repair the circuit';description=designMode.schematicComplete?'Circuit verified. Submit to continue to the two-layer layout.':'Connect the two missing circuit terminals, then submit for verification.'}else{title='Route the crossover';description=designMode.layoutComplete?'All three nets pass. Release the design to begin fabrication.':'Choose M1 or M2, hold a terminal or junction, drag an elbow, and release. Cross layers at a junction to create a via.'}}const key=`${title}|${description}`;if(key!==tutorialLastObjective){tutorialLastObjective=key;tutorialDismissed=false}const designActive=parallel?.active?.nextStage===0;$('tutorialStep').textContent=designActive?`GUIDED DESIGN · ${designMode.step+1}/3`:`GUIDED PRODUCTION · ${Math.min(state.current+1,stations.length)}/${stations.length}`;$('tutorialTitle').textContent=title;$('tutorialText').textContent=description;panel.hidden=tutorialDismissed}
+function setupLaunchMenu(){
+  $('username').value=userPreferences.username;$('scoreboardOperator').textContent=userPreferences.username?userPreferences.username.toUpperCase():'ALL OPERATORS';updateActivityLeaderboard();
+  $('username').addEventListener('input',()=>{userPreferences.username=$('username').value.trim();saveUserPreferences();$('menuNotice').textContent='';updateActivityLeaderboard()});
+  $('startGame').onclick=()=>beginMenuRun(false);$('startTutorial').onclick=()=>beginMenuRun(true);
+  const panel=$('settingsPanel'),loadSettings=()=>{userPreferences.username=$('username').value.trim()||userPreferences.username;$('lookSensitivity').value=String(userPreferences.lookSensitivity);$('lookSensitivityValue').textContent=userPreferences.lookSensitivity.toFixed(1)+'×';$('tutorialHints').checked=userPreferences.tutorialHints;applyGuiTextSize()};
+  $('openSettings').onclick=()=>{loadSettings();panel.hidden=false};$('closeSettings').onclick=()=>{panel.hidden=true;applyGuiTextSize();if(state.paused)$('desktopPausePanel').hidden=false};$('lookSensitivity').addEventListener('input',event=>{$('lookSensitivityValue').textContent=Number(event.target.value).toFixed(1)+'×'});$('guiTextSize').addEventListener('input',event=>applyGuiTextSize(GUI_TEXT_SIZES[Number(event.target.value)]));
+  $('saveSettings').onclick=()=>{userPreferences.lookSensitivity=clamp(Number($('lookSensitivity').value)||1,.5,2);userPreferences.tutorialHints=$('tutorialHints').checked;userPreferences.guiTextSize=GUI_TEXT_SIZES[Number($('guiTextSize').value)]??12;applyGuiTextSize();saveUserPreferences();panel.hidden=true;if(state.paused)$('desktopPausePanel').hidden=false;refreshTutorialCoach()};
+  $('pauseResume').onclick=resumeDesktop;$('pauseControls').onclick=showControlHelp;$('closeControlHelp').onclick=returnToPause;$('pauseSettings').onclick=()=>{loadSettings();$('desktopPausePanel').hidden=true;panel.hidden=false};
+  $('dismissTutorial').onclick=()=>{tutorialDismissed=true;panel.hidden=true};$('exitTutorial').onclick=()=>{tutorialMode=false;panel.hidden=true};
+  $('newLot').addEventListener('click',()=>{tutorialMode=false;tutorialDismissed=true;refreshTutorialCoach()});
+  applyGuiTextSize();updateDeveloperPaneVisibility();
+  addEventListener('mousemove',event=>{if(document.pointerLockElement===renderer.domElement&&state.started&&userPreferences.lookSensitivity!==1){const extra=userPreferences.lookSensitivity-1;yaw-=event.movementX*.0022*extra;pitch=clamp(pitch-event.movementY*.0019*extra,-1.35,1.35)}})
+}
+function currentElapsed(){return state.runStart?(state.completed?state.elapsed:performance.now()-state.runStart):0}        
+function quality(){const done=state.records.filter(Boolean);return done.length?done.reduce((a,r)=>a+r.score,0)/done.length:100}        
+function updateHUD(){const s=stations[state.current],st=status[state.current];$('hudStage').textContent=state.completed?'Lot complete':!state.carrying&&!state.records.length?'Wafer stock':s?.short||'Complete';$('hudWafer').textContent=state.carrying?'In hand':state.cycle?'In process':st&&['loaded','loadedDoorOpen','running','done'].includes(st.state)?'At station':state.completed?'Released':'Not issued';$('hudQuality').textContent=state.runStart?quality().toFixed(1)+'%':'Awaiting run';$('lotProgress').style.width=(state.records.filter(Boolean).length/stations.length*100)+'%';const ms=currentElapsed();$('hudTime').textContent=formatTime(ms);const b=benchmarks();$('hudTime').style.color=b.best==null||ms<=b.best?'#67f6a3':b.median==null||ms<=b.median?'#ffcf56':'#ffffff';refreshWaferVisual(state.handWafer);const layerLines=[];if(state.runStart)layerLines.push('<span>✓ Blank silicon substrate</span>');if(state.records[0])layerLines.push(`<span>Recipe: ${escapeHtml(state.pattern)}</span>`);state.records.forEach((r,i)=>{if(i>0&&r)layerLines.push(`<span>${stations[i].short}: ${formatMetric(r.metric,stations[i].metric)} ${stations[i].metric.unit}</span>`)});$('waferLayers').innerHTML='<b>CARRIED WAFER</b>'+(layerLines.length?layerLines.join(''):'<span>No wafer issued</span>');        
+if(state.completed){$('objectiveMain').textContent='Lot complete — manufacturing record released';$('objectiveSub').textContent='Review the report or inspect the finished wafer.'}else if(!state.runStart){$('objectiveMain').textContent='Dispense a blank 200 mm wafer';$('objectiveSub').textContent='Point at the cyan DISPENSE button on the stock rack and click or press E.'}else if(st){const name=s.name;if(st.state==='ready'&&state.carrying){$('objectiveMain').textContent='Open '+name+' and load the wafer';$('objectiveSub').textContent='Use the physical DOOR button, then the LOAD button.'}else if(st.state==='loadedDoorOpen'){$('objectiveMain').textContent='Close the chamber door';$('objectiveSub').textContent='START remains interlocked until the door is fully closed.'}else if(st.state==='loaded'){$('objectiveMain').textContent='Set the recipe and start '+name;$('objectiveSub').textContent='Aim at dials or sliders and use the wheel; then press the physical START button.'}else if(st.state==='running'){$('objectiveMain').textContent=name+' is running';$('objectiveSub').textContent='Watch the live process result and press the physical STOP button at the endpoint.'}else if(st.state==='done'){$('objectiveMain').textContent='Open '+name+' and collect the wafer';$('objectiveSub').textContent='Use DOOR, then UNLOAD, then close the chamber to release the next stage.'}else if(st.state==='unloadedDoorOpen'){$('objectiveMain').textContent='Close '+name+' after unloading';$('objectiveSub').textContent='The next traveller operation releases when the door is secured.'}else{$('objectiveMain').textContent='Proceed to '+name;$('objectiveSub').textContent=s.desc}}}        
+function valueText(c,v){if(c.kind==='choice')return v;const decimals=c.step<1?(String(c.step).split('.')[1]||'').length:0;return Number(v).toFixed(decimals)+' '+c.unit}        
+function specText(c){return c.kind==='choice'?'Required: '+c.target:`Required: ${c.target} ± ${c.tol} ${c.unit}`}        
+function controlFitness(c,v){if(c.kind==='choice')return v===c.target?100:0;return clamp(100-Math.abs(Number(v)-c.target)/c.tol*25,0,100)}        
+function machineStateText(st){return st.state.replace(/([A-Z])/g,' $1').toUpperCase()}        
+function updateMachineGui(){const target=state.focus?.userData,m=target?.machineIndex!=null?machines[target.machineIndex+1]:state.nearest?.index!=null?machines[state.nearest.index+1]:null;if(!m){$('machineGui').classList.remove('active');$('machineName').textContent='NO MACHINE TARGETED';return}$('machineGui').classList.add('active');const s=m.station,st=status[m.index];$('machineName').textContent=s.name.toUpperCase();$('machineState').textContent=machineStateText(st);$('recipeText').innerHTML=`<b>${s.short}</b><br>${s.desc}<br><span style="color:#7f9cab">${s.note}</span>`;if(target?.type==='control'){const c=s.controls.find(x=>x.key===target.controlKey);$('controlLabel').textContent=c.label.toUpperCase();$('controlValue').textContent=valueText(c,st.values[c.key]);$('controlSpec').textContent=specText(c)}else if(target?.type==='button'){$('controlLabel').textContent=(target.label||'BUTTON').toUpperCase();$('controlValue').textContent=buttonEnabled(target)?'ENABLED':'INTERLOCKED';$('controlSpec').textContent=buttonHint(target)}else{$('controlLabel').textContent='POINT AT A DIAL, SLIDER OR BUTTON';$('controlValue').textContent='—';$('controlSpec').textContent='Mouse wheel adjusts the targeted control'}const metric=st.metric||0,ratio=metric/s.metric.target;$('metricLabel').textContent=s.metric.label.toUpperCase();$('metricValue').textContent=`${formatMetric(metric,s.metric)} / ${s.metric.target} ${s.metric.unit}`;$('metricFill').style.width=clamp(ratio*100,0,100)+'%';$('metricFill').style.background=ratio>1.08?'linear-gradient(90deg,#ffcf56,#ff6579)':'linear-gradient(90deg,#53e7ff,#67f6a3)'}        
+function formatMetric(v,m){const d=m.unit==='µm'||m.unit.includes('ions')?2:m.unit==='%'||m.unit==='samples'||m.unit==='nm'||m.unit==='s'?1:1;return Number(v).toFixed(d)}        
+function buttonHint(d){if(d.kind==='stock')return'Issues one tracked blank wafer';if(d.action==='door')return'Look at the 3D door and interact to open or close it';if(d.action==='chamber'){const st=status[d.machineIndex];if(st?.doorAmount<.92)return'Open the door, then look inside the chamber';if(st?.state==='ready')return state.carrying?'Insert the carried wafer by hand':'A carried wafer is required';if(st?.state==='done')return state.carrying?'Your hands are already occupied':'Remove the completed wafer by hand';return'Chamber access is available when loading or unloading'}if(d.action==='load')return'Requires open door and carried wafer';if(d.action==='start')return'Requires loaded wafer and fully closed door';if(d.action==='stop')return'Requires running process and fully closed door';if(d.action==='unload')return'Requires stopped process and open door';return''}        
+function buttonEnabled(d){if(d.kind==='stock')return state.started&&!state.runStart&&!state.carrying;if(d.kind!=='machine')return true;const i=d.machineIndex,st=status[i];if(i!==state.current||state.completed)return false;if(d.action==='door')return true;if(d.action==='chamber')return st.doorAmount>.92&&((st.state==='ready'&&state.carrying)||(st.state==='done'&&!state.carrying));if(d.action==='load')return st.state==='ready'&&state.carrying&&st.doorAmount>.92;if(d.action==='start')return st.state==='loaded'&&st.doorAmount<=(5/90);if(d.action==='stop')return st.state==='running'&&st.doorAmount<.02&&state.cycle&&performance.now()-state.cycle.start>400;if(d.action==='unload')return st.state==='done'&&!state.carrying&&st.doorAmount>.92;return false}        
+function updateButtonVisuals(){interactives.forEach(o=>{if(o.userData.type!=='button'||o.userData.visualButton===false)return;const en=buttonEnabled(o.userData);o.material.color.setHex(en?o.userData.baseColor:0x34434b);o.material.emissive.setHex(en?o.userData.baseColor:0x000000);o.material.emissiveIntensity=en?.42:0})}        
+function setLamp(i){const m=machines[i+1],st=status[i];let col=0x263846;if(['ready','loadedDoorOpen','loaded','done','unloadedDoorOpen'].includes(st.state))col=stations[i].color;if(st.state==='running')col=C.amber;if(st.state==='complete')col=C.green;m.lamp.material.color.setHex(col);m.lamp.material.emissive.setHex(col);m.lamp.material.emissiveIntensity=st.state==='locked'?0:.8}        
+function toast(msg,type=''){const d=document.createElement('div');d.className='toast '+type;d.textContent=msg;$('log').appendChild(d);while($('log').children.length>4)$('log').firstChild.remove();setTimeout(()=>{d.style.opacity='0';setTimeout(()=>d.remove(),320)},4200)}        
+function dispenseWafer(){if(!buttonEnabled({kind:'stock'}))return;state.runStart=performance.now();state.carrying=false;state.waferBroken=false;status[0].state='ready';setLamp(0);placeWaferAtStock();toast('Blank wafer issued. Pick it up with either trigger.');updateAll()}        
+function activateFocused(){const o=state.focus;if(!o)return;const d=o.userData;if(d.type==='control'){adjustControl(d,1);return}if(!buttonEnabled(d)){toast('Control interlocked: '+buttonHint(d),'warn');return}if(d.kind==='stock'){dispenseWafer();return}const i=d.machineIndex;if(d.action==='door')toggleDoor(i);if(d.action==='chamber'){if(status[i].state==='ready')loadWafer(i);else if(status[i].state==='done')unloadWafer(i)}if(d.action==='load')loadWafer(i);if(d.action==='start')startProcess(i);if(d.action==='stop')stopProcess(i);if(d.action==='unload')unloadWafer(i)}        
+function toggleDoor(i){const st=status[i];st.doorTarget=st.doorTarget>.5?0:1;toast((st.doorTarget?'Opening ':'Closing ')+stations[i].name+' door.');updateAll()}        
+function loadWafer(i){const st=status[i],m=machines[i+1];state.carrying=false;state.handWafer.visible=false;st.state='loading';m.wafer.visible=true;m.wafer.position.set(0,1.45,1.75);m.wafer.rotation.set(-Math.PI/2,0,0);st.transfer={mode:'load',t:0};toast('Hand-guided wafer insertion started.');updateAll()}        
+function unloadWafer(i){const st=status[i];st.state='unloading';st.transfer={mode:'unload',t:0};toast('Lifting the completed wafer out of '+stations[i].name+' by hand.');updateAll()}        
+function startProcess(i){const st=status[i],s=stations[i];st.state='running';st.metric=0;state.cycle={i,start:performance.now(),processSeconds:0,timeScale:clamp(s.targetSeconds/8,3,25)};setLamp(i);$('cycleBar').style.opacity='1';toast(s.name+' started. Manual STOP required at the process endpoint.');updateAll()}        
+function calculateMetric(i,t){const s=stations[i],st=status[i];try{return Math.max(0,s.metric.calc(st.values,t))}catch(e){return 0}}        
+function scoreProcess(i){const s=stations[i],st=status[i];let sum=0,w=0,deviations=[];s.controls.forEach(c=>{const f=controlFitness(c,st.values[c.key]);sum+=f*c.weight;w+=c.weight;if(f<75)deviations.push({f,txt:c.kind==='choice'?`${c.label}: ${st.values[c.key]}; required ${c.target}.`:`${c.label}: ${valueText(c,st.values[c.key])}; target ${c.target} ± ${c.tol} ${c.unit}.`})});const endpoint=clamp(100-Math.abs(st.metric-s.metric.target)/s.metric.tol*25,0,100);sum+=endpoint*1.8;w+=1.8;if(endpoint<75)deviations.push({f:endpoint,txt:`${s.metric.label}: ${formatMetric(st.metric,s.metric)} ${s.metric.unit}; target ${s.metric.target} ± ${s.metric.tol} ${s.metric.unit}.`});deviations.sort((a,b)=>a.f-b.f);return{score:sum/w,deviations:deviations.map(d=>d.txt),endpoint}}        
+function stopProcess(i){if(!state.cycle||state.cycle.i!==i)return;const st=status[i],s=stations[i],result=scoreProcess(i);st.score=result.score;st.deviations=result.deviations;st.state='done';state.records[i]={score:result.score,metric:st.metric,ratio:st.metric/s.metric.target,values:{...st.values},processSeconds:state.cycle.processSeconds};if(i===0)state.pattern=st.values.pattern;state.cycle=null;$('cycleBar').style.opacity='0';setLamp(i);refreshWaferVisual(machines[i+1].wafer);const tone=result.score>=80?'':result.score>=60?'warn':'bad';toast(`${s.short}: ${result.score.toFixed(0)}% stage quality recorded. Open the door and unload.`,tone);updateAll()}        
+function completeStage(i){const st=status[i];st.state='complete';setLamp(i);state.current=i+1;if(state.current>=stations.length){finishLot();return}status[state.current].state='ready';setLamp(state.current);toast('Transfer complete. Next: '+stations[state.current].name+'.');updateAll()}        
+function finishLot(){state.completed=true;state.elapsed=performance.now()-state.runStart;state.carrying=true;state.handWafer.visible=true;const q=quality(),before=benchmarks(),runs=getRuns();runs.push({user:state.username,time:Math.round(state.elapsed),quality:Math.round(q),pattern:state.pattern,date:new Date().toISOString(),processes:state.records});localStorage.setItem('waferFabRunsV2',JSON.stringify(runs.slice(-100)));updateBenchmark();showReport(before);updateAll()}        
+function showReport(before=benchmarks()){document.exitPointerLock?.();const q=quality(),yieldPct=clamp(22+q*.78-state.records.filter(r=>r&&r.score<60).length*3.5,2,99.2),grade=yieldPct>=92?'A':yieldPct>=82?'B':yieldPct>=68?'C':yieldPct>=50?'D':'F',relation=before.best==null?'First recorded benchmark.':state.elapsed<=before.best?'New local best time.':state.elapsed<=before.median?'Finished within the previous median.':'Finished beyond the previous median.';$('reportGrade').textContent=grade;$('reportGrade').style.color=grade==='A'?'#67f6a3':grade==='B'?'#53e7ff':grade==='C'?'#ffcf56':'#ff6579';$('reportTitle').textContent=state.lotId+' fabrication complete';$('reportSub').textContent=state.username+' completed the tracked wafer. '+relation;$('reportKpis').innerHTML=`<div class="kpi"><small>EST. ELECTRICAL YIELD</small><strong>${yieldPct.toFixed(1)}%</strong></div><div class="kpi"><small>MEAN PROCESS QUALITY</small><strong>${q.toFixed(1)}%</strong></div><div class="kpi"><small>MANUAL ENDPOINTS</small><strong>${state.records.filter(Boolean).length}</strong></div><div class="kpi"><small>RUN TIME</small><strong>${formatTime(state.elapsed)}</strong></div>`;$('reportRows').innerHTML=stations.map((s,i)=>{const r=state.records[i],d=status[i].deviations[0]||'Inside the preferred process window';return`<tr><td>${String(i+1).padStart(2,'0')} / ${s.short}</td><td style="color:${r.score>=80?'#67f6a3':r.score>=60?'#ffcf56':'#ff6579'}">${r.score.toFixed(0)}%</td><td>${formatMetric(r.metric,s.metric)} ${s.metric.unit}</td><td>${d}</td></tr>`}).join('');$('report').style.display=renderer.xr.isPresenting?'none':'grid';if(renderer.xr.isPresenting)showXROverlay('complete')}        
+function updateTransfers(dt){status.forEach((st,i)=>{const m=machines[i+1];if(st.transfer){st.transfer.t=clamp(st.transfer.t+dt/1.35,0,1);const u=st.transfer.mode==='load'?st.transfer.t:1-st.transfer.t;m.wafer.position.y=lerp(1.45,1.82,u)+Math.sin(st.transfer.t*Math.PI)*.2;m.wafer.position.z=lerp(1.75,.35,u);if(st.transfer.t>=1){if(st.transfer.mode==='load'){st.state='loadedDoorOpen';m.wafer.position.set(0,1.82,.35);refreshWaferVisual(m.wafer);toast('Wafer seated. Close the chamber door.')}else{m.wafer.visible=false;state.carrying=true;state.handWafer.visible=true;refreshWaferVisual(state.handWafer);st.state='unloadedDoorOpen';toast('Wafer collected. Close the chamber door.')}st.transfer=null;updateAll()}}})}        
+function updateDoors(dt){status.forEach((st,i)=>{const m=machines[i+1];if(!m||m.kind!=='fabrication'||!m.door)return;if(!renderer.xr.isPresenting){st.doorAmount=lerp(st.doorAmount,st.doorTarget,1-Math.exp(-dt*5.5))}else if(!phys.doorGrab||phys.doorGrab.i!==i){phys.doorVelocities[i]=(phys.doorVelocities[i]||0)*Math.exp(-dt*3.2);st.doorAmount=clamp(st.doorAmount+phys.doorVelocities[i]*dt,0,1);if(st.doorAmount<5/90&&Math.abs(phys.doorVelocities[i])<.2){if(st.doorAmount>0)pulseXR(.55,55);st.doorAmount=0;phys.doorVelocities[i]=0}}        
+if(Math.abs(st.doorAmount-st.doorTarget)<.008&&!renderer.xr.isPresenting)st.doorAmount=st.doorTarget;m.door.rotation.y=-st.doorAmount*Math.PI/2;if(st.doorAmount===0){if(st.state==='loadedDoorOpen')st.state='loaded';else if(st.state==='unloadedDoorOpen')completeStage(i)}})}        
+function updateCycle(now){if(!state.cycle)return;const c=state.cycle,s=stations[c.i],st=status[c.i];c.processSeconds=(now-c.start)/1000*c.timeScale;st.metric=calculateMetric(c.i,c.processSeconds);const ratio=st.metric/s.metric.target;$('cycleName').textContent=s.name.toUpperCase();$('cycleTime').textContent=`${c.processSeconds.toFixed(1)} process s · ${formatMetric(st.metric,s.metric)} ${s.metric.unit}`;$('cycleFill').style.width=clamp(ratio*100,0,100)+'%';updateMachineGui()}        
+function animateEffects(t,dt){effects.forEach(e=>{if(e.kind==='route'){const s=stations[state.current];e.obj.visible=!state.completed&&state.runStart&&s&&Math.abs(e.base-s.z)<6;e.obj.material.opacity=.25+.22*Math.sin(t*3+e.base);return}const on=status[e.index]?.state==='running';if(e.kind==='screen')e.obj.material.emissiveIntensity=.75+.2*Math.sin(t*2);if(e.kind==='spin'&&on)e.obj.rotation.y+=dt*10;if(e.kind==='furnace')e.obj.material.emissiveIntensity=on?2+.4*Math.sin(t*8):.2;if(e.kind==='plasma'){e.obj.material.opacity=on?.35+.15*Math.sin(t*15):.05;e.obj.material.emissiveIntensity=on?2:0;if(e.piston)e.piston.position.y=on?2.58+.12*Math.sin(t*4):2.75}if(e.kind==='beam'){e.obj.material.opacity=on?.7+.25*Math.sin(t*18):.05;e.obj.scale.x=on?1+.08*Math.sin(t*15):.2}if(e.kind==='expose'){e.obj.material.opacity=on?.25+.1*Math.sin(t*11):.03;e.obj.material.emissiveIntensity=on?1.8:.1;e.head.position.x=on?Math.sin(t*3)*.35:0}if(e.kind==='vapor'||e.kind==='metal')e.obj.material.emissiveIntensity=on?.7+.3*Math.sin(t*7):0;if(e.kind==='probe'&&on)e.obj.rotation.x=Math.sin(t*4)*.08})}        
+function adjustControl(d,dir){const i=d.machineIndex,st=status[i],s=stations[i];if(i!==state.current||!['ready','loadedDoorOpen','loaded'].includes(st.state)){toast('Recipe controls are locked in the current machine state.','warn');return}const c=s.controls.find(x=>x.key===d.controlKey);if(c.kind==='choice'){let n=c.options.indexOf(st.values[c.key]);n=(n+dir+c.options.length)%c.options.length;st.values[c.key]=c.options[n]}else st.values[c.key]=clamp(Number((st.values[c.key]+dir*c.step).toFixed(8)),c.min,c.max);updateControlMeshes(i);updateMachineGui()}        
+function updateControlMeshes(i){const s=stations[i],st=status[i],m=machines[i+1];if(!s||!st||!m||!Array.isArray(m.controls)||m.controls.length===0)return;s.controls.forEach((c,j)=>{const ref=m.controls[j];if(!ref)return;const v=st.values[c.key];let n=c.kind==='choice'?c.options.indexOf(v)/Math.max(1,c.options.length-1):(v-c.min)/(c.max-c.min);if(ref.track&&ref.mesh)ref.mesh.position.y=1.36-Math.floor(j/2)*.64+(n-.5)*.34;else{const target=ref.rotor||ref.mesh;if(target)target.rotation.z=-2.25+n*4.5}})}        
+function raycastFocus(){if(renderer.xr.isPresenting){setXRFocus();return}raycaster.setFromCamera({x:0,y:0},camera);const hits=raycaster.intersectObjects(interactives,false);let found=null;for(const h of hits){const d=h.object.getWorldPosition(new THREE.Vector3()).distanceTo(camera.getWorldPosition(new THREE.Vector3()));if(d<3.4){found=h.object;break}}if(state.focus!==found){if(state.focus?.material?.emissive)state.focus.material.emissiveIntensity=state.focus.userData.type==='button'?.42:.25;state.focus=found;if(found?.material?.emissive)found.material.emissiveIntensity=.9}const tag=$('focusTag');tag.style.opacity=found?'1':'0';if(found){const d=found.userData;tag.textContent=d.type==='control'?`${d.label} — WHEEL TO ADJUST`:`${d.label} — CLICK / E`;const enabled=d.type==='control'||buttonEnabled(d);tag.style.borderColor=enabled?'#53e7ff':'#ff6579';$('actionBtn').disabled=!enabled;$('actionBtn').textContent=d.type==='control'?`ADJUST ${d.label.toUpperCase()} [WHEEL]`:`PRESS ${d.label.toUpperCase()} [E]`}else{$('actionBtn').disabled=true;$('actionBtn').textContent='POINT AT A MACHINE CONTROL'}updateMachineGui()}        
+function getNearest(){let best=null,dist=3.5;stations.forEach((s,i)=>{const d=Math.hypot(player.position.x-s.side*6.65,player.position.z-s.z);if(d<dist){dist=d;best={index:i,name:s.name}}});const ds=Math.hypot(player.position.x,player.position.z-10);if(ds<dist)best={index:null,name:'Blank Wafer Stock'};state.nearest=best;$('prompt').textContent=best?'Point at the physical machine panel':'Follow the illuminated floor route'}        
+function updateMovement(dt){if(renderer.xr.isPresenting||!state.started||document.pointerLockElement!==renderer.domElement)return;state.crouching=!!(keys.ShiftLeft||keys.ShiftRight);const moving=!!(keys.KeyW||keys.KeyA||keys.KeyS||keys.KeyD||keys.ArrowUp||keys.ArrowDown||keys.ArrowLeft||keys.ArrowRight);state.sprinting=!!(keys.ControlLeft||keys.ControlRight)&&moving&&!state.crouching;const tau=3.34,target=state.sprinting?0:1;state.stamina=target+(state.stamina-target)*Math.exp(-dt/tau);const walk=state.crouching?1.2:2.75,added=state.sprinting?4.4*state.stamina:0,speed=walk+added;let f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0),r=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0),len=Math.hypot(f,r)||1;f/=len;r/=len;let nx=clamp(player.position.x+(-Math.sin(yaw)*f+Math.cos(yaw)*r)*speed*dt,-8.25,8.25),nz=clamp(player.position.z+(-Math.cos(yaw)*f-Math.sin(yaw)*r)*speed*dt,-40.5,11.2);for(const c of colliders){if(Math.abs(nx-c.x)<c.w/2+.34&&Math.abs(nz-c.z)<c.d/2+.34){nx=player.position.x;nz=player.position.z;break}}player.position.x=nx;player.position.z=nz;player.position.y=lerp(player.position.y,state.crouching?1.29:2.58,1-Math.exp(-dt*10));player.rotation.y=yaw;camera.rotation.order='YXZ';camera.rotation.x=pitch;$('staminaBar').style.width=state.stamina*100+'%';$('staminaNumber').textContent=Math.round(state.stamina*100)+'%';$('staminaBar').style.background=state.stamina<.25?'#ff6579':'linear-gradient(90deg,#17a9ee,#54f7a1)'}        
+function drawMap(){const c=$('map'),x=c.getContext('2d'),w=c.width,h=c.height;x.clearRect(0,0,w,h);x.fillStyle='#07131e';x.fillRect(0,0,w,h);x.strokeStyle='#2a5267';x.lineWidth=3;x.strokeRect(36,10,w-72,h-20);x.fillStyle='rgba(50,211,244,.08)';x.fillRect(39,13,w-78,145);x.fillStyle='rgba(177,108,255,.08)';x.fillRect(39,160,w-78,h-173);x.fillStyle='#5e8295';x.font='700 12px monospace';x.fillText('LITHOGRAPHY',45,29);x.fillText('IMPLANT + FILMS',45,177);const zx=z=>20+(10-z)/49*(h-38),xx=a=>w/2+a/9*(w/2-42);x.fillStyle=!state.runStart?'#fff':'#355060';x.beginPath();x.arc(xx(0),zx(10),!state.runStart?7:4,0,Math.PI*2);x.fill();stations.forEach((s,i)=>{x.fillStyle=i===state.current&&!state.completed?'#fff':status[i].state==='complete'?'#67f6a3':'#355060';x.beginPath();x.arc(xx(s.side*6.65),zx(s.z),i===state.current?7:4,0,Math.PI*2);x.fill()});x.save();x.translate(xx(player.position.x),zx(player.position.z));x.rotate(-yaw);x.fillStyle='#53e7ff';x.beginPath();x.moveTo(0,-8);x.lineTo(6,6);x.lineTo(0,4);x.lineTo(-6,6);x.closePath();x.fill();x.restore()}        
+function updateAll(){updateHUD();updateMachineGui();updateButtonVisuals();status.forEach((_,i)=>{setLamp(i);updateControlMeshes(i)})}        
+function loop(now){const dt=Math.min(.05,(now-lastFrame)/1000||0);lastFrame=now;if(renderer.xr.isPresenting)updateXRMovement(dt,now);else updateMovement(dt);if(!state.paused){updatePhysicalSystem(dt,now);updateDoors(dt);updateTransfers(dt);updateCycle(now);}updateXRButtons(now);animateEffects(now/1000,dt);getNearest();raycastFocus();updateButtonVisuals();if(state.started)updateHUD();refreshTutorialCoach();if(state.handWafer?.visible&&!renderer.xr.isPresenting&&state.carrying)state.handWafer.rotation.z=.15+Math.sin(now*.004)*.025;drawMap();renderer.render(scene,camera)}
+function bind(){addEventListener('keydown',e=>{keys[e.code]=true;if(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight','ControlLeft','ControlRight','KeyE'].includes(e.code)&&document.pointerLockElement===renderer.domElement)e.preventDefault();if(e.code==='KeyE'&&!e.repeat&&state.started&&document.pointerLockElement===renderer.domElement)activateFocused()});addEventListener('keyup',e=>keys[e.code]=false);addEventListener('mousemove',e=>{if(document.pointerLockElement===renderer.domElement&&state.started){yaw-=e.movementX*.0022;pitch=clamp(pitch-e.movementY*.0019,-1.35,1.35)}});addEventListener('wheel',e=>{if(document.pointerLockElement===renderer.domElement&&state.focus?.userData.type==='control'){e.preventDefault();adjustControl(state.focus.userData,e.deltaY<0?1:-1)}},{passive:false});renderer.domElement.addEventListener('click',()=>{if(!state.started)return;if(document.pointerLockElement!==renderer.domElement)renderer.domElement.requestPointerLock?.();else activateFocused()});$('actionBtn').onclick=activateFocused;$('startGame').onclick=()=>{const name=$('username').value.trim();if(!name){$('username').focus();return}state.username=name;$('operator').textContent=name;state.started=true;$('intro').style.display='none';$('xrButton').style.display='block';newRun();renderer.domElement.requestPointerLock?.()};$('xrButton').onclick=enterXR;$('username').addEventListener('keydown',e=>{if(e.key==='Enter')$('startGame').click()});$('closeReport').onclick=()=>{$('report').style.display='none';renderer.domElement.requestPointerLock?.()};$('newLot').onclick=()=>{newRun();renderer.domElement.requestPointerLock?.()};addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.7))})}  
+// V6: parallel wafer population, concurrent machines, swept shard piles and XR sprint.      
+const parallel={      
+  wafers:[],      
+  grabs:new Map(),      
+  nextWaferId:1,      
+  nextPileId:1,      
+  stockRespawnAt:0,      
+  stockDelayMs:650,      
+  sprintHeld:false,      
+  active:null      
+};      
+const handKey=c=>c?.userData?.handIndex??c?.userData?.hand??0;      
+const getHandGrab=c=>parallel.grabs.get(handKey(c))||null;      
+const setHandGrab=(c,grab)=>{const key=handKey(c);parallel.grabs.set(key,grab);phys.grab=grab};      
+const clearHandGrab=c=>{const key=handKey(c),grab=parallel.grabs.get(key);parallel.grabs.delete(key);if(phys.grab===grab)phys.grab=null;return grab};      
+const runningCycles=()=>status.map((st,i)=>st.cycle?{i,cycle:st.cycle}:null).filter(Boolean);      
+const carriedWafers=()=>parallel.wafers.filter(w=>w.heldBy!=null&&!w.broken);      
+function syncActiveWafer(body){      
+  if(!body)return;      
+  parallel.active=body;      
+  state.handWafer=body.view;      
+  state.current=Math.min(body.nextStage,stations.length-1);      
+  state.records=body.records;      
+  state.pattern=body.pattern;      
+  state.lotId=body.lotId;      
+  state.carrying=carriedWafers().length>0;      
+  state.waferBroken=false;      
+  $('lotId').textContent=body.lotId      
+}      
+function createParallelWafer(position,quaternion,staged=true){      
+  const view=createWafer(.72);      
+  scene.add(view);      
+  view.position.copy(position);      
+  if(quaternion)view.quaternion.copy(quaternion);      
+  view.scale.setScalar(1);      
+  view.visible=true;      
+  const body={      
+    id:parallel.nextWaferId++,      
+    lotId:'SR-'+String(Math.floor(1000+Math.random()*9000)),      
+    view,      
+    velocity:new THREE.Vector3(),      
+    releaseY:position.y,      
+    dynamic:false,      
+    staged,      
+    heldBy:null,      
+    machineIndex:null,      
+    broken:false,      
+    nextStage:0,      
+    records:[],      
+    pattern:'Logic grid',      
+    startedAt:0,      
+    elapsed:0,      
+    completed:false      
+  };      
+  view.userData.waferBody=body;      
+  parallel.wafers.push(body);      
+  if(!parallel.active)syncActiveWafer(body);      
+  return body      
+}      
+function removeParallelWafer(body){      
+  if(!body)return;      
+  body.view.parent?.remove(body.view);      
+  const index=parallel.wafers.indexOf(body);      
+  if(index>=0)parallel.wafers.splice(index,1);      
+  if(parallel.active===body){      
+    parallel.active=parallel.wafers.find(w=>!w.broken)||null;      
+    if(parallel.active)syncActiveWafer(parallel.active)      
+  }      
+}      
+function stockWafer(){      
+  return parallel.wafers.find(w=>w.staged&&!w.broken&&!w.heldBy&&w.machineIndex==null)      
+}      
+function scheduleStockReplacement(delay=parallel.stockDelayMs){      
+  parallel.stockRespawnAt=Math.min(parallel.stockRespawnAt||Infinity,performance.now()+delay)      
+}      
+function spawnStockWafer(){      
+  if(stockWafer()||!stockMachine)return null;      
+  const body=createParallelWafer(stockSpawnWorld(),stockSpawnQuaternion(),true);      
+  phys.stockReady=body.view;      
+  phys.waferStaged=true;      
+  parallel.stockRespawnAt=0;      
+  toast('A fresh blank wafer is available on the pickup pad.');      
+  return body      
+}      
+function nearestAvailableWafer(c,max=phys.pinchDistance){      
+  const p=pinchWorld(c);      
+  let best=null,d=max;      
+  for(const body of parallel.wafers){      
+    if(body.broken||body.heldBy!=null||body.machineIndex!=null||!body.view.visible)continue;      
+    const q=body.view.getWorldPosition(new THREE.Vector3()),n=p.distanceTo(q);      
+    if(n<=d){d=n;best={body,distance:n,point:q}}      
+  }      
+  return best      
+}      
+function nearestPinchTargetV6(anchor){      
+  if(!anchor)return null;      
+  const p=anchor.getWorldPosition(new THREE.Vector3());      
+  let best=null,d=.34;      
+  for(const body of parallel.wafers){      
+    if(body.broken||body.heldBy!=null||body.machineIndex!=null||!body.view.visible)continue;      
+    const q=body.view.getWorldPosition(new THREE.Vector3()),n=p.distanceTo(q);      
+    if(n<d){d=n;best={kind:'wafer',object:body.view,distance:n,point:q}}      
+  }      
+  for(const shard of waferShards){      
+    const q=shard.mesh.getWorldPosition(new THREE.Vector3()),n=p.distanceTo(q);      
+    if(n<d){d=n;best={kind:'shard',object:shard.mesh,distance:n,point:q}}      
+  }      
+  if(state.focus){      
+    const q=state.focus.getWorldPosition(new THREE.Vector3()),n=p.distanceTo(q);      
+    if(n<d){d=n;best={kind:state.focus.userData.type,object:state.focus,distance:n,point:q}}      
+  }      
+  return best      
+}      
+nearestPinchTarget=nearestPinchTargetV6;      
+const v5BuildEnvironment=buildEnvironment;      
+buildEnvironment=function(){      
+  v5BuildEnvironment();      
+  if(state.handWafer){      
+    state.handWafer.parent?.remove(state.handWafer);      
+    state.handWafer.visible=false      
+  }      
+  phys.stockReady=null;      
+  phys.stockRespawnAt=0;      
+  phys.pickupGuide=null      
+};      
+placeWaferAtStock=function(){      
+  const body=spawnStockWafer();      
+  if(body)syncActiveWafer(body);      
+  ensureWaferPickupGuide()      
+};      
+updateStockSupply=function(now){      
+  if(parallel.stockRespawnAt&&now>=parallel.stockRespawnAt&&!stockWafer())spawnStockWafer();      
+  const ready=stockWafer();      
+  phys.stockReady=ready?.view||null;      
+  phys.waferStaged=!!ready;      
+  if(stockMachine?.ring){      
+    const pulse=.88+.14*Math.sin(now*.005);      
+    stockMachine.ring.scale.setScalar(pulse);      
+    stockMachine.ring.material.color.setHex(ready?C.green:C.cyan)      
+  }      
+};      
+updateWaferPickupGuide=function(now){      
+  const guide=ensureWaferPickupGuide(),body=stockWafer();      
+  guide.visible=renderer.xr.isPresenting&&!!body&&!phys.waferEverPicked;      
+  if(guide.visible){      
+    const p=body.view.getWorldPosition(new THREE.Vector3());      
+    guide.position.set(p.x,p.y+.025,p.z);      
+    guide.rotation.y=now*.001;      
+    guide.scale.setScalar(.95+.08*Math.sin(now*.006))      
+  }      
+};      
+dispenseWafer=function(){      
+  if(!state.started||stockWafer())return;      
+  if(!state.runStart)state.runStart=performance.now();      
+  status.forEach((st,i)=>{if(st.state==='locked'){st.state='ready';setLamp(i)}});      
+  const body=spawnStockWafer();      
+  if(body)syncActiveWafer(body);      
+  toast('Unlimited wafer supply enabled. Pick up the blank with either trigger.');      
+  updateAll()      
+};      
+grabWafer=function(c){      
+  if(getHandGrab(c))return false;      
+  const near=nearestAvailableWafer(c);      
+  if(!near)return false;      
+  const body=near.body,anchor=pinchAnchorFor(c);      
+  detachPreserve(body.view,anchor);      
+  body.view.position.set(0,0,0);      
+  body.view.rotation.set(-.08,0,0);      
+  body.view.scale.setScalar(1);      
+  body.dynamic=false;      
+  body.staged=false;      
+  body.heldBy=handKey(c);      
+  if(phys.stockReady===body.view)phys.stockReady=null;      
+  if(body.machineIndex!=null){      
+    const i=body.machineIndex;      
+    if(status[i].state==='done')status[i].state='unloadedDoorOpen'      
+  }      
+  const grab={kind:'wafer',controller:c,body,last:pinchWorld(c).clone(),velocity:new THREE.Vector3()};      
+  setHandGrab(c,grab);      
+  syncActiveWafer(body);      
+  phys.waferEverPicked=true;      
+  if(phys.pickupGuide)phys.pickupGuide.visible=false;      
+  scheduleStockReplacement();      
+  pulseXR(.6,65);      
+  toast(`${c.userData.handedness||'Controller'} hand grabbed wafer ${body.lotId}.`);      
+  return true      
+};      
+releaseWafer=function(c){      
+  const grab=getHandGrab(c);      
+  if(grab?.kind!=='wafer')return;      
+  const body=grab.body;      
+  detachPreserve(body.view,scene);      
+  body.velocity.copy(grab.velocity);      
+  body.releaseY=body.view.getWorldPosition(new THREE.Vector3()).y;      
+  body.dynamic=true;      
+  body.heldBy=null;      
+  clearHandGrab(c);      
+  state.carrying=carriedWafers().length>0;      
+  tryPlaceWafer(body);      
+  pulseXR(.25,28)      
+};      
+function machineAcceptance(body){      
+  const i=body.nextStage;      
+  if(i<0||i>=stations.length)return null;      
+  const machine=machines[i+1],st=status[i];      
+  if(!machine||st.state!=='ready'||st.doorAmount<=.45||machine.body)return null;      
+  const target=machine.wafer.getWorldPosition(new THREE.Vector3());      
+  const point=body.view.getWorldPosition(new THREE.Vector3());      
+  return point.distanceTo(target)<.56?{i,machine,st,target}:null      
+}      
+tryPlaceWafer=function(body=parallel.active){      
+  if(!body||body.broken||!body.view.visible)return false;      
+  const accepted=machineAcceptance(body);      
+  if(!accepted)return false;      
+  const {i,machine,st}=accepted;      
+  body.dynamic=false;      
+  body.machineIndex=i;      
+  body.view.visible=false;      
+  machine.body=body;      
+  machine.wafer.visible=true;      
+  refreshWaferVisual(machine.wafer);      
+  st.state='loadedDoorOpen';      
+  syncActiveWafer(body);      
+  toast(`${body.lotId} seated in ${stations[i].name}.`);      
+  pulseXR(.65,70);      
+  updateAll();      
+  return true      
+};      
+exposeCompletedWafer=function(){      
+  status.forEach((st,i)=>{      
+    const machine=machines[i+1],body=machine?.body;      
+    if(st.state!=='done'||st.doorAmount<=.45||!body||body.heldBy!=null||body.broken)return;      
+    if(!body.view.visible){      
+      const wp=machine.wafer.getWorldPosition(new THREE.Vector3());      
+      const wq=machine.wafer.getWorldQuaternion(new THREE.Quaternion());      
+      machine.wafer.visible=false;      
+      body.view.position.copy(wp);      
+      body.view.quaternion.copy(wq);      
+      body.view.visible=true;      
+      body.dynamic=false      
+    }      
+  })      
+};      
+function arcShardGeometry(inner=.09,outer=.28,start=0,length=1){      
+  const shape=new THREE.Shape(),steps=8;      
+  for(let n=0;n<=steps;n++){      
+    const a=start+length*n/steps,x=Math.cos(a)*outer,y=Math.sin(a)*outer;      
+    if(n===0)shape.moveTo(x,y);else shape.lineTo(x,y)      
+  }      
+  for(let n=steps;n>=0;n--){      
+    const a=start+length*n/steps;      
+    shape.lineTo(Math.cos(a)*inner,Math.sin(a)*inner)      
+  }      
+  shape.closePath();      
+  const geometry=new THREE.ExtrudeGeometry(shape,{depth:.018,bevelEnabled:false,steps:1});      
+  geometry.center();      
+  return geometry      
+}      
+function crackedFragmentGeometry(radius=.08){      
+  const shape=new THREE.Shape(),points=5+Math.floor(Math.random()*3);      
+  for(let n=0;n<points;n++){      
+    const a=n/points*Math.PI*2,r=radius*(.48+Math.random()*.52);      
+    const x=Math.cos(a)*r,y=Math.sin(a)*r;      
+    if(n===0)shape.moveTo(x,y);else shape.lineTo(x,y)      
+  }      
+  shape.closePath();      
+  const geometry=new THREE.ExtrudeGeometry(shape,{depth:.014,bevelEnabled:false,steps:1});      
+  geometry.center();      
+  return geometry      
+}      
+shatterWafer=function(body,point,impact){      
+  if(!body||body.broken)return;      
+  body.broken=true;      
+  body.dynamic=false;      
+  body.heldBy=null;      
+  body.view.visible=false;      
+  if(body.machineIndex!=null){      
+    const machine=machines[body.machineIndex+1];      
+    if(machine?.body===body){machine.body=null;machine.wafer.visible=false;status[body.machineIndex].state='ready'}      
+  }      
+  const pileId=parallel.nextPileId++,count=18;      
+  for(let i=0;i<count;i++){      
+    const isArc=i<8;      
+    const geometry=isArc      
+      ?arcShardGeometry(.05+Math.random()*.07,.19+Math.random()*.1,Math.random()*Math.PI*2,.34+Math.random()*.72)      
+      :crackedFragmentGeometry(.035+Math.random()*.065);      
+    const shard=mesh(geometry,mat(isArc?0xb9ccd2:0x92a8b0,.72,.18),scene,point.x,Math.max(point.y,.05),point.z);      
+    shard.rotation.set(Math.random()*Math.PI,Math.random()*Math.PI,Math.random()*Math.PI);      
+    const v=new THREE.Vector3((Math.random()-.5)*impact,(Math.random()*.7+.15)*impact,(Math.random()-.5)*impact);      
+    waferShards.push({mesh:shard,v,life:0,pileId})      
+  }      
+  removeParallelWafer(body);      
+  scheduleStockReplacement(200);      
+  toast('WAFER FRACTURE. Arc shards and cracked fragments can be swept with A near the pile.','bad');      
+  pulseXR(1,160)      
+};      
+function nearestShardForHand(c,max=phys.pinchDistance){      
+  const p=pinchWorld(c);let best=null,d=max;      
+  for(const shard of waferShards){      
+    const q=shard.mesh.getWorldPosition(new THREE.Vector3()),n=p.distanceTo(q);      
+    if(n<d){d=n;best=shard}      
+  }      
+  return best      
+}      
+grabShard=function(c){      
+  if(getHandGrab(c))return false;      
+  const shard=nearestShardForHand(c);      
+  if(!shard)return false;      
+  detachPreserve(shard.mesh,pinchAnchorFor(c));      
+  shard.mesh.position.set(0,0,0);      
+  shard.v.set(0,0,0);      
+  setHandGrab(c,{kind:'shard',controller:c,shard,last:pinchWorld(c).clone(),velocity:new THREE.Vector3()});      
+  pulseXR(.2,25);      
+  return true      
+};      
+releaseShard=function(c){      
+  const grab=getHandGrab(c);      
+  if(grab?.kind!=='shard')return;      
+  detachPreserve(grab.shard.mesh,scene);      
+  grab.shard.v.copy(grab.velocity);      
+  clearHandGrab(c)      
+};      
+function sweepNearestShardPile(c){      
+  const p=pinchWorld(c);let nearest=null,d=.55;      
+  for(const shard of waferShards){      
+    const n=p.distanceTo(shard.mesh.getWorldPosition(new THREE.Vector3()));      
+    if(n<d){d=n;nearest=shard}      
+  }      
+  if(!nearest)return false;      
+  const pileId=nearest.pileId;      
+  for(let i=waferShards.length-1;i>=0;i--){      
+    const shard=waferShards[i];      
+    if(shard.pileId!==pileId)continue;      
+    for(const [key,grab] of parallel.grabs){      
+      if(grab.kind==='shard'&&grab.shard===shard)parallel.grabs.delete(key)      
+    }      
+    shard.mesh.parent?.remove(shard.mesh);      
+    waferShards.splice(i,1)      
+  }      
+  pulseXR(.75,90);      
+  toast('Broken wafer pile swept and removed.');      
+  return true      
+}      
+updateShards=function(dt){      
+  for(let i=waferShards.length-1;i>=0;i--){      
+    const shard=waferShards[i];      
+    if([...parallel.grabs.values()].some(g=>g.kind==='shard'&&g.shard===shard))continue;      
+    shard.v.y-=9.81*dt;      
+    shard.mesh.position.addScaledVector(shard.v,dt);      
+    shard.life+=dt;      
+    if(shard.mesh.position.y<.03){      
+      shard.mesh.position.y=.03;      
+      shard.v.y=Math.abs(shard.v.y)*.2;      
+      shard.v.x*=.75;shard.v.z*=.75      
+    }      
+    const bin=sharpsBins.find(b=>Math.abs(shard.mesh.position.x-b.x)<.24&&Math.abs(shard.mesh.position.z-b.z)<.24&&shard.mesh.position.y<.75);      
+    if(bin){shard.mesh.parent?.remove(shard.mesh);waferShards.splice(i,1)}      
+  }      
+};      
+updateWaferPhysics=function(dt){      
+  for(const body of [...parallel.wafers]){      
+    if(!body.dynamic||body.broken||!body.view.visible||body.heldBy!=null||body.machineIndex!=null)continue;      
+    body.velocity.y-=9.81*dt;      
+    body.view.position.addScaledVector(body.velocity,dt);      
+    const p=body.view.position;      
+    if(p.y<.08){      
+      const drop=body.releaseY-p.y,impact=Math.abs(body.velocity.y);      
+      if(drop>.5||impact>2.2){shatterWafer(body,p.clone(),Math.max(1.4,impact*.35));continue}      
+      p.y=.08;      
+      body.velocity.y=Math.abs(body.velocity.y)*.18;      
+      body.velocity.x*=.65;body.velocity.z*=.65      
+    }      
+    if(Math.abs(p.x)>8.8||p.z>11.8||p.z<-41.8){shatterWafer(body,p.clone(),2.2);continue}      
+    let shattered=false;      
+    for(const collider of colliders){      
+      if(Math.abs(p.x-collider.x)<collider.w/2&&Math.abs(p.z-collider.z)<collider.d/2&&p.y<2.8&&body.velocity.length()>1.7){      
+        shatterWafer(body,p.clone(),body.velocity.length());shattered=true;break      
+      }      
+    }      
+    if(!shattered)tryPlaceWafer(body)      
+  }      
+};      
+beginControlGrab=function(c,d){      
+  if(getHandGrab(c))return;      
+  const machine=machines[d.machineIndex+1],ref=machine.controls[stations[d.machineIndex].controls.findIndex(x=>x.key===d.controlKey)],wp=pinchWorld(c);      
+  setHandGrab(c,{kind:'control',controller:c,data:d,ref,start:wp.clone(),last:wp.clone()});      
+  pulseXR(.35,35)      
+};      
+updateControlGrab=function(){      
+  for(const grab of parallel.grabs.values()){      
+    if(grab.kind!=='control')continue;      
+    const i=grab.data.machineIndex,spec=stations[i].controls.find(x=>x.key===grab.data.controlKey),machine=machines[i+1],p=pinchWorld(grab.controller),local=machine.group.worldToLocal(p.clone()),ref=grab.ref;      
+    if(spec.style==='slider'){      
+      const motion=local.y-machine.group.worldToLocal(grab.last.clone()).y;      
+      if(Math.abs(motion)>.008)adjustControl(grab.data,Math.sign(motion))      
+    }else{      
+      const center=(ref.rotor||ref.mesh).getWorldPosition(new THREE.Vector3()),a=Math.atan2(p.y-center.y,p.x-center.x),b=Math.atan2(grab.last.y-center.y,grab.last.x-center.x),delta=a-b;      
+      if(Math.abs(delta)>.035)adjustControl(grab.data,Math.sign(delta))      
+    }      
+    grab.last.copy(p)      
+  }      
+};      
+onXRTriggerStart=function(c){      
+  if(state.paused||getHandGrab(c))return;      
+  if(grabWafer(c))return;      
+  if(grabShard(c))return;      
+  const near=nearestInteractiveAtPinch(c),data=near?.data;      
+  if(data?.type==='control'){state.focus=near.object;beginControlGrab(c,data);return}      
+  if(data?.type==='button'){state.focus=near.object;activateFocused();pulseXR(.45,45);return}      
+  pulseXR(.08,18)      
+};      
+onXRTriggerEnd=function(c){      
+  const grab=getHandGrab(c);      
+  if(grab?.kind==='wafer')releaseWafer(c);      
+  else if(grab?.kind==='shard')releaseShard(c);      
+  else if(grab?.kind==='control')clearHandGrab(c)      
+};      
+onXRSqueezeStart=function(c){      
+  if(state.paused)return;      
+  if(c.userData.handedness==='left'){phys.crouchHeld=true;pulseXR(.16,20)}      
+  else{parallel.sprintHeld=true;beginDoorGrab(c)}      
+};      
+onXRSqueezeEnd=function(c){      
+  if(c.userData.handedness==='left')phys.crouchHeld=false;      
+  else parallel.sprintHeld=false;      
+  if(phys.doorGrab?.controller===c){      
+    const i=phys.doorGrab.i,st=status[i];      
+    phys.doorGrab=null;      
+    if(st.doorAmount<5/90){st.doorAmount=0;phys.doorVelocities[i]=0;pulseXR(.75,70)}      
+  }      
+};      
+updateXRMovement=function(dt,now){      
+  const session=renderer.xr.getSession();if(!session)return;      
+  updateXRVertical(dt);      
+  const sources=[...session.inputSources];let left=null,right=null;      
+  for(const src of sources){if(src.handedness==='left')left=src;if(src.handedness==='right')right=src}      
+  xrLeftSource=left||xrLeftSource;xrRightSource=right||xrRightSource;      
+  const lg=left?.gamepad,rg=right?.gamepad,sprint=parallel.sprintHeld||!!rg?.buttons?.[1]?.pressed,speed=sprint?4.9:2.45;      
+  if(lg&&lg.axes.length>=4){      
+    let sx=lg.axes[2]||0,sy=lg.axes[3]||0;      
+    if(Math.abs(sx)<.15)sx=0;if(Math.abs(sy)<.15)sy=0;      
+    camera.getWorldDirection(xrHeadDirection);xrHeadDirection.y=0;      
+    if(xrHeadDirection.lengthSq()<.001)xrHeadDirection.set(0,0,-1);      
+    xrHeadDirection.normalize();      
+    const side=new THREE.Vector3().crossVectors(xrHeadDirection,new THREE.Vector3(0,1,0)).normalize();      
+    let nx=clamp(player.position.x+(side.x*sx+xrHeadDirection.x*-sy)*speed*dt,-8.25,8.25),nz=clamp(player.position.z+(side.z*sx+xrHeadDirection.z*-sy)*speed*dt,-40.5,11.2);      
+    for(const collider of colliders){if(Math.abs(nx-collider.x)<collider.w/2+.34&&Math.abs(nz-collider.z)<collider.d/2+.34){nx=player.position.x;nz=player.position.z;break}}      
+    player.position.x=nx;player.position.z=nz      
+  }      
+  if(rg&&rg.axes.length>=4){      
+    const ax=rg.axes[2]||0,ay=rg.axes[3]||0;      
+    if(Math.abs(ay)>.7&&state.focus?.userData.type==='control'&&now-xrAdjustAt>180){adjustControl(state.focus.userData,ay<0?1:-1);pulseXR(.18,22);xrAdjustAt=now}      
+    if(Math.abs(ax)>.75&&!xrTurnLatch){player.rotation.y-=Math.sign(ax)*Math.PI/6;pulseXR(.22,28);xrTurnLatch=true}else if(Math.abs(ax)<.3)xrTurnLatch=false      
+  }      
+  updateXRSpatial(now)      
+};      
+updatePhysicalSystem=function(dt,now){      
+  if(!renderer.xr.isPresenting)return;      
+  exposeCompletedWafer();      
+  for(const grab of parallel.grabs.values()){      
+    if(!['wafer','shard'].includes(grab.kind))continue;      
+    const p=pinchWorld(grab.controller);      
+    grab.velocity.copy(p).sub(grab.last).divideScalar(Math.max(dt,.001));      
+    grab.last.copy(p)      
+  }      
+  updateGhostHandPose(phys.handData[0],xrController0.userData.handedness==='right'?xrRightSource:xrLeftSource,dt);      
+  updateGhostHandPose(phys.handData[1],xrController1.userData.handedness==='left'?xrLeftSource:xrRightSource,dt);      
+  updateWaferPickupGuide(now);      
+  updateStockSupply(now);      
+  updateControlGrab();      
+  updateDoorGrab(dt);      
+  updateWaferPhysics(dt);      
+  updateShards(dt)      
+};      
+buttonHint=function(d){      
+  if(d.kind==='stock')return stockWafer()?'Pickup pad already occupied':'Dispense another blank wafer';      
+  if(d.action==='door')return'Open or close this machine independently';      
+  const st=status[d.machineIndex],machine=machines[d.machineIndex+1];      
+  if(d.action==='chamber')return st.doorAmount>.92?(machine.body?'Remove or inspect the machine wafer':'Insert the wafer for this process stage'):'Open the door first';      
+  if(d.action==='load')return'Requires an open door and a matching carried wafer';      
+  if(d.action==='start')return'Requires a loaded wafer and fully closed door';      
+  if(d.action==='stop')return'Requires this machine to be running with its door closed';      
+  if(d.action==='unload')return'Requires a completed process and open door';      
+  return''      
+};      
+buttonEnabled=function(d){      
+  if(d.kind==='stock')return state.started&&!stockWafer();      
+  if(d.kind!=='machine')return true;      
+  const i=d.machineIndex,st=status[i],machine=machines[i+1],body=machine?.body;      
+  if(d.action==='door')return true;      
+  if(d.action==='chamber')return st.doorAmount>.92&&((st.state==='ready'&&carriedWafers().some(w=>w.nextStage===i))||(st.state==='done'&&!!body));      
+  if(d.action==='load')return st.state==='ready'&&st.doorAmount>.92&&carriedWafers().some(w=>w.nextStage===i);      
+  if(d.action==='start')return st.state==='loaded'&&!!body&&st.doorAmount<=5/90;      
+  if(d.action==='stop')return st.state==='running'&&st.doorAmount<.02&&!!st.cycle&&performance.now()-st.cycle.start>400;      
+  if(d.action==='unload')return st.state==='done'&&!!body&&st.doorAmount>.92;      
+  return false      
+};      
+adjustControl=function(d,dir){      
+  const i=d.machineIndex,st=status[i],station=stations[i];      
+  if(!['ready','loadedDoorOpen','loaded'].includes(st.state)){toast('Recipe controls are locked while this machine is running.','warn');return}      
+  const control=station.controls.find(x=>x.key===d.controlKey);      
+  if(control.kind==='choice'){      
+    let n=control.options.indexOf(st.values[control.key]);      
+    n=(n+dir+control.options.length)%control.options.length;      
+    st.values[control.key]=control.options[n]      
+  }else st.values[control.key]=clamp(Number((st.values[control.key]+dir*control.step).toFixed(8)),control.min,control.max);      
+  updateControlMeshes(i);updateMachineGui()      
+};      
+loadWafer=function(i){      
+  const body=carriedWafers().find(w=>w.nextStage===i);      
+  if(!body)return;      
+  const grab=[...parallel.grabs.values()].find(g=>g.kind==='wafer'&&g.body===body);      
+  if(grab)clearHandGrab(grab.controller);      
+  body.heldBy=null;      
+  detachPreserve(body.view,scene);      
+  const machine=machines[i+1],target=machine.wafer.getWorldPosition(new THREE.Vector3());      
+  body.view.position.copy(target);      
+  body.view.visible=true;      
+  tryPlaceWafer(body)      
+};      
+unloadWafer=function(i){exposeCompletedWafer();toast('Completed wafer exposed for direct pickup.')};      
+startProcess=function(i){      
+  const st=status[i],station=stations[i],body=machines[i+1].body;      
+  if(!body||st.cycle)return;      
+  syncActiveWafer(body);      
+  st.state='running';st.metric=0;      
+  st.cycle={i,start:performance.now(),processSeconds:0,timeScale:clamp(station.targetSeconds/8,3,25)};      
+  state.cycle=st.cycle;      
+  setLamp(i);      
+  $('cycleBar').style.opacity='1';      
+  toast(`${station.name} started while other machines remain interactive.`);      
+  updateAll()      
+};      
+stopProcess=function(i){      
+  const st=status[i],station=stations[i],body=machines[i+1].body;      
+  if(!st.cycle||!body)return;      
+  syncActiveWafer(body);      
+  const activityTime=performance.now()-st.cycle.start;
+  const result=scoreProcess(i);      
+  st.score=result.score;st.deviations=result.deviations;st.state='done';      
+  body.records[i]={score:result.score,metric:st.metric,ratio:st.metric/station.metric.target,values:{...st.values},processSeconds:st.cycle.processSeconds,elapsedMs:activityTime};  
+  recordActivity(station.short,activityTime,result.score,body.lotId);
+  if(i===0)body.pattern=st.values.pattern;      
+  st.cycle=null;      
+  state.cycle=runningCycles()[0]?.cycle||null;      
+  state.records=body.records;state.pattern=body.pattern;      
+  setLamp(i);refreshWaferVisual(machines[i+1].wafer);      
+  toast(`${station.short}: ${result.score.toFixed(0)}% recorded for ${body.lotId}. Open the door and collect it.`,result.score>=80?'':result.score>=60?'warn':'bad');      
+  updateAll()      
+};      
+updateCycle=function(now){      
+  const active=[];      
+  status.forEach((st,i)=>{      
+    if(!st.cycle)return;      
+    const station=stations[i],cycle=st.cycle;      
+    cycle.processSeconds=(now-cycle.start)/1000*cycle.timeScale;      
+    st.metric=calculateMetric(i,cycle.processSeconds);      
+    active.push({i,cycle,station,st})      
+  });      
+  state.cycle=active[0]?.cycle||null;      
+  if(!active.length){$('cycleBar').style.opacity='0';return}      
+  const focusedIndex=state.focus?.userData?.machineIndex;      
+  const shown=active.find(x=>x.i===focusedIndex)||active[0],ratio=shown.st.metric/shown.station.metric.target;      
+  $('cycleBar').style.opacity='1';      
+  $('cycleName').textContent=active.length>1?`${active.length} MACHINES ACTIVE · ${shown.station.name.toUpperCase()}`:shown.station.name.toUpperCase();      
+  $('cycleTime').textContent=`${shown.cycle.processSeconds.toFixed(1)} process s · ${formatMetric(shown.st.metric,shown.station.metric)} ${shown.station.metric.unit}`;      
+  $('cycleFill').style.width=clamp(ratio*100,0,100)+'%';      
+  updateMachineGui()      
+};      
+completeStage=function(i){      
+  const st=status[i],machine=machines[i+1],body=machine.body;      
+  if(!body)return;      
+  machine.body=null;      
+  body.machineIndex=null;      
+  body.nextStage=i+1;      
+  st.state='ready';st.metric=0;st.score=null;st.deviations=[];st.cycle=null;      
+  st.values=Object.fromEntries(stations[i].controls.map(c=>[c.key,c.initial]));      
+  setLamp(i);      
+  syncActiveWafer(body);      
+  if(body.nextStage>=stations.length){      
+    body.completed=true;      
+    body.elapsed=performance.now()-(body.startedAt||state.runStart||performance.now());      
+    finishLot(body)      
+  }else toast(`${body.lotId} released for ${stations[body.nextStage].name}.`);      
+  updateAll()      
+};      
+finishLot=function(body=parallel.active){      
+  if(!body)return;      
+  syncActiveWafer(body);      
+  state.completed=true;      
+  state.elapsed=body.elapsed||performance.now()-(body.startedAt||state.runStart);      
+  const q=quality(),before=benchmarks(),runs=getRuns();      
+  runs.push({user:state.username,time:Math.round(state.elapsed),quality:Math.round(q),pattern:body.pattern,date:new Date().toISOString(),processes:body.records});      
+  localStorage.setItem('waferFabRunsV2',JSON.stringify(runs.slice(-100)));      
+  updateBenchmark();showReport(before);updateAll()      
+};      
+const v5ActivateFocused=activateFocused;      
+activateFocused=function(){      
+  const object=state.focus,data=object?.userData;      
+  if(data?.kind==='machine'&&data.machineIndex!=null){      
+    const body=machines[data.machineIndex+1]?.body;      
+    if(body)syncActiveWafer(body)      
+  }      
+  v5ActivateFocused()      
+};      
+updateXRButtons=function(now){      
+  if(!renderer.xr.isPresenting)return;      
+  const l=xrLeftSource?.gamepad,r=xrRightSource?.gamepad;      
+  if(l){      
+    edgeButton('ls',!!l.buttons[3]?.pressed,()=>{phys.hudVisible=!phys.hudVisible;pulseXR(.3,35)});      
+    edgeButton('lx',!!l.buttons[4]?.pressed,()=>requestJump());      
+    edgeButton('ly',!!l.buttons[5]?.pressed,()=>{phys.beaconVisible=!phys.beaconVisible;phys.hudVisible=true;if(xrObjectiveBeacon)xrObjectiveBeacon.visible=phys.beaconVisible;drawXRHandset(performance.now())})
+  }      
+  if(r){      
+    edgeButton('rs',!!r.buttons[3]?.pressed,()=>{if(state.completed){hideXROverlay()}else{state.paused=!state.paused;state.paused?showXROverlay('pause'):hideXROverlay()}pulseXR(.4,45)});      
+    edgeButton('ra',!!r.buttons[4]?.pressed,()=>{if(state.paused){state.paused=false;hideXROverlay()}else if(!sweepNearestShardPile(xrController1)&&state.focus?.userData.type==='button')activateFocused()});      
+    edgeButton('rb',!!r.buttons[5]?.pressed,()=>{state.paused=!state.paused;state.paused?showXROverlay('pause'):hideXROverlay()})      
+  }      
+};      
+const v5NewRun=newRun;      
+newRun=function(){      
+  for(const body of [...parallel.wafers])removeParallelWafer(body);      
+  for(const shard of [...waferShards])shard.mesh.parent?.remove(shard.mesh);      
+  waferShards.length=0;parallel.grabs.clear();parallel.active=null;parallel.stockRespawnAt=0;parallel.sprintHeld=false;      
+  machines.slice(1).forEach(machine=>{machine.body=null;machine.wafer.visible=false});      
+  v5NewRun();      
+  status.forEach((st,i)=>{st.state='ready';st.cycle=null;setLamp(i)});      
+  state.completed=false;state.cycle=null;state.runStart=0;state.carrying=false;state.waferBroken=false;      
+  toast('Parallel cleanroom ready. Dispense wafers without a population limit.');      
+  updateAll()      
+};  
+// V7: manual sensor-design workstation with camera focus and three engineering stages.  
+const designMode={  
+  phase:'idle',step:0,start:0,duration:1250,  
+  fromPos:new THREE.Vector3(),toPos:new THREE.Vector3(),returnPos:new THREE.Vector3(),  
+  fromYaw:0,toYaw:0,returnYaw:0,fromPitch:0,toPitch:0,returnPitch:0,  
+  gain:0,intercept:0,gainComplete:false,regression:null,regressionAttempts:0,regressionBest:null,stageStartedAt:0,timingStep:-1,  
+  schematicComplete:false,schematicSubmitted:false,schematicScore:0,layoutComplete:false,layoutScore:0,layoutConnected:0,
+  schematicDrag:null,schematicLinks:new Set(),circuit:null,layoutKeepOutViolations:0,  
+  layer:'M1',layoutActive:null,layoutNodes:[],layoutRoutes:[],layoutDraft:null,layoutHoverNodes:[],
+  releasedBodies:new Set()  
+};  
+const smoothstep=t=>t*t*(3-2*t);  
+const angleLerp=(a,b,t)=>a+Math.atan2(Math.sin(b-a),Math.cos(b-a))*t;  
+function resizeDesignCanvas(){  
+  const canvas=$('designCanvas'),rect=canvas.getBoundingClientRect(),scale=Math.min(devicePixelRatio||1,2);  
+  const w=Math.max(320,Math.floor(rect.width*scale)),h=Math.max(240,Math.floor(rect.height*scale));  
+  if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h}  
+  drawDesignStage()  
+}  
+function designScreen(){  
+  return machines[1]?.designScreen||effects.find(e=>e.kind==='screen'&&e.index===0)?.obj||null  
+}  
+function startDesignMode(){  
+  if(designWorld.active||designMode.phase==='world')return;  
+  if(designMode.step===1||designMode.step===2){enterDesignWorld(designMode.step);return;}  
+  if(renderer.xr.isPresenting){renderDesignStep();enterDesignWorld(designMode.step);return}
+  const screen=designScreen();  
+  if(!screen)return;  
+  if(document.pointerLockElement)document.exitPointerLock?.();  
+  designMode.phase='moving-in';designMode.start=performance.now();  
+  designMode.returnPos.copy(player.position);designMode.returnYaw=yaw;designMode.returnPitch=pitch;  
+  designMode.fromPos.copy(player.position);designMode.fromYaw=yaw;designMode.fromPitch=pitch;  
+  const wp=screen.getWorldPosition(new THREE.Vector3()),q=screen.getWorldQuaternion(new THREE.Quaternion());  
+  const normal=new THREE.Vector3(0,0,1).applyQuaternion(q).normalize();  
+  designMode.toPos.copy(wp).addScaledVector(normal,1.58);designMode.toPos.y=wp.y-.03;  
+  const look=wp.clone().sub(designMode.toPos).normalize();  
+  designMode.toYaw=Math.atan2(-look.x,-look.z);designMode.toPitch=Math.asin(clamp(look.y,-1,1));  
+  $('designTerminal').className='moving';$('designTerminal').setAttribute('aria-hidden','false');  
+  document.body.classList.add('design-editing');  
+  Object.keys(keys).forEach(k=>keys[k]=false);  
+}  
+function closeDesignMode(){  
+  if(designMode.phase==='idle'||designMode.phase==='moving-out')return;  
+  designMode.phase='moving-out';designMode.start=performance.now();  
+  designMode.fromPos.copy(player.position);designMode.fromYaw=yaw;designMode.fromPitch=pitch;  
+  designMode.toPos.copy(designMode.returnPos);designMode.toYaw=designMode.returnYaw;designMode.toPitch=designMode.returnPitch;  
+  $('designTerminal').className='moving';  
+}  
+function updateDesignCamera(now){  
+  if(!designMode.phase.startsWith('moving'))return;  
+  const t=clamp((now-designMode.start)/designMode.duration,0,1),u=smoothstep(t);  
+  player.position.lerpVectors(designMode.fromPos,designMode.toPos,u);  
+  yaw=angleLerp(designMode.fromYaw,designMode.toYaw,u);pitch=lerp(designMode.fromPitch,designMode.toPitch,u);  
+  player.rotation.y=yaw;camera.rotation.order='YXZ';camera.rotation.x=pitch;  
+  if(t<1)return;  
+  if(designMode.phase==='moving-in'){  
+    designMode.phase='active';$('designTerminal').className='active';  
+    renderDesignStep();setTimeout(resizeDesignCanvas,0)  
+  }else{  
+    designMode.phase='idle';$('designTerminal').className='';$('designTerminal').setAttribute('aria-hidden','true');  
+    document.body.classList.remove('design-editing');renderer.domElement.requestPointerLock?.()  
+  }  
+}  
+function setDesignMessage(text,type=''){  
+  const el=$('designMessage');el.textContent=text;el.className='design-message '+type  
+}  
+function setDesignProgress(valid,value,label){  
+  $('designNext').disabled=!valid;$('designLiveValue').textContent=value;$('designLiveLabel').textContent=label  
+}  
+function renderDesignStep(){  
+  if(designMode.timingStep!==designMode.step){designMode.timingStep=designMode.step;designMode.stageStartedAt=performance.now()}
+  document.querySelectorAll('[data-design-step]').forEach((el,i)=>{  
+    el.classList.toggle('current',i===designMode.step);  
+    el.classList.toggle('done',i<designMode.step||(i===0&&designMode.gainComplete)||(i===1&&designMode.schematicComplete)||(i===2&&designMode.layoutComplete))  
+  });  
+  $('designBack').disabled=designMode.step===0;$('regressionScorePanel').hidden=designMode.step!==0||!designMode.gainComplete;
+  $('gainControls').hidden=designMode.step!==0;$('schematicTools').hidden=designMode.step!==1;$('layoutTools').hidden=designMode.step!==2;$('designReset').hidden=designMode.step===1;  
+  const active=parallel?.active;  
+  $('designLot').innerHTML=`${active?.lotId||'NO ACTIVE WAFER'}<br>MANUAL ENGINEERING CHANGE CONTROL`;  
+  if(designMode.step===0){  
+    $('designTitle').textContent='Linear regression calibration';  
+    $('designInstructions').textContent='Adjust m and c for y = mx + c. Fit quality remains hidden until submission.';  
+    $('designCriteria').innerHTML='<b>Scoring</b><br>Actual least-squares regression is calculated from the generated points. Repeat submissions receive a penalty.';  
+    $('designNext').textContent='VERIFY & CONTINUE';  
+    updateGainState()  
+  }else if(designMode.step===1){  
+    ensureCircuitChallenge();$('designTitle').textContent=designMode.circuit.name+' connection repair';  
+    $('designInstructions').textContent='Two connections have been removed. Draw wires between any terminals, then submit for open and short analysis.';  
+    $('designCriteria').innerHTML='<b>Assessment</b><br>Correct repairs, remaining opens and incorrect shorts are scored on submission.';  
+    $('designNext').textContent='VERIFY & CONTINUE';  
+    updateSchematicState()  
+  }else{  
+    $('designTitle').textContent='Two-layer physical layout';  
+    $('designInstructions').textContent='Choose a metal layer, then press and hold an existing terminal or junction. Drag to another point and release to commit an orthogonal wire. Junctions gain an automatic via when connected on both layers.';
+    $('designCriteria').innerHTML='<b>Release criterion</b><br>Route IN1 → OUT2, IN2 → OUT3 and IN3 → OUT1 without opens or shorts. At least one net must use both metal layers through a via.';
+    $('designNext').textContent='RELEASE DESIGN';  
+    updateLayoutState()  
+  }  
+  drawDesignStage()  
+}  
+function createRegressionChallenge(){const gm=-3.25+Math.random()*6.5,gc=-5+Math.random()*10,points=[];for(let i=0;i<13;i++){const x=-5+i*10/12;points.push({x,y:gm*x+gc+(Math.random()-.5)*1.5})}const ax=points.reduce((a,p)=>a+p.x,0)/points.length,ay=points.reduce((a,p)=>a+p.y,0)/points.length,den=points.reduce((a,p)=>a+(p.x-ax)**2,0)||1,m=points.reduce((a,p)=>a+(p.x-ax)*(p.y-ay),0)/den,c=ay-m*ax,sse=points.reduce((a,p)=>a+(p.y-(m*p.x+c))**2,0);designMode.regression={points,optimum:{m,c,sse}};designMode.gain=0;designMode.intercept=0;designMode.regressionAttempts=0;designMode.regressionBest=null;designMode.gainComplete=false;$('gainSlider').value='0';$('interceptSlider').value='0';if($('regressionScorePanel'))$('regressionScorePanel').hidden=true;if($('regressionScoreValue'))$('regressionScoreValue').textContent='--%'}  
+function regressionScore(){const r=designMode.regression,u=r.points.reduce((a,p)=>a+(p.y-(designMode.gain*p.x+designMode.intercept))**2,0),scale=Math.max(1,r.points.reduce((a,p)=>a+p.y*p.y,0)),raw=100*Math.exp(-8*Math.max(0,u-r.optimum.sse)/scale),penalty=Math.max(0,designMode.regressionAttempts-1)*7;return{score:clamp(raw-penalty,0,100),penalty}}  
+function submitRegression(){designMode.regressionAttempts++;const q=regressionScore(),elapsed=performance.now()-designMode.stageStartedAt;if(!designMode.regressionBest||q.score>designMode.regressionBest.score)designMode.regressionBest={...q,m:designMode.gain,c:designMode.intercept};designMode.gainComplete=true;recordActivity('Linear regression',elapsed,q.score);$('designNext').disabled=false;$('designLiveLabel').textContent='BEST SUBMITTED SCORE';$('designLiveValue').textContent=designMode.regressionBest.score.toFixed(1)+'%';$('regressionScoreValue').textContent=designMode.regressionBest.score.toFixed(1)+'%';$('regressionScorePanel').hidden=false;setDesignMessage(`Attempt ${designMode.regressionAttempts}: ${q.score.toFixed(1)}%. ${q.penalty?q.penalty+' point repeat penalty.':'First submission.'}`,'good')}
+function updateGainState(){if(!designMode.regression)createRegressionChallenge();$('gainValue').textContent=designMode.gain.toFixed(2);$('interceptValue').textContent=designMode.intercept.toFixed(2);$('designNext').disabled=!designMode.gainComplete;if(!designMode.gainComplete){$('designLiveLabel').textContent='FIT QUALITY';$('designLiveValue').textContent='HIDDEN';setDesignMessage('Adjust both coefficients and submit when ready.')}drawDesignStage()}  
+const circuitPool=[
+  {id:'inv',name:'CMOS inverter buffer',devices:[['P1','p',.34,.32],['N1','n',.34,.68],['P2','p',.68,.32],['N2','n',.68,.68]],nodes:[['IN',.08,.5],['P1G',.25,.32],['N1G',.25,.68],['X1P',.34,.43],['X1N',.34,.57],['X1J',.5,.5],['P2G',.59,.32],['N2G',.59,.68],['OUTP',.68,.43],['OUTN',.68,.57],['OUTJ',.8,.5],['OUT',.92,.5],['P1S',.34,.21],['P2S',.68,.21],['N1S',.34,.79],['N2S',.68,.79]],edges:[['IN','P1G'],['IN','N1G'],['X1P','X1J'],['X1N','X1J'],['X1J','P2G'],['X1J','N2G'],['OUTP','OUTJ'],['OUTN','OUTJ'],['OUTJ','OUT']],supplies:[['VDD','P1S'],['VDD','P2S'],['GND','N1S'],['GND','N2S']]},
+  {id:'nand',name:'Two-input CMOS NAND gate',devices:[['P1','p',.26,.27],['P2','p',.74,.27],['N1','n',.5,.58],['N2','n',.5,.78]],nodes:[['A',.08,.38],['P1G',.17,.27],['N1G',.41,.58],['B',.08,.68],['P2G',.65,.27],['N2G',.41,.78],['P1S',.26,.16],['P2S',.74,.16],['P1D',.26,.38],['P2D',.74,.38],['N1D',.5,.47],['J1',.5,.42],['Y',.91,.43],['N1S',.5,.67],['N2D',.5,.69],['N2S',.5,.88]],edges:[['A','P1G'],['A','N1G'],['B','P2G'],['B','N2G'],['P1D','J1'],['P2D','J1'],['N1D','J1'],['J1','Y'],['N1S','N2D']],supplies:[['VDD','P1S'],['VDD','P2S'],['GND','N2S']]},
+  {id:'amp',name:'Five-transistor differential amplifier',devices:[['M3','p',.36,.24],['M4','p',.64,.24],['M1','n',.36,.57],['M2','n',.64,.57],['M5','n',.5,.81]],nodes:[['M3S',.36,.13],['M4S',.64,.13],['M3G',.45,.24],['G34',.5,.24],['M3D',.36,.35],['M4G',.55,.24],['M4D',.64,.35],['D13',.36,.405],['D24',.64,.405],['VINP',.07,.57],['M1G',.27,.57],['VINN',.93,.57],['M2G',.73,.57],['M1D',.36,.46],['M2D',.64,.46],['M1S',.36,.68],['M2S',.64,.68],['S12',.5,.68],['M5D',.5,.72],['VBIAS',.15,.81],['M5G',.41,.81],['M5S',.5,.9],['VOUT',.91,.4]],edges:[['M3G','G34'],['M4G','G34'],['G34','D13'],['M3D','D13'],['M1D','D13'],['M4D','D24'],['M2D','D24'],['D24','VOUT'],['VINP','M1G'],['VINN','M2G'],['M1S','S12'],['M2S','S12'],['VBIAS','M5G'],['M5D','S12']],supplies:[['VDD','M3S'],['VDD','M4S'],['GND','M5S']]}
+];
+function edgeKey(a,b){return[a,b].sort().join('|')}  
+function ensureCircuitChallenge(force=false){if(designMode.circuit&&!force)return;const t=circuitPool[Math.floor(Math.random()*circuitPool.length)],pool=t.edges.filter(e=>!e.includes('VDD')&&!e.includes('GND')),removed=[];while(removed.length<2)removed.push(pool.splice(Math.floor(Math.random()*pool.length),1)[0]);designMode.circuit={...t,removed:new Set(removed.map(e=>edgeKey(...e)))};designMode.schematicLinks.clear();designMode.schematicSubmitted=false;designMode.schematicComplete=false}  
+function schematicGeometry(w,h){ensureCircuitChallenge();return designMode.circuit.nodes.map(([id,x,y])=>({id,label:id,px:x*w,py:y*h}))}  
+function submitSchematic(){const req=designMode.circuit.removed,u=designMode.schematicLinks,opens=[...req].filter(k=>!u.has(k)).length,shorts=[...u].filter(k=>!req.has(k)).length,correct=[...u].filter(k=>req.has(k)).length,score=clamp(100-opens*35-shorts*25,0,100);designMode.schematicSubmitted=true;designMode.schematicScore=score;designMode.schematicComplete=!opens&&!shorts;recordActivity('Circuit repair',performance.now()-designMode.stageStartedAt,score);$('designNext').disabled=!designMode.schematicComplete;$('designLiveLabel').textContent='CIRCUIT SCORE';$('designLiveValue').textContent=score.toFixed(0)+'%';setDesignMessage(`${correct} correct, ${opens} open, ${shorts} short.` ,designMode.schematicComplete?'good':score>=50?'warn':'bad');drawDesignStage()}  
+function updateSchematicState(){ensureCircuitChallenge();$('designNext').disabled=!designMode.schematicComplete;if(!designMode.schematicSubmitted){$('designLiveLabel').textContent='ASSESSMENT';$('designLiveValue').textContent='NOT SUBMITTED';setDesignMessage('Repair both removed connections, then submit.')}}  
+function clearSchematicWires(){designMode.schematicLinks.clear();designMode.schematicDrag=null;designMode.schematicSubmitted=false;designMode.schematicComplete=false;updateSchematicState();drawDesignStage()}
+function layoutGeometry(w,h){  
+  const paletteW=0,plotW=w,margin=Math.max(45,plotW*.065),innerH=h-2*margin;  
+  const outputNets=[2,3,1];return{margin,plotW,paletteW,inputs:[0,1,2].map(i=>({id:`IN${i+1}`,kind:'input',net:`N${i+1}`,label:String(i+1),x:margin+18,y:margin+innerH*(.22+i*.28)})),outputs:outputNets.map((labelNet,i)=>({id:`OUT${labelNet}`,kind:'output',net:`N${i+1}`,label:String(labelNet),x:plotW-margin-18,y:margin+innerH*(.22+i*.28)})),keepouts:[{x:plotW*.31,y:margin,w:plotW*.14,h:h*.29},{x:plotW*.55,y:h-margin-h*.31,w:plotW*.14,h:h*.31}]}  
+  }  
+function initializeLayoutNodes(){const canvas=$('designCanvas');if(canvas.width<960||canvas.height<600){canvas.width=1280;canvas.height=800}const g=layoutGeometry(canvas.width,canvas.height);designMode.layoutNodes=[...g.inputs,...g.outputs].map(node=>({...node,terminal:true,metals:new Set()}));designMode.layoutHoverNodes=[]}
+function layoutNode(id){return designMode.layoutNodes.find(node=>node.id===id)}
+function nearestLayoutNode(point,excludeId=null,max=Math.max(30,$('designCanvas').width*.025)){let best=null,d=max;for(const node of designMode.layoutNodes){if(node.id===excludeId)continue;const distance=Math.hypot(point.x-node.x,point.y-node.y);if(distance<d){best=node;d=distance}}return best}
+function pointSegmentDistance(p,a,b){  
+  const vx=b.x-a.x,vy=b.y-a.y,wx=p.x-a.x,wy=p.y-a.y,c1=vx*wx+vy*wy,c2=vx*vx+vy*vy,t=c2?clamp(c1/c2,0,1):0;  
+  return Math.hypot(p.x-(a.x+t*vx),p.y-(a.y+t*vy))  
+}  
+function segmentsIntersect(a,b,c,d){  
+  const cross=(p,q,r)=>(q.x-p.x)*(r.y-p.y)-(q.y-p.y)*(r.x-p.x);  
+  const c1=cross(a,b,c),c2=cross(a,b,d),c3=cross(c,d,a),c4=cross(c,d,b);  
+  return c1*c2<0&&c3*c4<0  
+}  
+function layoutPointBlocked(point){  
+  const canvas=$('designCanvas'),h=canvas.height,g=layoutGeometry(canvas.width,h);  
+  if(point.x<g.margin||point.x>g.plotW-g.margin||point.y<g.margin||point.y>h-g.margin)return true;return layoutPointInKeepout(point,g)
+}  
+function layoutPointInKeepout(point,g=layoutGeometry($('designCanvas').width,$('designCanvas').height)){return g.keepouts.some(rect=>point.x>rect.x&&point.x<rect.x+rect.w&&point.y>rect.y&&point.y<rect.y+rect.h)}
+function segmentIntersectsRect(a,b,r){
+  let low=0,high=1;const dx=b.x-a.x,dy=b.y-a.y;
+  const clip=(p,q)=>{if(Math.abs(p)<1e-9)return q>=0;const t=q/p;if(p<0){if(t>high)return false;low=Math.max(low,t)}else{if(t<low)return false;high=Math.min(high,t)}return true};
+  return clip(-dx,a.x-r.x)&&clip(dx,r.x+r.w-a.x)&&clip(-dy,a.y-r.y)&&clip(dy,r.y+r.h-a.y)
+}
+function layoutSegmentBlocked(a,b){const c=$('designCanvas'),g=layoutGeometry(c.width,c.height);return g.keepouts.some(rect=>segmentIntersectsRect(a,b,rect))}
+function layoutDraftValid(draft){  
+  if(!draft||draft.points.length<2||draft.points.some(layoutPointBlocked))return false;
+  for(let i=1;i<draft.points.length;i++)if(layoutSegmentBlocked(draft.points[i-1],draft.points[i]))return false;
+  const end=layoutNode(draft.toId);if(draft.toId&&!end)return false;if(!end?.terminal&&layoutPointBlocked(draft.points.at(-1)))return false;  
+  for(const route of designMode.layoutRoutes){if(route.layer!==draft.layer)continue;for(let draftIndex=1;draftIndex<draft.points.length;draftIndex++){const a=draft.points[draftIndex-1],b=draft.points[draftIndex];for(let routeIndex=1;routeIndex<route.points.length;routeIndex++){const c=route.points[routeIndex-1],d=route.points[routeIndex];if(segmentsIntersect(a,b,c,d))return false}}}  
+  return true  
+}  
+function layoutNetConnected(net){
+  const start=layoutNode(`IN${net.slice(1)}`),target=`OUT${({N1:2,N2:3,N3:1})[net]}`;if(!start||!layoutNode(target))return false;
+  const queue=[...start.metals].map(layer=>({id:start.id,layer})),seen=new Set();
+  while(queue.length){const current=queue.shift(),key=`${current.id}:${current.layer}`;if(seen.has(key))continue;seen.add(key);if(current.id===target)return true;
+    for(const route of designMode.layoutRoutes){if(route.layer!==current.layer)continue;if(route.fromId===current.id)queue.push({id:route.toId,layer:current.layer});else if(route.toId===current.id)queue.push({id:route.fromId,layer:current.layer})}
+    const node=layoutNode(current.id);if(node&&!node.terminal&&node.metals.size>1)for(const layer of node.metals)if(layer!==current.layer)queue.push({id:node.id,layer})
+  }
+  return false
+}
+function rebuildLayoutNodeMetals(){designMode.layoutNodes.forEach(node=>node.metals.clear());for(const route of designMode.layoutRoutes){layoutNode(route.fromId)?.metals.add(route.layer);layoutNode(route.toId)?.metals.add(route.layer)}}
+function layoutNetworkComponents(){
+  const adjacency=new Map(),componentByState=new Map(),stateKey=(id,layer)=>`${id}|${layer}`,connect=(a,b)=>{if(!adjacency.has(a))adjacency.set(a,new Set());if(!adjacency.has(b))adjacency.set(b,new Set());adjacency.get(a).add(b);adjacency.get(b).add(a)};
+  for(const route of designMode.layoutRoutes)connect(stateKey(route.fromId,route.layer),stateKey(route.toId,route.layer));
+  for(const node of designMode.layoutNodes)if(!node.terminal&&node.metals.size>1){const layers=[...node.metals];for(let i=1;i<layers.length;i++)connect(stateKey(node.id,layers[0]),stateKey(node.id,layers[i]))}
+  const components=[];for(const start of adjacency.keys()){if(componentByState.has(start))continue;const id=components.length,component={id,nets:new Set(),layers:new Set()},queue=[start];componentByState.set(start,id);while(queue.length){const current=queue.pop(),split=current.lastIndexOf('|'),node=layoutNode(current.slice(0,split));component.layers.add(current.slice(split+1));if(node?.net)component.nets.add(node.net);for(const next of adjacency.get(current)||[])if(!componentByState.has(next)){componentByState.set(next,id);queue.push(next)}}components.push(component)}return{components,componentByState,stateKey}
+}
+function layoutTrackDistance(a,b,c,d){if(segmentsIntersect(a,b,c,d))return 0;return Math.min(pointSegmentDistance(a,c,d),pointSegmentDistance(b,c,d),pointSegmentDistance(c,a,b),pointSegmentDistance(d,a,b))}
+function scoreLayoutNetwork(){
+  const network=layoutNetworkComponents(),wrongConnections=network.components.reduce((count,component)=>count+Math.max(0,component.nets.size-1),0),shortPairs=new Set(),trackWidth=10;let length=0;
+  designMode.layoutRoutes.forEach((route,index)=>{for(let pointIndex=1;pointIndex<route.points.length;pointIndex++){const a=route.points[pointIndex-1],b=route.points[pointIndex];length+=Math.hypot(b.x-a.x,b.y-a.y);for(let otherIndex=index+1;otherIndex<designMode.layoutRoutes.length;otherIndex++){const other=designMode.layoutRoutes[otherIndex];if(route.layer!==other.layer)continue;const firstComponent=network.componentByState.get(network.stateKey(route.fromId,route.layer)),secondComponent=network.componentByState.get(network.stateKey(other.fromId,other.layer));if(firstComponent===secondComponent)continue;const firstNets=network.components[firstComponent]?.nets||new Set(),secondNets=network.components[secondComponent]?.nets||new Set(),sharedNet=[...firstNets].some(net=>secondNets.has(net));if(sharedNet&&firstNets.size===1&&secondNets.size===1)continue;for(let otherPoint=1;otherPoint<other.points.length;otherPoint++)if(layoutTrackDistance(a,b,other.points[otherPoint-1],other.points[otherPoint])<=trackWidth){shortPairs.add(`${index}:${otherIndex}`);break}}}});
+  const shorts=shortPairs.size,lengthPenalty=length*.001,score=clamp(100-wrongConnections*24-shorts*25-lengthPenalty,0,100),connected=[1,2,3].filter(index=>layoutNetConnected(`N${index}`)).length,twoLayerNet=network.components.some(component=>component.nets.size===1&&component.layers.has('M1')&&component.layers.has('M2'));return{score,wrongConnections,shorts,length,lengthPenalty,connected,twoLayerNet}
+}
+function updateLayoutState(){  
+  const result=scoreLayoutNetwork(),vias=designMode.layoutNodes.filter(node=>!node.terminal&&node.metals.size>1).length;designMode.layoutScore=result.score;designMode.layoutConnected=result.connected;designMode.layoutComplete=result.connected===3&&!result.wrongConnections&&!result.shorts&&result.twoLayerNet;
+  setDesignProgress(designMode.layoutComplete,`${result.connected}/3 · ${result.score.toFixed(1)}%`,'NET QUALITY');
+  const issues=`${result.wrongConnections} wrong connections · ${result.shorts} shorts · ${result.lengthPenalty.toFixed(1)} length penalty · ${result.twoLayerNet?'two-layer route present':'no via-linked two-layer route'}`;
+  setDesignMessage(designMode.layoutComplete?`All nets connect without shorts; at least one uses both layers with ${vias} automatic vias. ${issues}.`:`${issues}. Connect IN1 → OUT2, IN2 → OUT3 and IN3 → OUT1; at least one net must cross layers at a junction.`,designMode.layoutComplete?'good':result.wrongConnections||result.shorts?'warn':'')
+}  
+function developerSnapshot(){
+  const rows=[];let stage='Awaiting stage',score=null,formula='';
+  const add=(label,value,effect,diagnostic=false)=>rows.push({label,value:String(value),effect,diagnostic});
+  const inDesign=designWorld.active||designMode.phase!=='idle'||parallel?.active?.nextStage===0;
+  if(inDesign&&designMode.step===0){
+    stage='Linear regression';
+    if(!designMode.regression)return{stage,rows,score:null,formula:'Fit score is available after the regression challenge initializes.'};
+    const result=regressionScore(),r=designMode.regression,sse=r.points.reduce((sum,p)=>sum+(p.y-(designMode.gain*p.x+designMode.intercept))**2,0),scale=Math.max(1,r.points.reduce((sum,p)=>sum+p.y*p.y,0)),fit=100*Math.exp(-8*Math.max(0,sse-r.optimum.sse)/scale);
+    add('Residual SSE',sse.toFixed(2),`Fit baseline ${r.optimum.sse.toFixed(2)}`);add('Fit merit',fit.toFixed(1),`Base merit ${fit.toFixed(1)} points`);add('Repeat penalty',result.penalty,`-${result.penalty} points`);score=result.score;formula=`FoM = clamp(${fit.toFixed(1)} - ${result.penalty}, 0, 100)`;
+  }else if(inDesign&&designMode.step===1){
+    stage='Circuit repair';ensureCircuitChallenge();const required=designMode.circuit.removed,links=designMode.schematicLinks,opens=[...required].filter(key=>!links.has(key)).length,shorts=[...links].filter(key=>!required.has(key)).length,correct=[...links].filter(key=>required.has(key)).length;
+    add('Required links',correct,`${correct} correct connections`);add('Opens',opens,`-${opens*35} points`);add('Shorts',shorts,`-${shorts*25} points`);score=clamp(100-opens*35-shorts*25,0,100);formula=`FoM = clamp(100 - ${opens}×35 - ${shorts}×25, 0, 100)`;
+  }else if(inDesign&&designMode.step===2){
+    stage='Two-layer layout';const result=scoreLayoutNetwork(),opens=Math.max(0,3-result.connected),openGate=opens?'blocked':'pass',viaGate=result.twoLayerNet?'pass':'blocked';
+    add('Open nets',opens,`${openGate} release gate`);add('Wrong connections',result.wrongConnections,`-${result.wrongConnections*24} points`);add('Short pairs',result.shorts,`-${result.shorts*25} points`);add('Route length penalty',result.lengthPenalty.toFixed(2),`-${result.lengthPenalty.toFixed(2)} points`);add('Two-layer via route',result.twoLayerNet?'yes':'no',`${viaGate} release gate`);add('Keep-out violations',designMode.layoutKeepOutViolations,'Rejected attempts; no merit deduction',true);score=result.score;formula=`FoM = clamp(100 - ${result.wrongConnections}×24 - ${result.shorts}×25 - ${result.lengthPenalty.toFixed(2)}, 0, 100)`;
+  }else if(state.started&&parallel?.active&&stations[state.current]){
+    const index=Math.min(state.current,stations.length-1),station=stations[index],st=status[index],controlRows=station.controls.map(control=>{const fitness=controlFitness(control,st.values[control.key]),award=fitness*control.weight;return{control,fitness,award}}),endpoint=clamp(100-Math.abs(st.metric-station.metric.target)/station.metric.tol*25,0,100),weighted=controlRows.reduce((sum,row)=>sum+row.award,endpoint*1.8),weight=controlRows.reduce((sum,row)=>sum+row.control.weight,1.8);
+    stage=station.short;controlRows.forEach(({control,fitness,award})=>add(control.label,`${fitness.toFixed(1)}%`,`weight ${control.weight} · ${award.toFixed(1)} pts`));add(station.metric.label,`${endpoint.toFixed(1)}%`,`weight 1.8 · ${(endpoint*1.8).toFixed(1)} pts`);score=weighted/weight;formula=`FoM = ${weighted.toFixed(1)} weighted points / ${weight.toFixed(1)} total weight`;
+  }
+  return{stage,rows,score,formula}
+}
+function renderDeveloperPane(){
+  const snapshot=developerSnapshot(),body=$('developerBreakdown');if(!body)return;
+  body.innerHTML=`<div class="developer-stage">${escapeHtml(snapshot.stage)}</div><table class="developer-table"><thead><tr><th>Calculation</th><th>Count / value</th><th>Penalty / award</th></tr></thead><tbody>${snapshot.rows.map(row=>`<tr class="${row.diagnostic?'diagnostic':''}"><td>${escapeHtml(row.label)}</td><td>${escapeHtml(row.value)}</td><td>${escapeHtml(row.effect)}</td></tr>`).join('')}</tbody></table><small class="developer-formula">${escapeHtml(snapshot.formula)}</small>`;
+  $('developerFom').textContent=`FoM: ${snapshot.score==null?'--':snapshot.score.toFixed(1)+'%'}`;
+}
+function drawXRDeveloperPane(ctx){if(!ctx||!userPreferences.developerPanel)return;const snapshot=developerSnapshot();ctx.fillStyle='rgba(2,10,16,.96)';ctx.fillRect(390,78,350,380);ctx.strokeStyle='#53e7ff';ctx.lineWidth=3;ctx.strokeRect(390,78,350,380);ctx.fillStyle='#53e7ff';ctx.font='900 17px monospace';ctx.fillText('STAGE MERIT',410,108);ctx.fillStyle='#d9e8ed';ctx.font='800 14px monospace';ctx.fillText(snapshot.stage.slice(0,30),410,134);ctx.font='12px monospace';snapshot.rows.slice(0,8).forEach((row,index)=>{ctx.fillStyle=row.diagnostic?'#ffcf56':'#b8cbd3';ctx.fillText(`${row.label}: ${row.value}`.slice(0,40),410,164+index*25);ctx.fillStyle='#819da9';ctx.fillText(row.effect.slice(0,38),410,180+index*25)});ctx.fillStyle='#67f6a3';ctx.font='900 15px monospace';ctx.fillText(`FoM ${snapshot.score==null?'--':snapshot.score.toFixed(1)+'%'} · ${currentFPS} FPS`,410,426);ctx.fillStyle='#8ca7b8';ctx.font='12px monospace';ctx.fillText('Performance sample: 1 Hz',410,446)}
+function updateDeveloperMetrics(now){
+  fpsFrameCount++;if(!fpsSampleAt)fpsSampleAt=now;if(now-fpsSampleAt<1000)return;currentFPS=Math.round(fpsFrameCount*1000/(now-fpsSampleAt));fpsFrameCount=0;fpsSampleAt=now;
+  if(userPreferences.developerPanel){$('performanceFps').textContent=`${currentFPS} FPS`;renderDeveloperPane();if(renderer.xr.isPresenting)drawXRHandset(now)}
+}
+function drawGain(ctx,w,h){if(!designMode.regression)createRegressionChallenge();const r=designMode.regression,p={l:w*.1,r:w*.05,t:h*.09,b:h*.13},pw=w-p.l-p.r,ph=h-p.t-p.b,ys=r.points.flatMap(q=>[q.y,designMode.gain*q.x+designMode.intercept]),ya=Math.max(8,...ys.map(Math.abs))*1.12,X=x=>p.l+(x+5)/10*pw,Y=y=>p.t+(ya-y)/(2*ya)*ph;ctx.fillStyle='#02090e';ctx.fillRect(0,0,w,h);ctx.strokeStyle='#183544';for(let i=0;i<=10;i++){ctx.beginPath();ctx.moveTo(p.l+pw*i/10,p.t);ctx.lineTo(p.l+pw*i/10,h-p.b);ctx.stroke()}for(let i=0;i<=8;i++){ctx.beginPath();ctx.moveTo(p.l,p.t+ph*i/8);ctx.lineTo(w-p.r,p.t+ph*i/8);ctx.stroke()}ctx.strokeStyle='#789aaa';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(p.l,Y(0));ctx.lineTo(w-p.r,Y(0));ctx.moveTo(X(0),p.t);ctx.lineTo(X(0),h-p.b);ctx.stroke();ctx.strokeStyle='#ff9d3c';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(X(-5),Y(-5*designMode.gain+designMode.intercept));ctx.lineTo(X(5),Y(5*designMode.gain+designMode.intercept));ctx.stroke();ctx.fillStyle='#53e7ff';for(const q of r.points){ctx.beginPath();ctx.arc(X(q.x),Y(q.y),6,0,7);ctx.fill()}ctx.fillStyle='#9ab5c1';ctx.font='16px monospace';ctx.fillText('● measured samples',p.l+10,p.t+22);ctx.fillStyle='#ff9d3c';ctx.fillText('— candidate y = mx + c',p.l+10,p.t+46)}  
+function drawMos(ctx,device,w,h,nodes){const gate=nodes.find(node=>node.id===device[0]+'G');CircuitSymbols.drawMos(ctx,device,w,h,'#f4f5f1',gate)}  
+function drawSchematic(ctx,w,h){
+  ensureCircuitChallenge();
+  const c=designMode.circuit,n=schematicGeometry(w,h),by=id=>n.find(node=>node.id===id);
+  ctx.fillStyle='#f4f5f1';ctx.fillRect(0,0,w,h);
+  c.devices.forEach(device=>drawMos(ctx,device,w,h,n));
+  for(const[a,b]of c.edges){
+    if(c.removed.has(edgeKey(a,b)))continue;
+    const p=by(a),q=by(b),elbow=(p.px+q.px)/2;
+    ctx.strokeStyle='#163c74';ctx.lineWidth=8;ctx.beginPath();ctx.moveTo(p.px,p.py);ctx.lineTo(elbow,p.py);ctx.lineTo(elbow,q.py);ctx.lineTo(q.px,q.py);ctx.stroke()
+  }
+  for(const key of designMode.schematicLinks){
+    const[a,b]=key.split('|'),p=by(a),q=by(b),elbow=(p.px+q.px)/2;
+    ctx.strokeStyle=designMode.schematicSubmitted?(c.removed.has(key)?'#43c971':'#ff5f73'):'#f08a31';ctx.lineWidth=12;ctx.beginPath();ctx.moveTo(p.px,p.py);ctx.lineTo(elbow,p.py);ctx.lineTo(elbow,q.py);ctx.lineTo(q.px,q.py);ctx.stroke()
+  }
+  const supplyTerminals=(c.supplies||[]).map(([id,nodeId])=>{const node=by(nodeId);return{id,px:node.px,py:node.py}});
+  CircuitSymbols.drawPowerTerminals(ctx,supplyTerminals,w,h);
+  const missingPairs=[...c.removed].map(key=>key.split('|')),ends=new Set(missingPairs.flat()),pairColors=['#ed334d','#1675e8'];
+  for(const node of n){
+    const pairIndex=missingPairs.findIndex(pair=>pair.includes(node.id)),missing=pairIndex>=0;
+    if(missing){ctx.strokeStyle=pairColors[pairIndex];ctx.lineWidth=7;ctx.beginPath();ctx.arc(node.px,node.py,18,0,Math.PI*2);ctx.stroke()}
+    ctx.fillStyle=missing?'#fff4a8':'#dce8ec';ctx.strokeStyle=missing?pairColors[pairIndex]:'#446273';ctx.lineWidth=missing?5:4;ctx.beginPath();ctx.arc(node.px,node.py,missing?10:6,0,Math.PI*2);ctx.fill();ctx.stroke();
+    if(['IN','OUT','Y','A','B','VDD','GND','VINP','VINN','VOUT','VBIAS'].includes(node.id)){ctx.fillStyle='#17232a';ctx.fillText(node.id,node.px+10,node.py-10)}
+  }
+  if(designMode.schematicDrag){
+    const p=by(designMode.schematicDrag.from),x=designMode.schematicDrag.x,y=designMode.schematicDrag.y,elbow=(p.px+x)/2;
+    ctx.save();ctx.lineJoin='round';ctx.lineCap='round';ctx.strokeStyle='rgba(0,229,255,.24)';ctx.lineWidth=28;ctx.beginPath();ctx.moveTo(p.px,p.py);ctx.lineTo(elbow,p.py);ctx.lineTo(elbow,y);ctx.lineTo(x,y);ctx.stroke();ctx.strokeStyle='#63f3ff';ctx.lineWidth=10;ctx.setLineDash([15,9]);ctx.beginPath();ctx.moveTo(p.px,p.py);ctx.lineTo(elbow,p.py);ctx.lineTo(elbow,y);ctx.lineTo(x,y);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#ffffff';ctx.beginPath();ctx.arc(x,y,7,0,Math.PI*2);ctx.fill();ctx.restore()
+  }
+  ctx.fillStyle='#17232a';ctx.font='900 18px system-ui';ctx.fillText(c.name.toUpperCase(),20,52)
+}
+function drawLayoutLabels(ctx,w,h){const g=layoutGeometry(w,h);ctx.fillStyle='#ff9aa8';ctx.font=`${Math.max(11,w*.014)}px monospace`;ctx.fillText('OUTER NO-GO BOUNDARY',g.margin+10,g.margin-12);ctx.fillStyle='#fff';ctx.font=`700 ${Math.max(16,w*.022)}px monospace`;for(const[ index,rect]of g.keepouts.entries())ctx.fillText('KEEP OUT',rect.x+10,index===0?rect.y+rect.h-10:rect.y+24);ctx.fillStyle='#eaf7fb';ctx.font=`900 ${Math.min(Math.max(22,w*.03),g.margin*.56)}px monospace`;ctx.textBaseline='middle';for(const node of designMode.layoutNodes){if(!node.terminal)continue;ctx.textAlign=node.kind==='input'?'right':'left';ctx.fillText(node.label,node.kind==='input'?node.x-24:node.x+24,node.y)}ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillStyle='#95aeb9';ctx.font='12px monospace';ctx.fillText('HOLD NODE · DRAG · RELEASE TO WIRE',18,h-18)}
+function drawLayout(ctx,w,h){  
+  const g=layoutGeometry(w,h),colors={M1:'#ffe52b',M2:'#168dff'};ctx.fillStyle='#061017';ctx.fillRect(0,0,w,h);  
+  ctx.fillStyle='rgba(120,38,45,.3)';ctx.fillRect(0,0,g.plotW,g.margin);ctx.fillRect(0,h-g.margin,g.plotW,g.margin);ctx.fillRect(0,g.margin,g.margin,h-2*g.margin);ctx.fillRect(g.plotW-g.margin,g.margin,g.margin,h-2*g.margin);ctx.strokeStyle='#ff6579';ctx.lineWidth=4;ctx.strokeRect(g.margin,g.margin,g.plotW-2*g.margin,h-2*g.margin);g.keepouts.forEach(r=>{ctx.fillStyle='#241a1b';ctx.fillRect(r.x,r.y,r.w,r.h);ctx.strokeStyle='#81524c';ctx.strokeRect(r.x,r.y,r.w,r.h)});  
+  const routeDraw=(route,alpha=1)=>{ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=colors[route.layer];ctx.lineWidth=9;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();ctx.moveTo(route.points[0].x,route.points[0].y);route.points.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));ctx.stroke();ctx.restore()};  
+  if(designMode.layoutDraft){const end=designMode.layoutDraft.points.at(-1);ctx.fillStyle=designMode.layoutDraft.valid?colors[designMode.layoutDraft.layer]:'#ff6579';ctx.beginPath();ctx.arc(end.x,end.y,10,0,Math.PI*2);ctx.fill()}  
+  if(!designWorld.active)drawLayoutLabels(ctx,w,h)
+}  
+function drawDesignStage(){  
+  const canvas=$('designCanvas');if(!canvas||!canvas.width)return;const ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height;  
+  if(designMode.step===0)drawGain(ctx,w,h);else if(designMode.step===1)drawSchematic(ctx,w,h);else drawLayout(ctx,w,h)  
+}  
+function designPointer(e){  
+  if(Number.isFinite(e.designX)&&Number.isFinite(e.designY))return{x:e.designX,y:e.designY};  
+  const canvas=$('designCanvas'),r=canvas.getBoundingClientRect();  
+  if(!r.width||!r.height)return{x:NaN,y:NaN};  
+  return{x:(e.clientX-r.left)*canvas.width/r.width,y:(e.clientY-r.top)*canvas.height/r.height}  
+}  
+function nearestDesignNode(p,nodes,max=designWorld?.active?42:24){let best=null,d=max;for(const n of nodes){const q=Math.hypot(p.x-n.px,p.y-n.py);if(q<d){d=q;best=n}}return best}  
+function onDesignPointerDown(e){  
+  if(designMode.step!==1)return;const p=designPointer(e);if(!Number.isFinite(p.x)||!Number.isFinite(p.y))return;const nodes=schematicGeometry($('designCanvas').width,$('designCanvas').height),n=nearestDesignNode(p,nodes,designWorld.active?42:Math.max(30,$('designCanvas').width*.025));  
+  if(n){designMode.schematicDrag={from:n.id,x:p.x,y:p.y};if(!designWorld.active)$('designCanvas').setPointerCapture?.(e.pointerId);drawDesignStage()}  
+}  
+function onDesignPointerMove(e){  
+  if(designMode.step===1&&designMode.schematicDrag){const p=designPointer(e);if(!Number.isFinite(p.x)||!Number.isFinite(p.y))return;designMode.schematicDrag.x=p.x;designMode.schematicDrag.y=p.y;drawDesignStage()}  
+}  
+function onDesignPointerUp(e){if(designMode.step!==1||!designMode.schematicDrag)return;const p=designPointer(e),nodes=schematicGeometry($('designCanvas').width,$('designCanvas').height),from=nodes.find(n=>n.id===designMode.schematicDrag.from),to=nearestDesignNode(p,nodes,designWorld.active?42:Math.max(30,$('designCanvas').width*.025));if(to&&to.id!==from.id){const k=edgeKey(from.id,to.id);designMode.schematicLinks.has(k)?designMode.schematicLinks.delete(k):designMode.schematicLinks.add(k);designMode.schematicSubmitted=false;designMode.schematicComplete=false}designMode.schematicDrag=null;updateSchematicState();drawDesignStage()}  
+function freeLayoutPoint(p){const c=$('designCanvas'),g=layoutGeometry(c.width,c.height);return{x:clamp(p.x,g.margin,g.plotW-g.margin),y:clamp(p.y,g.margin,c.height-g.margin)}}
+function layoutElbowPoints(start,end,layer){const dx=end.x-start.x,dy=end.y-start.y,points=[{x:start.x,y:start.y,layer}];if(Math.abs(dx)>=Math.abs(dy)){if(Math.abs(dy)<1){points.push({x:end.x,y:end.y,layer});return points}const midX=start.x+dx/2;points.push({x:midX,y:start.y,layer},{x:midX,y:end.y,layer})}else{if(Math.abs(dx)<1){points.push({x:end.x,y:end.y,layer});return points}const midY=start.y+dy/2;points.push({x:start.x,y:midY,layer},{x:end.x,y:midY,layer})}points.push({x:end.x,y:end.y,layer});return points}
+function beginLayoutWire(point){const node=nearestLayoutNode(point);if(!node){setDesignMessage('Start on one of the six terminals or a wire junction.','warn');return}designMode.layoutDraft={fromId:node.id,toId:null,layer:designMode.layer,points:[{x:node.x,y:node.y,layer:designMode.layer}],valid:false};updateLayoutWire(point)}
+function updateLayoutWire(point){const draft=designMode.layoutDraft;if(!draft)return;const target=nearestLayoutNode(point,draft.fromId),end=target?{x:target.x,y:target.y}:freeLayoutPoint(point),start=layoutNode(draft.fromId);draft.toId=target?.id||null;draft.points=layoutElbowPoints(start,end,draft.layer);draft.valid=target?.id!==draft.fromId&&Math.hypot(end.x-start.x,end.y-start.y)>Math.max(18,$('designCanvas').width*.012)&&layoutDraftValid(draft);designMode.layoutHoverNodes=target?[{id:target.id}]:[];drawDesignStage()}
+function finishLayoutWire(point){if(!designMode.layoutDraft)return;updateLayoutWire(point);const draft=designMode.layoutDraft;if(!draft.valid){const g=layoutGeometry($('designCanvas').width,$('designCanvas').height),keepOutHit=draft.points.some(point=>layoutPointInKeepout(point,g))||draft.points.slice(1).some((point,index)=>layoutSegmentBlocked(draft.points[index],point));if(keepOutHit)designMode.layoutKeepOutViolations++;designMode.layoutDraft=null;designMode.layoutHoverNodes=[];setDesignMessage('Wire rejected. End on a node or clear the keep-out and same-layer traces.','warn');drawDesignStage();return}const start=layoutNode(draft.fromId);let end=layoutNode(draft.toId);if(!end){const point=draft.points.at(-1);let index=1;while(layoutNode(`J${index}`))index++;end={id:`J${index}`,kind:'junction',label:'JUNCTION',x:point.x,y:point.y,terminal:false,metals:new Set()};designMode.layoutNodes.push(end)}if(designMode.layoutRoutes.some(route=>route.layer===draft.layer&&((route.fromId===start.id&&route.toId===end.id)||(route.fromId===end.id&&route.toId===start.id)))){if(end.id.startsWith('J')&&!end.metals.size)designMode.layoutNodes.pop();designMode.layoutDraft=null;designMode.layoutHoverNodes=[];setDesignMessage('Those two points are already connected on this layer.','warn');drawDesignStage();return}start.metals.add(draft.layer);end.metals.add(draft.layer);designMode.layoutRoutes.push({fromId:start.id,toId:end.id,layer:draft.layer,points:draft.points.map(point=>({...point}))});designMode.layoutDraft=null;designMode.layoutHoverNodes=[];updateLayoutState();drawDesignStage();if(designWorld.active)syncDesignBoard()}
+function layoutPaletteAction(){return false}
+function onDesignClick(e){if(designMode.step!==2||designWorld.active)return;const point=designPointer(e);if(!Number.isFinite(point.x)||!Number.isFinite(point.y))return;if(layoutPaletteAction(point))return;if(!designMode.layoutDraft)beginLayoutWire(point);else finishLayoutWire(point)}
+function resetDesignStage(){  
+  if(designMode.step===0){createRegressionChallenge();updateGainState()}  
+  if(designMode.step===1){clearSchematicWires()}  
+  if(designMode.step===2){designMode.layoutActive=null;designMode.layoutRoutes=[];designMode.layoutDraft=null;designMode.layoutKeepOutViolations=0;initializeLayoutNodes();updateLayoutState();drawDesignStage();if(designWorld.active)syncDesignBoard()}  
+}  
+function releaseDesign(){  
+  const body=parallel?.active;  
+  if(!body){setDesignMessage('Dispense a wafer before releasing a fabrication design.','warn');return}  
+  if(body.nextStage!==0){setDesignMessage('The active wafer already has a released sensor design.','warn');return}  
+  recordActivity('Two-layer layout',performance.now()-designMode.stageStartedAt,designMode.layoutScore||0,body.lotId);
+  body.pattern='Logic grid';body.records[0]={score:100,metric:24,ratio:1,processSeconds:24,values:{regressionScore:designMode.regressionBest?.score||0,gradient:designMode.regressionBest?.m??designMode.gain,intercept:designMode.regressionBest?.c??designMode.intercept,circuit:designMode.circuit?.id,circuitScore:designMode.schematicScore,layoutNets:3,metalLayers:2}};  
+  body.nextStage=1;body.startedAt=body.startedAt||performance.now();designMode.releasedBodies.add(body.id);  
+  status[0].state='complete';status[0].metric=24;status[0].score=100;status[0].deviations=[];setLamp(0);  
+  syncActiveWafer(body);state.current=1;toast(`${body.lotId} sensor design released. Proceed to the oxidation furnace.`);updateAll();closeDesignMode()  
+}  
+// V8.7 isolated 3D schematic and layout spaces.  
+const designWorld={root:null,board:null,texture:null,labelCanvas:null,labelTexture:null,labelOverlay:null,active:false,stage:0,returnPos:new THREE.Vector3(),returnYaw:0,returnPitch:0,dragging:false,gainDrag:null,xrDragging:new Set(),w:12,h:7.5,layout3D:null,layout3DSignature:'',layoutPreview3D:null,actionPanel:null,actionButtons:[],actionSignature:'',actionNotice:''};
+function ensureDesignWorld(){  
+  if(designWorld.root)return;  
+  const root=new THREE.Group();root.position.set(0,0,165);root.visible=false;scene.add(root);designWorld.root=root;  
+  const floor=box(24,.12,24,mat(0x0c1b24,.05,.58),root,0,-.08,0),wall=mat(0x142c38,.08,.56);  
+  box(24,9,.2,wall,root,0,4.5,-9);box(24,9,.2,wall,root,0,4.5,11);box(.2,9,20,wall,root,-12,4.5,1);box(.2,9,20,wall,root,12,4.5,1);  
+  box(17,9,.22,mat(0x315669,.5,.22),root,.5,4.3,-8.72);  
+  designWorld.texture=new THREE.CanvasTexture($('designCanvas'));designWorld.texture.colorSpace=THREE.SRGBColorSpace;designWorld.texture.minFilter=THREE.LinearFilter;  
+  designWorld.board=new THREE.Mesh(new THREE.PlaneGeometry(designWorld.w,designWorld.h),new THREE.MeshBasicMaterial({map:designWorld.texture,toneMapped:false,side:THREE.DoubleSide}));root.add(designWorld.board);designWorld.board.position.set(-1.5,4.3,-8.45);designWorld.board.userData.designBoard=true;designWorld.board.castShadow=false;designWorld.board.receiveShadow=false;
+  designWorld.labelCanvas=document.createElement('canvas');designWorld.labelCanvas.width=$('designCanvas').width;designWorld.labelCanvas.height=$('designCanvas').height;designWorld.labelTexture=new THREE.CanvasTexture(designWorld.labelCanvas);designWorld.labelTexture.colorSpace=THREE.SRGBColorSpace;designWorld.labelTexture.minFilter=THREE.LinearFilter;designWorld.labelOverlay=new THREE.Mesh(new THREE.PlaneGeometry(designWorld.w,designWorld.h),new THREE.MeshBasicMaterial({map:designWorld.labelTexture,transparent:true,depthWrite:false,toneMapped:false,side:THREE.DoubleSide}));designWorld.labelOverlay.position.z=.24;designWorld.labelOverlay.renderOrder=40;designWorld.board.add(designWorld.labelOverlay);
+  const head=labelMesh('INTERACTIVE DESIGN SPACE','#53e7ff',6,.5,28);head.position.set(-1.5,8.65,-8.54);root.add(head);  
+  const leftLight=new THREE.PointLight(0x53e7ff,.75,8,2);leftLight.position.set(-5,6,1);root.add(leftLight);const rightLight=new THREE.PointLight(0x53e7ff,.75,8,2);rightLight.position.set(5,6,1);root.add(rightLight);ensureDesignActionPanel()  
+}  
+function worldActionList(){if(designWorld.stage===0)return[['SUBMIT FIT','submit'],['EXIT','exit']];if(designWorld.stage===1)return[['CLEAR WIRES','clear'],['SUBMIT / NEXT','submit'],['EXIT','exit']];return[['M1','m1'],['M2','m2'],['UNDO WIRE','undo'],['CLEAR ROUTES','clear'],['RELEASE DESIGN','submit'],['EXIT','exit']]}
+function ensureDesignActionPanel(){if(designWorld.actionPanel)return;const panel=new THREE.Group();panel.position.set(6.4,4.3,-8.72);designWorld.root.add(panel);box(3.55,8.1,.18,mat(0x0a1a24,.2,.55),panel,0,0,0);const title=labelMesh('DESIGN CONTROLS','#53e7ff',2.8,.32,30);title.position.set(0,3.55,.105);panel.add(title);designWorld.actionPanel=panel;rebuildDesignActionButtons()}
+function rebuildDesignActionButtons(){if(!designWorld.actionPanel)return;for(const button of designWorld.actionButtons){button.parent?.remove(button);button.userData.labelMesh?.parent?.remove(button.userData.labelMesh);button.geometry.dispose();button.material.dispose();button.userData.labelMesh?.material.map?.dispose();button.userData.labelMesh?.material.dispose();button.userData.labelMesh?.geometry.dispose()}designWorld.actionButtons=[];const actions=worldActionList(),buttonH=.82,gap=.22,total=actions.length*buttonH+(actions.length-1)*gap,top=total/2-buttonH/2;actions.forEach(([label,action],index)=>{const y=top-index*(buttonH+gap),layer=action==='m1'||action==='m2',selected=layer&&designMode.layer===action.toUpperCase(),color=layer?(action==='m1'?0xffe52b:0x168dff):action==='submit'?0x67f6a3:0x54717f,surface=box(3.1,buttonH,.09,mat(selected?color:0x142a35,.24,.4,false,1,selected?color:0),designWorld.actionPanel,0,y,.15);surface.material.emissiveIntensity=selected?.32:0;surface.userData={action,label,baseColor:color,layer,selected};const caption=labelMesh(label,'#eff8fb',2.6,layer?.68:.34,layer?60:30);caption.position.set(0,y,.205);designWorld.actionPanel.add(caption);surface.userData.labelMesh=caption;designWorld.actionButtons.push(surface)});designWorld.actionSignature=`${designWorld.stage}:${designMode.layer}:${designMode.layoutComplete}`}
+function setDesignPanelStatus(text,color='#a9c0cb'){if(!designWorld.actionPanel)return;if(designWorld.actionStatus?.userData.text===text&&designWorld.actionStatus.userData.color===color)return;if(designWorld.actionStatus){const old=designWorld.actionStatus;old.parent?.remove(old);old.material.map?.dispose();old.material.dispose();old.geometry.dispose()}const label=labelMesh(text,color,3.1,.28,23);label.position.set(0,-3.62,.105);label.userData.text=text;label.userData.color=color;designWorld.actionPanel.add(label);designWorld.actionStatus=label}
+function syncDesignActionPanel(){ensureDesignActionPanel();const signature=`${designWorld.stage}:${designMode.layer}:${designMode.layoutComplete}`;if(signature!==designWorld.actionSignature)rebuildDesignActionButtons();if(designWorld.actionNotice)setDesignPanelStatus(designWorld.actionNotice,'#ff8b79');else if(designWorld.stage===2)setDesignPanelStatus(`${designMode.layoutConnected}/3 NETS · ${designMode.layoutScore.toFixed(1)}% QUALITY`,designMode.layoutComplete?'#67f6a3':'#d5e5ea');else setDesignPanelStatus(designWorld.stage===0?'FIT THE REGRESSION':'REPAIR TWO CIRCUIT CONNECTIONS')}
+function designActionHit(origin,direction){raycaster.set(origin,direction);return raycaster.intersectObjects(designWorld.actionButtons,false)[0]?.object||null}
+function activateDesignAction(button){if(!button)return false;const action=button.userData.action;if(action==='m1'||action==='m2')setWorldLayer(action.toUpperCase());else executeWorldAction(action);return true}
+function designXRAction(controller){if(!controller||!designWorld.actionButtons.length)return null;controller.updateMatrixWorld(true);const rotation=new THREE.Matrix4().extractRotation(controller.matrixWorld),origin=new THREE.Vector3().setFromMatrixPosition(controller.matrixWorld),direction=new THREE.Vector3(0,0,-1).applyMatrix4(rotation).normalize();return designActionHit(origin,direction)}
+function designDesktopAction(){raycaster.setFromCamera({x:0,y:0},camera);return raycaster.intersectObjects(designWorld.actionButtons,false)[0]?.object||null}
+function disposeDesignObject(root){root.traverse(o=>{o.geometry?.dispose?.();if(Array.isArray(o.material))o.material.forEach(m=>m.dispose?.());else o.material?.dispose?.()});root.parent?.remove(root)}  
+function boardLocalFromCanvas(x,y){const c=$('designCanvas');return{x:(x/c.width-.5)*designWorld.w,y:(.5-y/c.height)*designWorld.h}}  
+function layoutBox(parent,x,y,w,h,z,depth,material){const q=boardLocalFromCanvas(x,y),sx=w/$('designCanvas').width*designWorld.w,sy=h/$('designCanvas').height*designWorld.h,m=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,depth),material);m.position.set(q.x,q.y,z+depth/2);m.renderOrder=20;parent.add(m);return m}  
+function layoutSegment3D(parent,a,b,layer,material){const pa=boardLocalFromCanvas(a.x,a.y),pb=boardLocalFromCanvas(b.x,b.y),z=layer==='M2'?.325:.055,thickness=.035,width=.105,dx=pb.x-pa.x,dy=pb.y-pa.y,length=Math.hypot(dx,dy);if(length<.002)return;const m=new THREE.Mesh(new THREE.BoxGeometry(length,width,thickness),material);m.position.set((pa.x+pb.x)/2,(pa.y+pb.y)/2,z);m.rotation.z=Math.atan2(dy,dx);m.renderOrder=24;parent.add(m)}  
+function layoutVia3D(parent,p,material){const q=boardLocalFromCanvas(p.x,p.y),height=.325-.055+.035+.025,m=new THREE.Mesh(new THREE.CylinderGeometry(.12,.12,height,20),material);m.rotation.x=Math.PI/2;m.position.set(q.x,q.y,.055+height/2-.0175);m.renderOrder=26;parent.add(m)}  
+function layoutSignature(){return JSON.stringify({stage:designWorld.stage,routes:designMode.layoutRoutes})}  
+function syncLayout3D(force=false){  
+  if(!designWorld.active||designWorld.stage!==2){if(designWorld.layout3D){disposeDesignObject(designWorld.layout3D);designWorld.layout3D=null;designWorld.layout3DSignature=''}return}  
+  const signature=layoutSignature();if(!force&&signature===designWorld.layout3DSignature)return;designWorld.layout3DSignature=signature;if(designWorld.layout3D)disposeDesignObject(designWorld.layout3D);  
+  const group=new THREE.Group();group.name='layout-depth-geometry';designWorld.board.add(group);designWorld.layout3D=group;  
+  const M1=new THREE.MeshStandardMaterial({color:0xffe52b,metalness:.72,roughness:.24,emissive:0x665800,emissiveIntensity:.35});  
+  const M2=new THREE.MeshStandardMaterial({color:0x168dff,metalness:.72,roughness:.24,emissive:0x092e66,emissiveIntensity:.45});  
+  const VIA=new THREE.MeshStandardMaterial({color:0xd56b1f,metalness:.68,roughness:.28,emissive:0x612606,emissiveIntensity:.3});  
+  const IN=new THREE.MeshStandardMaterial({color:0xff6579,metalness:.42,roughness:.3});  
+  const OUT=new THREE.MeshStandardMaterial({color:0x6f78ff,metalness:.42,roughness:.3});  
+  const NO_GO=new THREE.MeshStandardMaterial({color:0x78262d,metalness:.08,roughness:.7,transparent:true,opacity:.72});
+  const g=layoutGeometry($('designCanvas').width,$('designCanvas').height),padW=28,padH=36,top=.22;  
+  for(const q of g.inputs)layoutBox(group,q.x,q.y,padW,padH,0,top,IN);  
+  for(const q of g.outputs)layoutBox(group,q.x,q.y,padW,padH,0,top,OUT);  
+  for(const r of g.keepouts)layoutBox(group,r.x+r.w/2,r.y+r.h/2,r.w,r.h,0,top,NO_GO);  
+  const canvas=$('designCanvas'),margin=g.margin;layoutBox(group,g.plotW/2,margin/2,g.plotW,margin,0,top,NO_GO);layoutBox(group,g.plotW/2,canvas.height-margin/2,g.plotW,margin,0,top,NO_GO);layoutBox(group,margin/2,canvas.height/2,margin,canvas.height-2*margin,0,top,NO_GO);layoutBox(group,g.plotW-margin/2,canvas.height/2,margin,canvas.height-2*margin,0,top,NO_GO);
+  for(const route of designMode.layoutRoutes)for(let i=1;i<route.points.length;i++)layoutSegment3D(group,route.points[i-1],route.points[i],route.layer,route.layer==='M2'?M2:M1);  
+  for(const node of designMode.layoutNodes)if(!node.terminal&&node.metals.size>1)layoutVia3D(group,node,VIA)  
+}  
+function ensureLayoutPreview3D(){if(designWorld.layoutPreview3D)return;const group=new THREE.Group();group.name='layout-wire-preview';designWorld.board.add(group);designWorld.layoutPreview3D=group;for(let i=0;i<3;i++){const mesh=new THREE.Mesh(new THREE.BoxGeometry(1,.105,.04),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.38,depthWrite:false,toneMapped:false}));mesh.renderOrder=60;mesh.visible=false;group.add(mesh)}for(let i=0;i<2;i++){const ring=new THREE.Mesh(new THREE.TorusGeometry(.2,.018,8,32),new THREE.MeshBasicMaterial({color:0xff334f,transparent:true,opacity:.85,depthWrite:false,toneMapped:false}));ring.renderOrder=70;ring.visible=false;group.add(ring)}}
+function updateLayoutPreview3D(){if(!designWorld.active||designWorld.stage!==2){if(designWorld.layoutPreview3D)designWorld.layoutPreview3D.visible=false;return}ensureLayoutPreview3D();const group=designWorld.layoutPreview3D;group.visible=true;group.children.forEach(mesh=>mesh.visible=false);const draft=designMode.layoutDraft;if(draft)draft.points.slice(1).forEach((point,index)=>{const mesh=group.children[index],a=draft.points[index],pa=boardLocalFromCanvas(a.x,a.y),pb=boardLocalFromCanvas(point.x,point.y),dx=pb.x-pa.x,dy=pb.y-pa.y,length=Math.hypot(dx,dy);mesh.visible=length>.002;mesh.position.set((pa.x+pb.x)/2,(pa.y+pb.y)/2,draft.layer==='M2'?.325:.055);mesh.rotation.z=Math.atan2(dy,dx);mesh.scale.x=Math.max(length,.001);mesh.material.color.setHex(draft.valid?(draft.layer==='M2'?0x168dff:0xffe52b):0xff6579)});const pulse=.85+.25*Math.sin(performance.now()*.012);designMode.layoutHoverNodes.slice(0,2).forEach((hover,index)=>{const node=layoutNode(hover.id),ring=group.children[index+3];if(!node||!ring)return;const point=boardLocalFromCanvas(node.x,node.y);ring.visible=true;ring.position.set(point.x,point.y,.38);ring.scale.setScalar(pulse)})}
+function drawWorldGainControls(ctx,w,h){
+  const left=w*.08,right=w*.66,trackW=right-left;
+  ctx.fillStyle='rgba(3,14,22,.94)';ctx.fillRect(0,h*.72,w,h*.23);
+  [['GRADIENT m',designMode.gain,-4,4,h*.78],['INTERCEPT c',designMode.intercept,-8,8,h*.88]].forEach(([label,value,min,max,y])=>{
+    ctx.fillStyle='#d9edf4';ctx.font='700 20px monospace';ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(label,left,y-19);
+    ctx.fillStyle='#8da9b5';ctx.textAlign='right';ctx.fillText(value.toFixed(2),right,y-19);
+    ctx.fillStyle='#193340';ctx.fillRect(left,y-5,trackW,10);
+    ctx.fillStyle='#53e7ff';ctx.fillRect(left,y-5,trackW*(value-min)/(max-min),10);
+    ctx.fillStyle='#ffffff';ctx.beginPath();ctx.arc(left+trackW*(value-min)/(max-min),y,13,0,Math.PI*2);ctx.fill()
+  });
+  const x=w*.72,y=h*.755,bw=w*.24,bh=h*.17;ctx.fillStyle='rgba(4,27,22,.98)';ctx.fillRect(x,y,bw,bh);ctx.strokeStyle='#67f6a3';ctx.lineWidth=3;ctx.strokeRect(x,y,bw,bh);ctx.fillStyle='#a8c9b8';ctx.textAlign='left';ctx.font='800 16px monospace';ctx.fillText('REGRESSION MATCH',x+14,y+27);ctx.fillStyle='#67f6a3';ctx.font='900 36px monospace';ctx.fillText(designMode.gainComplete?`${designMode.regressionBest.score.toFixed(1)}%`:'--%',x+14,y+70)
+}
+function syncDesignBoard(){if(!designWorld.active)return;const c=$('designCanvas');if(c.width<960||c.height<600){c.width=1280;c.height=800}drawDesignStage();const ctx=c.getContext('2d');if(designWorld.stage===0)drawWorldGainControls(ctx,c.width,c.height);const p=renderer.xr.isPresenting?null:desktopDesignPoint();if(p){ctx.strokeStyle='#53e7ff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,10,0,Math.PI*2);ctx.moveTo(p.x-15,p.y);ctx.lineTo(p.x+15,p.y);ctx.moveTo(p.x,p.y-15);ctx.lineTo(p.x,p.y+15);ctx.stroke()}const labels=designWorld.labelCanvas.getContext('2d');labels.clearRect(0,0,designWorld.labelCanvas.width,designWorld.labelCanvas.height);if(designWorld.stage===2)drawLayoutLabels(labels,c.width,c.height);designWorld.labelTexture.needsUpdate=true;syncDesignActionPanel();syncLayout3D();updateLayoutPreview3D();designWorld.texture.needsUpdate=true}
+function enterDesignWorld(stage){  
+  ensureDesignWorld();if(!designWorld.active){designWorld.returnPos.copy(player.position);designWorld.returnYaw=yaw;designWorld.returnPitch=pitch}  
+  designWorld.active=true;designWorld.stage=stage;$('designReset').hidden=stage===1;designWorld.root.visible=true;if(stage===2){if(!designMode.layoutNodes.length)initializeLayoutNodes();designWorld.layout3DSignature='';updateLayoutState()}state.focus=null;state.nearest=null;$('designTerminal').className='';$('designTerminal').setAttribute('aria-hidden','true');document.body.classList.remove('design-editing');designMode.phase='world';$('designTerminal').className='';$('designTerminal').setAttribute('aria-hidden','true');document.body.classList.remove('design-editing');  
+  player.position.set(0,renderer.xr.isPresenting?.86:2.58,172);yaw=0;pitch=-.03;player.rotation.y=yaw;camera.rotation.x=pitch;Object.keys(keys).forEach(k=>keys[k]=false);if(!renderer.xr.isPresenting)renderer.domElement.requestPointerLock?.();syncDesignBoard();toast(stage===1?'Circuit space active: click-drag directly between wall terminals. F submits, R resets, X clears.':'Layout active: choose M1 or M2, hold a terminal or junction, drag an elbow and release to commit. F releases.')  
+}  
+function leaveDesignWorld(returnOverlay=true){  
+  if(!designWorld.active)return;if(designWorld.layout3D){disposeDesignObject(designWorld.layout3D);designWorld.layout3D=null;designWorld.layout3DSignature=''}designWorld.active=false;designWorld.root.visible=false;designWorld.dragging=false;state.focus=null;state.nearest=null;designWorld.xrDragging.clear();player.position.copy(designWorld.returnPos);yaw=designWorld.returnYaw;pitch=designWorld.returnPitch;player.rotation.y=yaw;camera.rotation.x=pitch;  
+  if(returnOverlay&&designMode.step===0){designMode.phase='active';$('designTerminal').className='active';$('designTerminal').setAttribute('aria-hidden','false');document.body.classList.add('design-editing');renderDesignStep();setTimeout(resizeDesignCanvas,0)}else{designMode.phase='idle';$('designTerminal').className='';$('designTerminal').setAttribute('aria-hidden','true');document.body.classList.remove('design-editing')}  
+}  
+function worldToolbarButtons(){return[]}  
+function drawWorldToolbar(){}  
+function toolbarActionAt(){return null}  
+function setWorldLayer(layer){designMode.layer=layer;document.querySelectorAll('.layer-btn').forEach(b=>b.classList.toggle('active',b.dataset.layer===layer));if(designWorld.active)syncDesignBoard();else drawDesignStage()}  
+function executeWorldAction(action){  
+  if(action==='exit'){leaveDesignWorld(false);closeDesignMode();return}  
+  if(action==='submit'&&designWorld.stage===0){if(!designMode.gainComplete){submitRegression();syncDesignBoard();return}designMode.step=1;designMode.schematicDrag=null;renderDesignStep();designWorld.stage=1;syncDesignBoard();toast('Regression verified. Circuit repair is now active on the wall.');return}
+  if(action==='reset'){resetDesignStage();syncDesignBoard();return}  
+  if(action==='clear'){if(designWorld.stage===1){designMode.schematicLinks.clear();designMode.schematicDrag=null;designMode.schematicSubmitted=false;designMode.schematicComplete=false;updateSchematicState()}else{designMode.layoutDraft=null;designMode.layoutRoutes=[];initializeLayoutNodes();updateLayoutState()}syncDesignBoard();return}  
+  if(action==='undo'){const route=designMode.layoutRoutes.pop();if(route){rebuildLayoutNodeMetals();const end=layoutNode(route.toId);if(end&&!end.terminal&&!end.metals.size)designMode.layoutNodes=designMode.layoutNodes.filter(node=>node!==end);updateLayoutState()}syncDesignBoard();return}  
+  if(action==='m1'||action==='m2'){setWorldLayer(action.toUpperCase());return}  
+  if(action==='submit'){
+    if(designWorld.stage===1){submitSchematic();syncDesignBoard();if(designMode.schematicComplete){designMode.step=2;designWorld.stage=2;designWorld.layout3DSignature='';designMode.layoutActive=null;designMode.layoutDraft=null;initializeLayoutNodes();renderDesignStep();syncDesignBoard();toast('Circuit verified. Two-layer layout is now active on the wall.')}return}  
+    if(designMode.layoutComplete){const body=parallel?.active;if(!body){const message='Release blocked: dispense a wafer first.';setDesignMessage(message,'warn');toast(message,'warn');syncDesignActionPanel();return}if(body.nextStage!==0){const message='Release blocked: this wafer already has a sensor design.';setDesignMessage(message,'warn');toast(message,'warn');syncDesignActionPanel();return}leaveDesignWorld(false);releaseDesign();toast('Sensor design released. The next production activity is ready.');return}  
+    const result=scoreLayoutNetwork(),message=`Release blocked: ${result.connected}/3 nets, ${result.wrongConnections} wrong connections, ${result.shorts} shorts.`;designWorld.actionNotice=message.toUpperCase();setDesignMessage(message,'warn');toast(message,'warn');syncDesignActionPanel();return  
+  }  
+}  
+function boardPointFromRay(origin,direction){  
+  if(!designWorld.active)return null;designWorld.board.updateMatrixWorld(true);const normal=new THREE.Vector3(0,0,1).applyQuaternion(designWorld.board.getWorldQuaternion(new THREE.Quaternion())),plane=new THREE.Plane().setFromNormalAndCoplanarPoint(normal,designWorld.board.getWorldPosition(new THREE.Vector3())),hit=new THREE.Vector3();if(!new THREE.Ray(origin,direction).intersectPlane(plane,hit))return null;const q=designWorld.board.worldToLocal(hit.clone());if(Math.abs(q.x)>designWorld.w/2||Math.abs(q.y)>designWorld.h/2)return null;return{x:(q.x/designWorld.w+.5)*$('designCanvas').width,y:(.5-q.y/designWorld.h)*$('designCanvas').height,world:hit}  
+}  
+function desktopDesignPoint(){raycaster.setFromCamera({x:0,y:0},camera);return boardPointFromRay(raycaster.ray.origin,raycaster.ray.direction)}  
+function xrDesignPoint(c){const m=new THREE.Matrix4().identity().extractRotation(c.matrixWorld),o=new THREE.Vector3().setFromMatrixPosition(c.matrixWorld),d=new THREE.Vector3(0,0,-1).applyMatrix4(m).normalize();return boardPointFromRay(o,d)}  
+function fakeEvent(p){return{designX:p.x,designY:p.y,pointerId:1}}  
+function updateWorldGainSlider(p,index){const c=$('designCanvas'),ratio=clamp((p.x-c.width*.08)/(c.width*.58),0,1);if(index===0){designMode.gain=Number((-4+ratio*8).toFixed(2));$('gainSlider').value=String(designMode.gain)}else{designMode.intercept=Number((-8+ratio*16).toFixed(2));$('interceptSlider').value=String(designMode.intercept)}updateGainState()}
+function designBoardAction(action,p){if(state.paused)return;if(action==='up'&&designWorld.stage===0)designWorld.gainDrag=null;if(!p)return;if(designWorld.stage===0){const c=$('designCanvas'),x=p.x/c.width,y=p.y/c.height;if(action==='down'&&x>=.08&&x<=.66&&y>=.745&&y<=.815)designWorld.gainDrag=0;else if(action==='down'&&x>=.08&&x<=.66&&y>=.845&&y<=.915)designWorld.gainDrag=1;if((action==='down'||action==='move')&&designWorld.gainDrag!==null)updateWorldGainSlider(p,designWorld.gainDrag);syncDesignBoard();return}if(designWorld.stage===1){const e=fakeEvent(p);if(action==='down')onDesignPointerDown(e);else if(action==='move')onDesignPointerMove(e);else onDesignPointerUp(e);syncDesignBoard();return}if(action==='down')beginLayoutWire(p);else if(action==='move')updateLayoutWire(p);else finishLayoutWire(p);syncDesignBoard()}  
+function designDesktopDown(e){if(!designWorld.active||e.button!==0)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();if(document.pointerLockElement!==renderer.domElement)renderer.domElement.requestPointerLock?.();const action=designDesktopAction();if(action){activateDesignAction(action);return}const p=desktopDesignPoint();if(p){designWorld.dragging=true;designBoardAction('down',p)}}  
+function blockDesignWorldActivation(e){if(!designWorld.active)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation()}  
+function designDesktopPointerDown(e){if(designWorld.active)blockDesignWorldActivation(e)}  
+function designDesktopUp(e){if(!designWorld.active||!designWorld.dragging)return;e?.preventDefault?.();e?.stopImmediatePropagation?.();designBoardAction('up',desktopDesignPoint());designWorld.dragging=false}  
+function designXRStart(c){if(!designWorld.active)return false;const action=designXRAction(c);if(action){activateDesignAction(action);pulseXR(.45,45);return true}const p=xrDesignPoint(c);if(!p)return false;designWorld.xrDragging.add(handKey(c));designBoardAction('down',p);pulseXR(.35,35);return true}  
+function designXREnd(c){if(!designWorld.active||!designWorld.xrDragging.has(handKey(c)))return false;designBoardAction('up',xrDesignPoint(c));if(designWorld.stage===0)designWorld.gainDrag=null;designWorld.xrDragging.delete(handKey(c));return true}  
+function updateDesignInteraction(){if(!designWorld.active||state.paused)return;const action=renderer.xr.isPresenting?designXRAction(xrController1):designDesktopAction();for(const button of designWorld.actionButtons){const hovered=button===action,selected=button.userData.layer&&designMode.layer===button.userData.action.toUpperCase(),releaseBlocked=button.userData.action==='submit'&&designWorld.stage===2&&!designMode.layoutComplete,color=releaseBlocked?0x713441:hovered?0x67f6a3:selected?button.userData.baseColor:0x142a35;button.material.color.setHex(color);button.material.emissive.setHex(hovered||selected?color:0);button.material.emissiveIntensity=hovered?.35:selected?.24:0;button.scale.setScalar(hovered?1.035:1)}if(designWorld.stage===2){const hovers=[];if(renderer.xr.isPresenting){for(const c of [xrController0,xrController1]){const point=xrDesignPoint(c),node=point&&nearestLayoutNode(point,designMode.layoutDraft?.fromId);if(node)hovers.push({id:node.id})}}else{const point=desktopDesignPoint(),node=point&&nearestLayoutNode(point,designMode.layoutDraft?.fromId);if(node)hovers.push({id:node.id})}designMode.layoutHoverNodes=hovers}if(designWorld.dragging)designBoardAction('move',desktopDesignPoint());for(const c of [xrController0,xrController1])if(designWorld.xrDragging.has(handKey(c)))designBoardAction('move',xrDesignPoint(c));syncDesignBoard()}
+function updateDesignLocomotion(dt){  
+  if(renderer.xr.isPresenting||!designWorld.active)return;let f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0),r=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0),n=Math.hypot(f,r)||1;f/=n;r/=n;const crouch=keys.ShiftLeft||keys.ShiftRight,sprint=(keys.ControlLeft||keys.ControlRight)&&!crouch,speed=crouch?1.2:sprint?5.2:2.75;player.position.x=clamp(player.position.x+(-Math.sin(yaw)*f+Math.cos(yaw)*r)*speed*dt,-10.8,10.8);player.position.z=clamp(player.position.z+(-Math.cos(yaw)*f-Math.sin(yaw)*r)*speed*dt,157,175);player.position.y=lerp(player.position.y,crouch?1.29:2.58,1-Math.exp(-dt*10));player.rotation.y=yaw;camera.rotation.x=pitch  
+}  
+function updateDesignXRLocomotion(dt,now){  
+  if(!designWorld.active)return false;const session=renderer.xr.getSession();if(!session)return true;updateXRVertical(dt);const src=[...session.inputSources],left=src.find(x=>x.handedness==='left'),right=src.find(x=>x.handedness==='right'),lg=left?.gamepad,rg=right?.gamepad;if(lg&&lg.axes.length>=4){let sx=Math.abs(lg.axes[2])>.15?lg.axes[2]:0,sy=Math.abs(lg.axes[3])>.15?lg.axes[3]:0;camera.getWorldDirection(xrHeadDirection);xrHeadDirection.y=0;xrHeadDirection.normalize();const side=new THREE.Vector3().crossVectors(xrHeadDirection,new THREE.Vector3(0,1,0)).normalize(),sp=rg?.buttons?.[1]?.pressed?4.9:2.45;player.position.x=clamp(player.position.x+(side.x*sx+xrHeadDirection.x*-sy)*sp*dt,-10.8,10.8);player.position.z=clamp(player.position.z+(side.z*sx+xrHeadDirection.z*-sy)*sp*dt,157,175)}if(rg&&rg.axes.length>=4){const ax=rg.axes[2]||0;if(Math.abs(ax)>.75&&!xrTurnLatch){player.rotation.y-=Math.sign(ax)*Math.PI/6;xrTurnLatch=true}else if(Math.abs(ax)<.3)xrTurnLatch=false}updateXRSpatial(now);return true  
+}  
+function designWorldCommand(code){  
+    if(!designWorld.active)return false;  
+    const map={Escape:'exit',KeyR:'reset',KeyX:'clear',KeyZ:'undo',Digit1:'m1',Digit2:'m2',KeyF:'submit'};  
+    const action=map[code];if(!action)return false;if(designWorld.stage===1&&['undo','m1','m2'].includes(action))return true;executeWorldAction(action);return true  
+  }  
+const v6CreateMachine=createMachine;  
+createMachine=function(s,i){  
+  if(s.type!=='design'){v6CreateMachine(s,i);machines[i+1].kind='fabrication';return}  
+  const g=new THREE.Group(),x=s.side*6.65;  
+  g.position.set(x,0,s.z);g.rotation.y=s.side<0?Math.PI/2:-Math.PI/2;scene.add(g);  
+  const deskMat=mat(0x263946,.25,.38),edgeMat=mat(0x638397,.55,.22),pcMat=mat(0x0b1720,.45,.24),screenMat=mat(0x087e9c,.1,.18,true,.96,C.cyan);  
+  box(3.05,.13,1.38,deskMat,g,0,1.18,.05);  
+  [[-1.25,-.42],[1.25,-.42],[-1.25,.52],[1.25,.52]].forEach(([lx,lz])=>box(.15,1.16,.15,edgeMat,g,lx,.58,lz));  
+  box(.78,.94,.66,pcMat,g,-1.02,1.72,-.08);  
+  const towerGlow=box(.055,.29,.025,screenMat,g,-.63,1.78,.265);towerGlow.material.emissiveIntensity=.7;  
+  box(.13,.5,.13,edgeMat,g,.05,1.48,-.03);box(.84,.08,.46,edgeMat,g,.05,1.23,.04);  
+  box(1.4,.84,.11,pcMat,g,.05,1.94,.08);  
+  const screen=box(1.24,.68,.026,screenMat,g,.05,1.94,.145);  
+  screen.userData={interactive:true,type:'button',kind:'designTerminal',label:'DESIGN COMPUTER',machineIndex:i,visualButton:false,baseColor:s.color};interactives.push(screen);  
+  const keyboard=box(1.05,.045,.36,mat(0x152630,.35,.26),g,.25,1.27,.48);keyboard.rotation.x=-.08;  
+  for(let r=0;r<3;r++)for(let c=0;c<10;c++)box(.067,.018,.054,mat(0x8fb0be,.25,.35),g,-.1+c*.094,1.305-r*.003,.38+r*.078);  
+  const mouse=cyl(.082,.045,mat(0x8fb0be,.35,.28),g,1.04,1.275,.47,20);mouse.scale.z=1.35;  
+  const lamp=cyl(.07,.12,mat(C.cyan,.2,.22),g,1.28,1.36,.51);lamp.material.emissive.setHex(C.cyan);lamp.material.emissiveIntensity=.8;  
+  const label=labelMesh('SENSOR DESIGN WORKSTATION','#53e7ff',2.7,.45,25);label.position.set(0,2.73,.18);g.add(label);  
+  const hiddenDoor=new THREE.Object3D(),hiddenHandle=new THREE.Object3D(),hiddenTray=new THREE.Object3D(),hiddenTarget=new THREE.Object3D(),hiddenWafer=new THREE.Object3D();hiddenDoor.visible=hiddenHandle.visible=hiddenTray.visible=hiddenTarget.visible=hiddenWafer.visible=false;hiddenDoor.userData.handle=hiddenHandle;g.add(hiddenDoor,hiddenHandle,hiddenTray,hiddenTarget,hiddenWafer);const machine={kind:'design',group:g,lamp,station:s,index:i,world:new THREE.Vector3(x,1.5,s.z),designScreen:screen,door:hiddenDoor,doorHandle:hiddenHandle,wafer:hiddenWafer,tray:hiddenTray,chamberTarget:hiddenTarget,controls:[],buttons:{},body:null};  
+  machine.wafer.visible=false;g.add(machine.wafer);machines.push(machine);addCollider(x,s.z,3.25,1.8)  
+};  
+const v6ButtonEnabled=buttonEnabled;  
+buttonEnabled=function(d){if(d?.kind==='designTerminal')return state.started;if(d?.kind==='machine'&&d.machineIndex===0)return false;return v6ButtonEnabled(d)};  
+const v6ButtonHint=buttonHint;  
+buttonHint=function(d){if(d?.kind==='designTerminal')return'Enter manual sensor design edit mode';if(d?.kind==='machine'&&d.machineIndex===0)return'Use the design computer screen instead of the fabrication controls';return v6ButtonHint(d)};  
+const v6AdjustControl=adjustControl;  
+adjustControl=function(d,dir){if(d?.machineIndex===0){toast('Use the design computer for this engineering stage.','warn');return}v6AdjustControl(d,dir)};  
+const v6UpdateHUDDesign=updateHUD;  
+updateHUD=function(){  
+  v6UpdateHUDDesign();  
+  const body=parallel?.active;  
+  if(body&&body.nextStage===0&&!body.completed){  
+    $('objectiveMain').textContent='Open the sensor design workstation';  
+    $('objectiveSub').textContent='Click the illuminated computer screen. Movement will lock while you complete all three manual design stages.'  
+  }  
+};  
+const v6ActivateFocusedDesign=activateFocused;  
+activateFocused=function(){  
+  if(designWorld.active||designMode.phase==='world')return;  
+  if(state.focus?.userData?.kind==='designTerminal'){startDesignMode();return}  
+  v6ActivateFocusedDesign()  
+};  
+const v6UpdateMovement=updateMovement;  
+updateMovement=function(dt){if(designWorld.active){updateDesignLocomotion(dt);return}if(designMode.phase!=='idle')return;v6UpdateMovement(dt)};  
+const v6RaycastFocus=raycastFocus;  
+raycastFocus=function(){  
+  if(designWorld.active||designMode.phase==='world'){state.focus=null;state.nearest=null;$('focusTag').textContent='3D DESIGN BOARD — DRAW DIRECTLY';$('actionBtn').disabled=true;$('actionBtn').textContent='USE BOARD OR SHORTCUTS';return}  
+  if(designMode.phase!=='idle')return;  
+  v6RaycastFocus();  
+  if(state.focus?.userData?.type==='control'&&state.focus.userData.machineIndex===0){  
+    $('actionBtn').disabled=true;$('actionBtn').textContent='USE THE DESIGN COMPUTER SCREEN';  
+    $('focusTag').textContent='DESIGN CONTROL LOCKED — CLICK THE COMPUTER SCREEN'  
+  }  
+};  
+const v6GetNearest=getNearest;  
+getNearest=function(){if(designMode.phase!=='idle')return;v6GetNearest()};  
+const v6Loop=loop;  
+loop=function(now){updateDesignCamera(now);updateDesignInteraction();v6Loop(now)};  
+const v6Bind=bind;  
+bind=function(){    
+    v6Bind();  
+  addEventListener('keydown',onDesktopKeydown,true);
+    renderer.domElement.addEventListener('pointerdown',designDesktopPointerDown,true);  
+    renderer.domElement.addEventListener('mousedown',designDesktopDown,true);  
+    renderer.domElement.addEventListener('click',blockDesignWorldActivation,true);  
+    renderer.domElement.addEventListener('dblclick',blockDesignWorldActivation,true);  
+    renderer.domElement.addEventListener('contextmenu',blockDesignWorldActivation,true);  
+    addEventListener('mouseup',designDesktopUp,true);  
+    addEventListener('keydown',e=>{if(designWorldCommand(e.code)){e.preventDefault();e.stopPropagation();e.stopImmediatePropagation()}},true);  
+    document.querySelectorAll('.design-step').forEach((tab,index)=>{tab.onclick=e=>{e.preventDefault();e.stopImmediatePropagation();if(index===0&&designMode.step===0)return;if(index===1||index===2){designMode.step=index;enterDesignWorld(index)}}});  
+    $('gainSlider').addEventListener('input',e=>{designMode.gain=Number(e.target.value);updateGainState()});$('interceptSlider').addEventListener('input',e=>{designMode.intercept=Number(e.target.value);updateGainState()});$('regressionSubmit').onclick=submitRegression;$('schematicSubmit').onclick=submitSchematic;$('clearSchematic').onclick=clearSchematicWires;  
+  $('designCanvas').addEventListener('pointerdown',onDesignPointerDown);  
+  $('designCanvas').addEventListener('pointermove',onDesignPointerMove);  
+  $('designCanvas').addEventListener('pointerup',onDesignPointerUp);  
+  $('designCanvas').addEventListener('click',onDesignClick);  
+  $('designExit').onclick=()=>{if(designWorld.active)leaveDesignWorld(false);closeDesignMode()};$('designReset').onclick=resetDesignStage;  
+  $('designBack').onclick=()=>{if(designWorld.active)leaveDesignWorld(false);if(designMode.step>0){designMode.step--;renderDesignStep();if(designMode.step>0)enterDesignWorld(designMode.step)}};  
+  $('designNext').onclick=()=>{if(designMode.step===0){designMode.step=1;renderDesignStep();enterDesignWorld(1)}else if(!designWorld.active&&designMode.step>0)enterDesignWorld(designMode.step)};  
+  document.querySelectorAll('.layer-btn').forEach(btn=>btn.onclick=()=>setWorldLayer(btn.dataset.layer));  
+  $('undoRoute').onclick=()=>executeWorldAction('undo');  
+  $('clearRoute').onclick=()=>executeWorldAction('clear');  
+  addEventListener('resize',resizeDesignCanvas);  
+  addEventListener('keydown',e=>{if(designMode.phase==='active'&&e.code==='Escape'){e.preventDefault();closeDesignMode()}},true)  
+};  
+const v7XRMove=updateXRMovement;updateXRMovement=function(dt,now){if(updateDesignXRLocomotion(dt,now))return;v7XRMove(dt,now)};const v7XRStart=onXRTriggerStart,v7XREnd=onXRTriggerEnd;onXRTriggerStart=function(c){if(designWorld.active){designXRStart(c);return}const hit=xrInteractiveHit(c);if(hit?.object.userData.kind==='designTerminal'){state.focus=hit.object;activateFocused();pulseXR(.45,45);return}v7XRStart(c)};onXRTriggerEnd=function(c){if(designWorld.active){designXREnd(c);return}v7XREnd(c)};    
+  const v7NewRunDesign=newRun;  
+newRun=function(){  
+  v7NewRunDesign();  
+  designMode.step=0;designMode.timingStep=-1;designMode.stageStartedAt=0;designMode.gain=0;designMode.intercept=0;designMode.gainComplete=false;designMode.regression=null;designMode.regressionAttempts=0;designMode.regressionBest=null;designMode.schematicComplete=false;designMode.schematicSubmitted=false;designMode.schematicScore=0;designMode.circuit=null;designMode.layoutComplete=false;designMode.layoutKeepOutViolations=0;  
+  designMode.schematicDrag=null;designMode.schematicLinks.clear();designMode.layer='M1';designMode.layoutActive=null;designMode.layoutNodes=[];designMode.layoutRoutes=[];designMode.layoutDraft=null;designMode.layoutHoverNodes=[];designMode.releasedBodies.clear();  
+  if($('gainSlider'))$('gainSlider').value='0';if($('interceptSlider'))$('interceptSlider').value='0';  
+  document.querySelectorAll('.layer-btn').forEach(btn=>btn.classList.toggle('active',btn.dataset.layer==='M1'));  
+  if(designWorld.active)leaveDesignWorld(false);if(designMode.phase!=='idle'){designMode.phase='idle';$('designTerminal').className='';document.body.classList.remove('design-editing')}  
+};  
+
+// V8.12: projected desktop mouse grip for physical wafer handling.
+const desktopGrip={
+  controller:new THREE.Group(),anchor:null,visual:null,beam:null,hover:null,
+  reach:.42,depth:1.05,suppressClick:false,velocity:new THREE.Vector3(),xrSnapshots:new Map()
+};
+desktopGrip.controller.userData={handIndex:'mouse',handedness:'Desktop'};
+function ensureDesktopGrip(){
+  if(desktopGrip.anchor||!camera)return;
+  const anchor=new THREE.Group();anchor.name='desktop-grip-anchor';anchor.position.set(0,-.09,-desktopGrip.depth);camera.add(anchor);
+  desktopGrip.anchor=anchor;desktopGrip.controller.userData.pinchAnchor=anchor;
+  const group=new THREE.Group();anchor.add(group);desktopGrip.visual=group;
+  const material=new THREE.MeshBasicMaterial({color:C.cyan,transparent:true,opacity:.42,depthTest:false,depthWrite:false,toneMapped:false});
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(.075,.009,10,36),material);ring.renderOrder=40;group.add(ring);
+  const palm=new THREE.Mesh(new THREE.SphereGeometry(.042,14,10),material.clone());palm.scale.set(1.15,.58,.7);palm.position.set(0,-.055,.018);palm.renderOrder=40;group.add(palm);
+  for(let i=-1;i<=1;i++){const finger=new THREE.Mesh(new THREE.CapsuleGeometry(.009,.085,4,8),material.clone());finger.position.set(i*.025,-.105,.028);finger.rotation.z=i*.15;finger.renderOrder=40;group.add(finger)}
+  const beamGeometry=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,-.025,-.12),new THREE.Vector3(0,-.09,-desktopGrip.depth+.05)]);
+  desktopGrip.beam=new THREE.Line(beamGeometry,new THREE.LineBasicMaterial({color:C.cyan,transparent:true,opacity:.16,depthTest:false,toneMapped:false}));desktopGrip.beam.renderOrder=39;camera.add(desktopGrip.beam);
+  const style=document.createElement('style');style.textContent='#crosshair.desktop-wafer-ready:before,#crosshair.desktop-wafer-ready:after{background:#67f6a3;box-shadow:0 0 9px #67f6a3}#crosshair.desktop-wafer-held:before,#crosshair.desktop-wafer-held:after{background:#ffcf56;box-shadow:0 0 9px #ffcf56}';document.head.appendChild(style);
+  const controls=document.querySelector('.controls');if(controls)controls.innerHTML='<b>MOVE</b> WASD / arrows &nbsp; <b>LOOK</b> mouse<br><b>GRAB WAFER</b> hold left mouse &nbsp; <b>OPERATE</b> click / E<br><b>CROUCH</b> Shift &nbsp; <b>SPRINT</b> Ctrl &nbsp; <b>ADJUST</b> wheel'
+}
+function desktopGripEnabled(){return state.started&&!renderer.xr.isPresenting&&document.pointerLockElement===renderer.domElement&&designMode.phase==='idle'&&!designWorld.active}
+function nearestDesktopWafer(max=desktopGrip.reach){
+  if(!desktopGrip.anchor)return null;const p=desktopGrip.anchor.getWorldPosition(new THREE.Vector3());let best=null,d=max;
+  for(const body of parallel.wafers){
+    if(body.broken||body.heldBy!=null||!body.view.visible)continue;
+    if(body.machineIndex!=null){const st=status[body.machineIndex];if(!st||!['done','unloadedDoorOpen'].includes(st.state)||st.doorAmount<=.45)continue}
+    const q=body.view.getWorldPosition(new THREE.Vector3()),n=p.distanceTo(q);if(n<=d){d=n;best={body,distance:n,point:q}}
+  }
+  return best
+}
+function colourDesktopGrip(colour,opacity){
+  if(!desktopGrip.visual)return;desktopGrip.visual.traverse(o=>{if(o.material){o.material.color.setHex(colour);o.material.opacity=opacity}});
+  if(desktopGrip.beam){desktopGrip.beam.material.color.setHex(colour);desktopGrip.beam.material.opacity=opacity*.36}
+}
+function grabDesktopWafer(){
+  if(!desktopGripEnabled()||getHandGrab(desktopGrip.controller))return false;const near=nearestDesktopWafer();if(!near)return false;
+  const body=near.body,anchor=desktopGrip.anchor;detachPreserve(body.view,anchor);body.view.position.set(0,0,0);body.view.rotation.set(-.08,0,0);body.view.scale.setScalar(1);
+  body.dynamic=false;body.staged=false;body.heldBy='mouse';if(phys.stockReady===body.view)phys.stockReady=null;
+  if(body.machineIndex!=null&&status[body.machineIndex].state==='done')status[body.machineIndex].state='unloadedDoorOpen';
+  const p=anchor.getWorldPosition(new THREE.Vector3()),grab={kind:'wafer',controller:desktopGrip.controller,body,last:p.clone(),velocity:new THREE.Vector3()};setHandGrab(desktopGrip.controller,grab);
+  syncActiveWafer(body);phys.waferEverPicked=true;if(phys.pickupGuide)phys.pickupGuide.visible=false;scheduleStockReplacement();desktopGrip.suppressClick=true;
+  toast(`Desktop grip picked up wafer ${body.lotId}. Release left mouse to let go.`);return true
+}
+function releaseDesktopWafer(place=true){
+  const grab=getHandGrab(desktopGrip.controller);if(grab?.kind!=='wafer')return false;const body=grab.body;detachPreserve(body.view,scene);
+  body.velocity.copy(grab.velocity).clampLength(0,3.2);body.releaseY=body.view.getWorldPosition(new THREE.Vector3()).y;body.dynamic=true;body.heldBy=null;clearHandGrab(desktopGrip.controller);
+  state.carrying=carriedWafers().length>0;if(place)tryPlaceWafer(body);return true
+}
+function updateDesktopGrip(dt,now){
+  ensureDesktopGrip();const enabled=desktopGripEnabled();desktopGrip.anchor.visible=enabled;desktopGrip.beam.visible=enabled;if(!enabled){desktopGrip.hover=null;return}
+  const grab=getHandGrab(desktopGrip.controller),p=desktopGrip.anchor.getWorldPosition(new THREE.Vector3());
+  if(grab?.kind==='wafer'){desktopGrip.velocity.copy(p).sub(grab.last).divideScalar(Math.max(dt,.001));grab.velocity.lerp(desktopGrip.velocity,.55);grab.last.copy(p);desktopGrip.hover=null;colourDesktopGrip(C.amber,.62)}
+  else{desktopGrip.hover=nearestDesktopWafer();colourDesktopGrip(desktopGrip.hover?C.green:C.cyan,desktopGrip.hover?.58:.34)}
+  desktopGrip.visual.rotation.z=Math.sin(now*.004)*.06
+}
+const v811PhysicalSystem=updatePhysicalSystem;
+updatePhysicalSystem=function(dt,now){
+  if(renderer.xr.isPresenting){v811PhysicalSystem(dt,now);return}
+  exposeCompletedWafer();updateStockSupply(now);updateDesktopGrip(dt,now);updateWaferPhysics(dt);updateShards(dt)
+};
+function captureDesktopGripXRState(){
+  desktopGrip.xrSnapshots.clear();
+  for(const body of parallel.wafers)desktopGrip.xrSnapshots.set(body.id,{position:body.view.getWorldPosition(new THREE.Vector3()),quaternion:body.view.getWorldQuaternion(new THREE.Quaternion()),visible:body.view.visible})
+}
+const v811LoopDesktopGrip=loop;
+loop=function(now){v811LoopDesktopGrip(now);if(renderer.xr.isPresenting)captureDesktopGripXRState()};
+const v811RaycastFocus=raycastFocus;
+raycastFocus=function(){
+  v811RaycastFocus();if(!state.started||renderer.xr.isPresenting||designMode.phase!=='idle'||designWorld.active)return;
+  ensureDesktopGrip();const grab=getHandGrab(desktopGrip.controller),near=grab?.kind==='wafer'?null:nearestDesktopWafer(),crosshair=$('crosshair'),tag=$('focusTag');
+  crosshair.classList.toggle('desktop-wafer-ready',!!near&&!grab);crosshair.classList.toggle('desktop-wafer-held',grab?.kind==='wafer');
+  if(grab?.kind==='wafer'){tag.style.opacity='1';tag.style.borderColor='#ffcf56';tag.textContent=`${grab.body.lotId} — RELEASE LEFT MOUSE TO DROP`;$('prompt').textContent='Projected grip holding wafer · release left mouse to place or drop'}
+  else if(near){tag.style.opacity='1';tag.style.borderColor='#67f6a3';tag.textContent=`${near.body.lotId} — HOLD LEFT MOUSE TO GRAB`;$('prompt').textContent='Wafer within projected grip range · hold left mouse to pick up'}
+};
+const v811BindDesktopGrip=bind;
+bind=function(){
+  v811BindDesktopGrip();ensureDesktopGrip();
+  renderer.domElement.addEventListener('click',e=>{if(desktopGrip.suppressClick){e.preventDefault();e.stopImmediatePropagation();desktopGrip.suppressClick=false}},true);
+  renderer.domElement.addEventListener('mousedown',e=>{if(e.button!==0||!desktopGripEnabled())return;if(grabDesktopWafer()){e.preventDefault();e.stopPropagation()}},true);
+  addEventListener('mouseup',e=>{if(e.button===0&&getHandGrab(desktopGrip.controller)?.kind==='wafer'){releaseDesktopWafer(true);desktopGrip.suppressClick=true}},true);
+  addEventListener('blur',()=>releaseDesktopWafer(true));
+  document.addEventListener('pointerlockchange',()=>{if(document.pointerLockElement!==renderer.domElement)releaseDesktopWafer(true)});
+  renderer.xr.addEventListener('sessionstart',()=>releaseDesktopWafer(true));
+  renderer.xr.addEventListener('sessionend',()=>{
+    const released=[];
+    for(const [key,grab] of [...parallel.grabs]){
+      if(key==='mouse')continue;
+      if(grab.kind==='wafer'){grab.body.heldBy=null;grab.body.dynamic=true;grab.body.velocity.copy(grab.velocity);released.push(grab.body)}
+      else if(grab.kind==='shard'){detachPreserve(grab.shard.mesh,scene);grab.shard.v.copy(grab.velocity)}
+      parallel.grabs.delete(key);if(phys.grab===grab)phys.grab=null
+    }
+    queueMicrotask(()=>{
+      for(const body of parallel.wafers){const snap=desktopGrip.xrSnapshots.get(body.id);if(!snap)continue;const view=body.view;view.parent?.remove(view);scene.add(view);view.position.copy(snap.position);view.quaternion.copy(snap.quaternion);view.scale.setScalar(1);view.visible=snap.visible;if(released.includes(body)){body.releaseY=snap.position.y;tryPlaceWafer(body)}}
+      state.carrying=carriedWafers().length>0;desktopGrip.xrSnapshots.clear()
+    })
+  })
+};
+const v811NewRunDesktopGrip=newRun;
+newRun=function(){releaseDesktopWafer(false);v811NewRunDesktopGrip();desktopGrip.hover=null;desktopGrip.suppressClick=false};
+
+
+// V8.13: controller-ray selection for the design workstation display.
+function xrScreenTarget(controller){
+  if(!controller)return null;
+  const rotation=new THREE.Matrix4().extractRotation(controller.matrixWorld);
+  const origin=new THREE.Vector3().setFromMatrixPosition(controller.matrixWorld);
+  const direction=new THREE.Vector3(0,0,-1).applyMatrix4(rotation).normalize();
+  raycaster.set(origin,direction);
+  for(const hit of raycaster.intersectObjects(interactives,false)){
+    if(hit.distance>3.4)break;
+    if(hit.object.userData?.kind==='designTerminal')return hit.object;
+  }
+  return null;
+}
+const v812TriggerStart=onXRTriggerStart;
+onXRTriggerStart=function(controller){
+  if(!state.paused&&!designWorld.active){
+    const screen=xrScreenTarget(controller);
+    if(screen){
+      state.focus=screen;
+      pulseXR(.35,35);
+      activateFocused();
+      return;
+    }
+  }
+  v812TriggerStart(controller);
+};
+const v812SetXRFocus=setXRFocus;
+setXRFocus=function(controller=xrController1){
+  v812SetXRFocus();
+  if(!renderer.xr.isPresenting||!controller||designWorld.active)return;
+  const screen=xrScreenTarget(controller);
+  if(screen){
+    state.focus=screen;
+    if(xrTargetRing){
+      const point=screen.getWorldPosition(new THREE.Vector3());
+      xrTargetRing.visible=true;
+      xrTargetRing.position.copy(point);
+      xrTargetRing.quaternion.copy(controller.quaternion);
+    }
+  }
+};
+// V8.13.1: either Quest controller can select the design computer at close range.
+const XR_DESIGN_SCREEN_RANGE=XR_POINTER_REACH;
+function xrDesignScreenHit(controller){
+  if(!controller)return null;
+  const rotation=new THREE.Matrix4().extractRotation(controller.matrixWorld);
+  const origin=new THREE.Vector3().setFromMatrixPosition(controller.matrixWorld);
+  const direction=new THREE.Vector3(0,0,-1).applyMatrix4(rotation).normalize();
+  raycaster.set(origin,direction);
+  for(const hit of raycaster.intersectObjects(interactives,false)){
+    if(hit.distance>XR_DESIGN_SCREEN_RANGE)break;
+    if(hit.object.userData?.kind==='designTerminal')return hit;
+  }
+  return null;
+}
+function xrScreenTarget(controller){return xrDesignScreenHit(controller)?.object||null}
+const v813TriggerStart=onXRTriggerStart;
+onXRTriggerStart=function(controller){
+  if(!state.paused&&!designWorld.active){
+    const hit=xrDesignScreenHit(controller);
+    if(hit){state.focus=hit.object;pulseXR(.35,35);activateFocused();return}
+  }
+  v813TriggerStart(controller);
+};
+
+// V8.13.2: fixed release metadata on the startup panel and service-worker activation.
+(function(){
+  const VERSION='V8.13.2', UPDATED='24 OCT 2026';
+  function showRelease(){
+    const host=document.querySelector('#intro .cardInner');
+    if(!host||document.getElementById('releaseIndicator'))return;
+    const tag=document.createElement('div');
+    tag.id='releaseIndicator';tag.className='release-indicator';tag.setAttribute('aria-label','Latest code update');
+    tag.innerHTML='<span>CODE UPDATED</span><strong>'+VERSION+'</strong><time datetime="2026-10-24">'+UPDATED+'</time>';
+    host.insertBefore(tag,host.firstChild);
+  }
+  showRelease();
+  if('serviceWorker' in navigator)window.addEventListener('load',function(){navigator.serviceWorker.register('./service-worker.js',{scope:'./'}).catch(function(){});});
+})();
+
+const v814XRMovement=updateXRMovement;
+updateXRMovement=function(dt,now){if(state.paused){drawXRPauseOverlay();return}v814XRMovement(dt,now)};
+const v814XRButtons=updateXRButtons;
+updateXRButtons=function(now){
+  if(!renderer.xr.isPresenting)return;
+  const session=renderer.xr.getSession(),sources=session?[...session.inputSources]:[];
+  xrLeftSource=sources.find(source=>source.handedness==='left')||xrLeftSource;
+  xrRightSource=sources.find(source=>source.handedness==='right')||xrRightSource;
+  if(state.paused){
+    const left=xrLeftSource?.gamepad,right=xrRightSource?.gamepad;
+    if(left){edgeButton('ls',!!left.buttons[3]?.pressed,()=>{});edgeButton('lx',!!left.buttons[4]?.pressed,()=>{xrPausePage=xrPausePage==='more'?'pause':'more';drawXRPauseOverlay()});edgeButton('ly',!!left.buttons[5]?.pressed,()=>{if(xrPausePage==='more'){toggleDeveloperPanel();drawXRPauseOverlay()}})}
+    if(right){const resume=()=>{setXRPaused(false);pulseXR(.4,45)};edgeButton('rs',!!right.buttons[3]?.pressed,resume);edgeButton('ra',!!right.buttons[4]?.pressed,()=>xrPausePage==='more'?adjustGuiTextSize(-1):resume());edgeButton('rb',!!right.buttons[5]?.pressed,()=>xrPausePage==='more'?adjustGuiTextSize(1):resume())}
+    drawXRPauseOverlay();return
+  }
+  const wasPaused=state.paused;v814XRButtons(now);
+  if(!wasPaused&&state.paused){xrPausePage='pause';freezeXRWorldForPause()}
+  if(state.paused)drawXRPauseOverlay()
+};
+const v814Loop=loop;
+loop=function(now){
+  updateDeveloperMetrics(now);
+  if(renderer.xr.isPresenting&&state.paused){updateXRButtons(now);if(state.paused)drawXRPauseOverlay();renderer.render(scene,camera);return}
+  v814Loop(now)
+};
+const v814XRTriggerStart=onXRTriggerStart,v814XRTriggerEnd=onXRTriggerEnd,v814XRSqueezeStart=onXRSqueezeStart,v814XRSqueezeEnd=onXRSqueezeEnd;
+onXRTriggerStart=function(controller){if(state.paused)return;v814XRTriggerStart(controller)};
+onXRTriggerEnd=function(controller){if(state.paused){designWorld.xrDragging.delete(handKey(controller));return}v814XRTriggerEnd(controller)};
+onXRSqueezeStart=function(controller){if(state.paused)return;v814XRSqueezeStart(controller)};
+onXRSqueezeEnd=function(controller){if(state.paused)return;v814XRSqueezeEnd(controller)};
+
+const photoresistIndex=stations.findIndex(station=>station.type==='spinner');
+let photoresistReadout=null,photoresistChamber=null;
+// Keep chamber UI units ergonomic while translating its 0-100% and 0-1800 rpm sliders into the existing recipe ranges.
+function installPhotoresistStation(){
+  if(photoresistIndex<0||!globalThis.PhotoresistChamber)return;
+  const launcher=$('openPhotoresist'),overlay=document.createElement('div'),frame=document.createElement('section'),root=document.createElement('div'),close=document.createElement('button');
+  overlay.className='pr-runtime-overlay';overlay.hidden=true;
+  frame.className='pr-runtime-frame';frame.setAttribute('role','dialog');frame.setAttribute('aria-modal','true');frame.setAttribute('aria-label','Photoresist deposition station');
+  root.className='pr-runtime-root';close.className='pr-runtime-close';close.type='button';close.textContent='EXIT STATION';
+  frame.append(close,root);overlay.appendChild(frame);document.body.appendChild(overlay);
+  launcher.style.cssText='width:100%;margin-top:9px;padding:8px;border:1px solid #31d7f3;border-radius:4px;color:#03151b;background:linear-gradient(90deg,#4de0ff,#78ffbd);font-weight:900;font-size:9px;pointer-events:auto';
+  function runtimeState(){
+    const st=status[photoresistIndex],machine=machines[photoresistIndex+1];
+    return{canStart:!!machine?.body&&st.state==='loaded'&&st.doorAmount<=5/90,running:st.state==='running',doorOpen:st.doorAmount>.08,flowPercent:Math.round(10+(st.values.flow-.8)/2.2*90),rpmDisplay:Math.round((st.values.rpm-1800)*.75)}
+  }
+  function closeStation(){
+    if(overlay.hidden)return;
+    overlay.hidden=true;
+    if(photoresistChamber)photoresistChamber.setRuntimeState(runtimeState());
+  }
+  function openStation(){
+    overlay.hidden=false;
+    Object.keys(keys).forEach(key=>keys[key]=false);
+    try{document.exitPointerLock?.()}catch{}
+    photoresistChamber?.resize();
+    requestAnimationFrame(()=>{photoresistChamber?.resize();photoresistChamber?.setRuntimeState(runtimeState())});
+  }
+  photoresistChamber=PhotoresistChamber.mount({root,bridge:{
+    getState:runtimeState,
+    setFlow(percent){status[photoresistIndex].values.flow=clamp(.8+(percent-10)/90*2.2,.8,3);updateControlMeshes(photoresistIndex)},
+    setRpm(value){status[photoresistIndex].values.rpm=clamp(1800+value/ .75,1800,4200);updateControlMeshes(photoresistIndex)},
+    setDoor(open){const st=status[photoresistIndex];if(open!==(st.doorTarget>.5))toggleDoor(photoresistIndex)},
+    onStart(){const st=status[photoresistIndex],machine=machines[photoresistIndex+1];if(st.state==='loaded'&&machine?.body&&st.doorAmount<=5/90)startProcess(photoresistIndex);return st.state==='running'},
+    onStop(){if(status[photoresistIndex].state==='running'){if(photoresistReadout)status[photoresistIndex].metric=photoresistReadout.thicknessNm/1000;stopProcess(photoresistIndex)}},
+    onReset(){const st=status[photoresistIndex];if(st.state!=='running')return;st.cycle=null;st.metric=0;st.state='loaded';state.cycle=runningCycles()[0]?.cycle||null;setLamp(photoresistIndex);updateAll()},
+    onReadout(value){photoresistReadout=value;if(status[photoresistIndex].state==='running')status[photoresistIndex].metric=value.thicknessNm/1000}
+  }});
+  launcher.onclick=openStation;close.onclick=closeStation;
+  overlay.addEventListener('click',event=>{if(event.target===overlay)closeStation()});
+  addEventListener('keydown',event=>{
+    if(overlay.hidden)return;
+    if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();closeStation();return}
+    event.stopImmediatePropagation()
+  },true);
+  addEventListener('keyup',event=>{if(!overlay.hidden)event.stopImmediatePropagation()},true);
+  const previousMetric=calculateMetric;
+  calculateMetric=function(i,t){return i===photoresistIndex&&photoresistReadout?photoresistReadout.thicknessNm/1000:previousMetric(i,t)};
+  const previousMachineGui=updateMachineGui;
+  updateMachineGui=function(){
+    previousMachineGui();
+    const focused=state.focus?.userData?.machineIndex;
+    const nearby=state.nearest?.index;
+    const visible=state.started&&(focused===photoresistIndex||focused==null&&nearby===photoresistIndex);
+    launcher.hidden=!visible;
+    launcher.textContent=status[photoresistIndex].state==='running'?'OPEN LIVE 3D STATION':'OPEN 3D PROCESS MODULE';
+    if(!overlay.hidden)photoresistChamber.setRuntimeState(runtimeState())
+  };
+  const previousLoop=loop;
+  loop=function(now){previousLoop(now);if(!overlay.hidden)photoresistChamber.setRuntimeState(runtimeState())};
+}
+
+try{buildEnvironment();bind();setupLaunchMenu();updateBenchmark();updateActivityLeaderboard();stations.forEach((_,i)=>updateControlMeshes(i));installPhotoresistStation();renderer.setAnimationLoop(loop)}catch(err){console.error(err);document.body.innerHTML=`<div style="padding:40px;color:white;font-family:system-ui"><h1>Simulator could not initialise</h1><p>${err.message}</p><p>WebGL is required.</p></div>`}  
+})();  
+//# sourceURL=silicon-run.js
