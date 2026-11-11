@@ -16,6 +16,10 @@ const setHandGrab=(c,grab)=>{const key=handKey(c);parallel.grabs.set(key,grab);p
 const clearHandGrab=c=>{const key=handKey(c),grab=parallel.grabs.get(key);parallel.grabs.delete(key);if(phys.grab===grab)phys.grab=null;return grab};      
 const runningCycles=()=>status.map((st,i)=>st.cycle?{i,cycle:st.cycle}:null).filter(Boolean);      
 const carriedWafers=()=>parallel.wafers.filter(w=>w.heldBy!=null&&!w.broken);      
+const WAFER_RADIUS=.34*.72;      
+const WAFER_HALF_THICKNESS=.045*.72;      
+const WAFER_SNAP_RADIUS=WAFER_RADIUS/3;      
+let waferCollisionMeshes=null;      
 function syncActiveWafer(body){      
   if(!body)return;      
   parallel.active=body;      
@@ -40,6 +44,7 @@ function createParallelWafer(position,quaternion,staged=true){
     lotId:'SR-'+String(Math.floor(1000+Math.random()*9000)),      
     view,      
     velocity:new THREE.Vector3(),      
+    angularVelocity:new THREE.Vector3(),      
     releaseY:position.y,      
     dynamic:false,      
     staged,      
@@ -83,11 +88,16 @@ function spawnStockWafer(){
   toast('A fresh blank wafer is available on the pickup pad.');      
   return body      
 }      
+function waferReadyForPickup(body){      
+  if(body.machineIndex==null)return true;      
+  const st=status[body.machineIndex];      
+  return !!st&&['done','unloadedDoorOpen'].includes(st.state)&&st.doorAmount>.45      
+}      
 function nearestAvailableWafer(c,max=phys.pinchDistance){      
   const p=pinchWorld(c);      
   let best=null,d=max;      
   for(const body of parallel.wafers){      
-    if(body.broken||body.heldBy!=null||body.machineIndex!=null||!body.view.visible)continue;      
+    if(body.broken||body.heldBy!=null||!waferReadyForPickup(body)||!body.view.visible)continue;      
     const q=body.view.getWorldPosition(new THREE.Vector3()),n=p.distanceTo(q);      
     if(n<=d){d=n;best={body,distance:n,point:q}}      
   }      
@@ -98,7 +108,7 @@ function nearestPinchTargetV6(anchor){
   const p=anchor.getWorldPosition(new THREE.Vector3());      
   let best=null,d=.34;      
   for(const body of parallel.wafers){      
-    if(body.broken||body.heldBy!=null||body.machineIndex!=null||!body.view.visible)continue;      
+    if(body.broken||body.heldBy!=null||!waferReadyForPickup(body)||!body.view.visible)continue;      
     const q=body.view.getWorldPosition(new THREE.Vector3()),n=p.distanceTo(q);      
     if(n<d){d=n;best={kind:'wafer',object:body.view,distance:n,point:q}}      
   }      
@@ -116,6 +126,7 @@ nearestPinchTarget=nearestPinchTargetV6;
 const v5BuildEnvironment=buildEnvironment;      
 buildEnvironment=function(){      
   v5BuildEnvironment();      
+  waferCollisionMeshes=null;      
   if(state.handWafer){      
     state.handWafer.parent?.remove(state.handWafer);      
     state.handWafer.visible=false      
@@ -163,20 +174,22 @@ grabWafer=function(c){
   if(getHandGrab(c))return false;      
   const near=nearestAvailableWafer(c);      
   if(!near)return false;      
-  const body=near.body,anchor=pinchAnchorFor(c);      
-  detachPreserve(body.view,anchor);      
-  body.view.position.set(0,0,0);      
-  body.view.rotation.set(-.08,0,0);      
+  const body=near.body,anchor=pinchAnchorFor(c),sourceMachineIndex=body.machineIndex;      
+  detachPreserve(body.view,scene);      
+  const target=pinchWorld(c);      
+  body.view.position.copy(target);      
   body.view.scale.setScalar(1);      
   body.dynamic=false;      
   body.staged=false;      
   body.heldBy=handKey(c);      
   if(phys.stockReady===body.view)phys.stockReady=null;      
-  if(body.machineIndex!=null){      
-    const i=body.machineIndex;      
-    if(status[i].state==='done')status[i].state='unloadedDoorOpen'      
+  if(sourceMachineIndex!=null){      
+    const machine=machines[sourceMachineIndex+1];      
+    if(status[sourceMachineIndex].state==='done')status[sourceMachineIndex].state='unloadedDoorOpen';      
+    if(machine?.body===body){machine.body=null;machine.wafer.visible=false}      
+    body.machineIndex=null      
   }      
-  const grab={kind:'wafer',controller:c,body,last:pinchWorld(c).clone(),velocity:new THREE.Vector3()};      
+  const grab={kind:'wafer',controller:c,body,last:target.clone(),velocity:new THREE.Vector3(),slotMachineIndex:sourceMachineIndex};      
   setHandGrab(c,grab);      
   syncActiveWafer(body);      
   phys.waferEverPicked=true;      
@@ -200,14 +213,19 @@ releaseWafer=function(c){
   tryPlaceWafer(body);      
   pulseXR(.25,28)      
 };      
-function machineAcceptance(body){      
+function availableMachineSlot(body){      
   const i=body.nextStage;      
   if(i<0||i>=stations.length)return null;      
   const machine=machines[i+1],st=status[i];      
   if(!machine||st.state!=='ready'||st.doorAmount<=.45||machine.body)return null;      
   const target=machine.wafer.getWorldPosition(new THREE.Vector3());      
+  return{i,machine,st,target}      
+}      
+function machineAcceptance(body){      
+  const slot=availableMachineSlot(body);      
+  if(!slot)return null;      
   const point=body.view.getWorldPosition(new THREE.Vector3());      
-  return point.distanceTo(target)<.56?{i,machine,st,target}:null      
+  return point.distanceTo(slot.target)<WAFER_SNAP_RADIUS?slot:null      
 }      
 tryPlaceWafer=function(body=parallel.active){      
   if(!body||body.broken||!body.view.visible)return false;      
@@ -216,6 +234,8 @@ tryPlaceWafer=function(body=parallel.active){
   const {i,machine,st}=accepted;      
   body.dynamic=false;      
   body.machineIndex=i;      
+  body.view.position.copy(accepted.target);      
+  body.view.quaternion.copy(machine.wafer.getWorldQuaternion(new THREE.Quaternion()));      
   body.view.visible=false;      
   machine.body=body;      
   machine.wafer.visible=true;      
@@ -269,11 +289,16 @@ function crackedFragmentGeometry(radius=.08){
   geometry.center();      
   return geometry      
 }      
-shatterWafer=function(body,point,impact){      
+shatterWafer=function(body,point,impact,direction){      
   if(!body||body.broken)return;      
+  const center=body.view.getWorldPosition(new THREE.Vector3()),orientation=body.view.getWorldQuaternion(new THREE.Quaternion());      
+  const hitDirection=(direction||body.velocity).clone();      
+  if(hitDirection.lengthSq()<1e-6)hitDirection.set(0,1,0);else hitDirection.normalize();      
   body.broken=true;      
   body.dynamic=false;      
   body.heldBy=null;      
+  for(const [key,grab]of parallel.grabs){if(grab.kind==='wafer'&&grab.body===body){parallel.grabs.delete(key);if(phys.grab===grab)phys.grab=null}}      
+  state.carrying=carriedWafers().length>0;      
   body.view.visible=false;      
   if(body.machineIndex!=null){      
     const machine=machines[body.machineIndex+1];      
@@ -285,9 +310,14 @@ shatterWafer=function(body,point,impact){
     const geometry=isArc      
       ?arcShardGeometry(.05+Math.random()*.07,.19+Math.random()*.1,Math.random()*Math.PI*2,.34+Math.random()*.72)      
       :crackedFragmentGeometry(.035+Math.random()*.065);      
-    const shard=mesh(geometry,mat(isArc?0xb9ccd2:0x92a8b0,.72,.18),scene,point.x,Math.max(point.y,.05),point.z);      
+    const angle=Math.random()*Math.PI*2,radius=Math.sqrt(Math.random())*WAFER_RADIUS*.9;      
+    const offset=new THREE.Vector3(Math.cos(angle)*radius,Math.sin(angle)*radius,(Math.random()-.5)*WAFER_HALF_THICKNESS).applyQuaternion(orientation);      
+    const origin=center.clone().add(offset);      
+    const shard=mesh(geometry,mat(isArc?0xb9ccd2:0x92a8b0,.72,.18),scene,origin.x,Math.max(origin.y,.05),origin.z);      
     shard.rotation.set(Math.random()*Math.PI,Math.random()*Math.PI,Math.random()*Math.PI);      
-    const v=new THREE.Vector3((Math.random()-.5)*impact,(Math.random()*.7+.15)*impact,(Math.random()-.5)*impact);      
+    const radial=offset.clone();if(radial.lengthSq()<1e-6)radial.set(Math.cos(angle),Math.sin(angle),0);radial.normalize();      
+    const variation=new THREE.Vector3((Math.random()-.5)*impact*.08,(Math.random()-.5)*impact*.08,(Math.random()-.5)*impact*.08);      
+    const v=body.velocity.clone().add(new THREE.Vector3().crossVectors(body.angularVelocity,offset)).addScaledVector(hitDirection,impact*.24).addScaledVector(radial,impact*(.12+Math.random()*.12)).add(variation);      
     waferShards.push({mesh:shard,v,life:0,pileId})      
   }      
   removeParallelWafer(body);      
@@ -358,9 +388,113 @@ updateShards=function(dt){
     if(bin){shard.mesh.parent?.remove(shard.mesh);waferShards.splice(i,1)}      
   }      
 };      
+function waferWorldExtents(body){      
+  const normal=new THREE.Vector3(0,0,1).applyQuaternion(body.view.getWorldQuaternion(new THREE.Quaternion()));      
+  return new THREE.Vector3(      
+    WAFER_RADIUS*Math.sqrt(Math.max(0,1-normal.x*normal.x))+WAFER_HALF_THICKNESS*Math.abs(normal.x),      
+    WAFER_RADIUS*Math.sqrt(Math.max(0,1-normal.y*normal.y))+WAFER_HALF_THICKNESS*Math.abs(normal.y),      
+    WAFER_RADIUS*Math.sqrt(Math.max(0,1-normal.z*normal.z))+WAFER_HALF_THICKNESS*Math.abs(normal.z)      
+  )      
+}      
+function machineWaferCollisionBounds(){      
+  if(!waferCollisionMeshes){      
+    waferCollisionMeshes=[];      
+    machines.forEach((machine,index)=>{      
+      machine.group.traverse(object=>{      
+        if(!object.isMesh||object===machine.wafer||object===machine.chamberTarget||object.userData.labelWidth!=null)return;      
+        for(let parent=object;parent&&parent!==machine.group;parent=parent.parent){if(parent===machine.wafer||parent===machine.chamberTarget)return}      
+        waferCollisionMeshes.push({mesh:object,machineGroup:machine.group,machineIndex:index-1,bounds:new THREE.Box3()})      
+      })      
+    })      
+  }      
+  for(const entry of waferCollisionMeshes){      
+    let visible=true;      
+    for(let parent=entry.mesh;parent;parent=parent.parent){if(!parent.visible){visible=false;break}if(parent===entry.machineGroup)break}      
+    if(!visible){entry.bounds.makeEmpty();continue}      
+    const geometry=entry.mesh.geometry;      
+    if(!geometry.boundingBox)geometry.computeBoundingBox();      
+    entry.mesh.updateWorldMatrix(true,false);      
+    entry.bounds.copy(geometry.boundingBox).applyMatrix4(entry.mesh.matrixWorld)      
+  }      
+  return waferCollisionMeshes      
+}      
+function resolveWaferAABB(position,extents,bounds){      
+  const minX=bounds.min.x-extents.x,maxX=bounds.max.x+extents.x,minY=bounds.min.y-extents.y,maxY=bounds.max.y+extents.y,minZ=bounds.min.z-extents.z,maxZ=bounds.max.z+extents.z;      
+  if(position.x<=minX||position.x>=maxX||position.y<=minY||position.y>=maxY||position.z<=minZ||position.z>=maxZ)return null;      
+  const distances=[position.x-minX,maxX-position.x,position.y-minY,maxY-position.y,position.z-minZ,maxZ-position.z];      
+  let axis=distances.indexOf(Math.min(...distances)),normal=new THREE.Vector3();      
+  if(axis<2){normal.x=axis===0?-1:1;position.x=axis===0?minX-1e-4:maxX+1e-4}      
+  else if(axis<4){normal.y=axis===2?-1:1;position.y=axis===2?minY-1e-4:maxY+1e-4}      
+  else{normal.z=axis===4?-1:1;position.z=axis===4?minZ-1e-4:maxZ+1e-4}      
+  const center=position.clone(),point=center.clone().addScaledVector(normal,-extents.getComponent(axis>>1));      
+  return{normal,point,center}      
+}      
+function applyHeldWaferContact(body,grab,contact,impactDirection){      
+  const approach=Math.max(0,-grab.velocity.dot(contact.normal));      
+  if(approach<.03)return false;      
+  body.velocity.copy(grab.velocity);      
+  const tangent=grab.velocity.clone().addScaledVector(contact.normal,approach),impulse=contact.normal.clone().multiplyScalar(approach*.45).addScaledVector(tangent,-.2);      
+  const offset=contact.point.clone().sub(contact.center||body.view.position);      
+  body.angularVelocity.add(new THREE.Vector3().crossVectors(offset,impulse).multiplyScalar(18));      
+  if(approach>3.2){shatterWafer(body,contact.point,approach,impactDirection);return true}      
+  grab.velocity.addScaledVector(contact.normal,approach);      
+  body.velocity.copy(grab.velocity);      
+  return false      
+}      
+function integrateHeldWafer(body,grab,dt){      
+  const hand=pinchWorld(grab.controller),previousHand=grab.last.clone();      
+  grab.velocity.copy(hand).sub(previousHand).divideScalar(Math.max(dt,.001));      
+  grab.last.copy(hand);      
+  const accepted=machineAcceptance(body),snapped=accepted&&hand.distanceTo(accepted.target)<WAFER_SNAP_RADIUS;      
+  let target=hand;      
+  if(snapped){      
+    target=accepted.target;      
+    grab.slotMachineIndex=accepted.i;      
+    body.view.position.copy(target);      
+    body.view.quaternion.copy(accepted.machine.wafer.getWorldQuaternion(new THREE.Quaternion()));      
+    body.angularVelocity.multiplyScalar(Math.exp(-dt*12));      
+  }else{      
+    const start=body.view.position.clone(),blend=1-Math.exp(-14*Math.max(dt,0)),delta=target.clone().sub(start).multiplyScalar(blend),steps=Math.max(1,Math.ceil(delta.length()/.025)),extents=waferWorldExtents(body),machineBounds=machineWaferCollisionBounds();      
+    for(let step=1;step<=steps;step++){      
+      const candidate=start.clone().addScaledVector(delta,step/steps),contacts=[];      
+      const roomX=8.8-extents.x,roomNearZ=-41.8+extents.z,roomFarZ=11.8-extents.z;      
+      if(candidate.x>roomX){candidate.x=roomX;contacts.push({normal:new THREE.Vector3(-1,0,0),point:candidate.clone().add(new THREE.Vector3(extents.x,0,0)),center:candidate.clone()})}      
+      if(candidate.x< -roomX){candidate.x=-roomX;contacts.push({normal:new THREE.Vector3(1,0,0),point:candidate.clone().add(new THREE.Vector3(-extents.x,0,0)),center:candidate.clone()})}      
+      if(candidate.z>roomFarZ){candidate.z=roomFarZ;contacts.push({normal:new THREE.Vector3(0,0,-1),point:candidate.clone().add(new THREE.Vector3(0,0,extents.z)),center:candidate.clone()})}      
+      if(candidate.z<roomNearZ){candidate.z=roomNearZ;contacts.push({normal:new THREE.Vector3(0,0,1),point:candidate.clone().add(new THREE.Vector3(0,0,-extents.z)),center:candidate.clone()})}      
+      if(candidate.y<.03+extents.y){candidate.y=.03+extents.y;contacts.push({normal:new THREE.Vector3(0,1,0),point:candidate.clone().add(new THREE.Vector3(0,-extents.y,0)),center:candidate.clone()})}      
+      for(const collider of colliders){      
+        if(machines.some(machine=>Math.abs(machine.world.x-collider.x)<.001&&Math.abs(machine.world.z-collider.z)<.001))continue;      
+        const y=collider.y??1.5,h=collider.h??3,bounds=new THREE.Box3(new THREE.Vector3(collider.x-collider.w/2,y-h/2,collider.z-collider.d/2),new THREE.Vector3(collider.x+collider.w/2,y+h/2,collider.z+collider.d/2));      
+        const contact=resolveWaferAABB(candidate,extents,bounds);if(contact)contacts.push(contact)      
+      }      
+      for(const entry of machineBounds){      
+        if(entry.machineIndex===grab.slotMachineIndex)continue;      
+        const contact=resolveWaferAABB(candidate,extents,entry.bounds);if(contact)contacts.push(contact)      
+      }      
+      const playerLow=player.position.y-1.5,playerHigh=player.position.y+.18,dx=candidate.x-player.position.x,dz=candidate.z-player.position.z,playerDistance=Math.hypot(dx,dz),playerClearance=.34+WAFER_RADIUS;      
+      if(candidate.y+extents.y>playerLow&&candidate.y-extents.y<playerHigh&&playerDistance<playerClearance){      
+        const nx=playerDistance>.001?dx/playerDistance:(grab.velocity.x<0?1:-1),nz=playerDistance>.001?dz/playerDistance:(grab.velocity.z<0?1:0);      
+        candidate.x=player.position.x+nx*(playerClearance+1e-4);candidate.z=player.position.z+nz*(playerClearance+1e-4);      
+        const normal=new THREE.Vector3(nx,0,nz);contacts.push({normal,point:candidate.clone().addScaledVector(normal,-WAFER_RADIUS),center:candidate.clone()})      
+      }      
+      for(const contact of contacts){if(applyHeldWaferContact(body,grab,contact,grab.velocity.clone().normalize()))return}      
+      body.view.position.copy(candidate)      
+    }      
+    if(grab.slotMachineIndex!=null){      
+      const machine=machines[grab.slotMachineIndex+1],collider=colliders.find(c=>Math.abs(c.x-machine.world.x)<.001&&Math.abs(c.z-machine.world.z)<.001);      
+      if(!collider||Math.abs(body.view.position.x-collider.x)>collider.w/2+extents.x||Math.abs(body.view.position.z-collider.z)>collider.d/2+extents.z)grab.slotMachineIndex=null      
+    }      
+    body.view.quaternion.setFromAxisAngle(body.angularVelocity.clone().normalize(),body.angularVelocity.length()*dt).multiply(body.view.quaternion);      
+    body.angularVelocity.multiplyScalar(Math.exp(-dt*.32));      
+    body.velocity.copy(grab.velocity)      
+  }      
+}      
 updateWaferPhysics=function(dt){      
   for(const body of [...parallel.wafers]){      
-    if(!body.dynamic||body.broken||!body.view.visible||body.heldBy!=null||body.machineIndex!=null)continue;      
+    if(body.heldBy!=null&&!body.broken&&body.view.visible){const grab=[...parallel.grabs.values()].find(g=>g.kind==='wafer'&&g.body===body);if(grab)integrateHeldWafer(body,grab,dt);continue}      
+    if(!body.dynamic||body.broken||!body.view.visible||body.machineIndex!=null)continue;      
+    const spin=body.angularVelocity.length();if(spin>.0001)body.view.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(body.angularVelocity.clone().normalize(),spin*dt));body.angularVelocity.multiplyScalar(Math.exp(-dt*.32));      
     body.velocity.y-=9.81*dt;      
     body.view.position.addScaledVector(body.velocity,dt);      
     const p=body.view.position;      
@@ -458,6 +592,7 @@ updatePhysicalSystem=function(dt,now){
   exposeCompletedWafer();      
   for(const grab of parallel.grabs.values()){      
     if(!['wafer','shard'].includes(grab.kind))continue;      
+    if(grab.kind==='wafer')continue;      
     const p=pinchWorld(grab.controller);      
     grab.velocity.copy(p).sub(grab.last).divideScalar(Math.max(dt,.001));      
     grab.last.copy(p)      

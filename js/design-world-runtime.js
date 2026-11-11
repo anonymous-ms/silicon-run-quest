@@ -287,10 +287,10 @@ function updateDesktopHandPose(dt,now,grabbing){
 }
 function grabDesktopWafer(){
   if(!desktopGripEnabled()||getHandGrab(desktopGrip.controller))return false;const near=nearestDesktopWafer();if(!near)return false;
-  const body=near.body,anchor=desktopGrip.anchor;desktopGrip.desiredDepth=desktopGrip.depth;desktopGrip.wheelRemainder=0;anchor.position.z=-desktopGrip.desiredDepth;const target=anchor.getWorldPosition(new THREE.Vector3());detachPreserve(body.view,scene);body.view.position.copy(target);body.view.quaternion.copy(camera.getWorldQuaternion(new THREE.Quaternion())).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(-.08,0,0)));body.view.scale.setScalar(1);
+  const body=near.body,anchor=desktopGrip.anchor,sourceMachineIndex=body.machineIndex;desktopGrip.desiredDepth=desktopGrip.depth;desktopGrip.wheelRemainder=0;anchor.position.z=-desktopGrip.desiredDepth;const target=anchor.getWorldPosition(new THREE.Vector3());detachPreserve(body.view,scene);body.view.position.copy(target);body.view.scale.setScalar(1);
   body.dynamic=false;body.staged=false;body.heldBy='mouse';if(phys.stockReady===body.view)phys.stockReady=null;
-  if(body.machineIndex!=null&&status[body.machineIndex].state==='done')status[body.machineIndex].state='unloadedDoorOpen';
-  const grab={kind:'wafer',controller:desktopGrip.controller,body,last:target.clone(),velocity:new THREE.Vector3()};setHandGrab(desktopGrip.controller,grab);
+  if(sourceMachineIndex!=null){const machine=machines[sourceMachineIndex+1];if(status[sourceMachineIndex].state==='done')status[sourceMachineIndex].state='unloadedDoorOpen';if(machine?.body===body){machine.body=null;machine.wafer.visible=false}body.machineIndex=null}
+  const grab={kind:'wafer',controller:desktopGrip.controller,body,last:target.clone(),velocity:new THREE.Vector3(),slotMachineIndex:sourceMachineIndex};setHandGrab(desktopGrip.controller,grab);
   syncActiveWafer(body);phys.waferEverPicked=true;if(phys.pickupGuide)phys.pickupGuide.visible=false;scheduleStockReplacement();desktopGrip.suppressClick=true;
   toast(`Desktop grip picked up wafer ${body.lotId}. Release left mouse to let go.`);return true
 }
@@ -300,19 +300,10 @@ function releaseDesktopWafer(place=true){
   desktopGrip.desiredDepth=desktopGrip.depth;desktopGrip.wheelRemainder=0;desktopGrip.anchor.position.z=-desktopGrip.depth;
   state.carrying=carriedWafers().length>0;if(place)tryPlaceWafer(body);return true
 }
-function desktopWaferPositionBlocked(point){
-  if(Math.abs(point.x)>8.8-.36||point.z>11.8-.36||point.z<-41.8+.36)return true;
-  return point.y<1.95&&colliders.some(collider=>Math.abs(point.x-collider.x)<collider.w/2+.36&&Math.abs(point.z-collider.z)<collider.d/2+.36)
-}
-function moveHeldDesktopWafer(grab,dt){
-  const view=grab.body.view,previous=view.position.clone(),target=desktopGrip.anchor.getWorldPosition(new THREE.Vector3()),blend=1-Math.exp(-9*Math.max(dt,0)),delta=target.sub(previous).multiplyScalar(blend),steps=Math.max(1,Math.ceil(delta.length()/.05)),position=previous.clone();
-  for(let step=1;step<=steps;step++){const candidate=previous.clone().addScaledVector(delta,step/steps);if(desktopWaferPositionBlocked(candidate))break;position.copy(candidate)}
-  view.position.copy(position);grab.velocity.copy(position.sub(previous).divideScalar(Math.max(dt,.001)));grab.body.velocity.copy(grab.velocity);grab.last.copy(position)
-}
 function updateDesktopGrip(dt,now){
   ensureDesktopGrip();const enabled=desktopGripEnabled();desktopGrip.anchor.visible=enabled;desktopGrip.beam.visible=enabled;if(!enabled){desktopGrip.hover=null;return}
   const grab=getHandGrab(desktopGrip.controller);
-  if(grab?.kind==='wafer'){moveHeldDesktopWafer(grab,dt);desktopGrip.hover=null;colourDesktopGrip(C.amber,.62)}
+  if(grab?.kind==='wafer'){desktopGrip.hover=null;colourDesktopGrip(C.amber,.62)}
   else{desktopGrip.hover=nearestDesktopWafer();colourDesktopGrip(desktopGrip.hover?C.green:C.cyan,desktopGrip.hover?.58:.34)}
   updateDesktopHandPose(dt,now,grab?.kind==='wafer')
 }
