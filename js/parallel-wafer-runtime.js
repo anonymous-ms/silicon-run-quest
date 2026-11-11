@@ -366,7 +366,7 @@ updateWaferPhysics=function(dt){
     const p=body.view.position;      
     if(p.y<.08){      
       const drop=body.releaseY-p.y,impact=Math.abs(body.velocity.y);      
-      if(drop>.5||impact>2.2){shatterWafer(body,p.clone(),Math.max(1.4,impact*.35));continue}      
+      if(drop>.75||impact>2.8){shatterWafer(body,p.clone(),Math.max(1.4,impact*.35));continue}
       p.y=.08;      
       body.velocity.y=Math.abs(body.velocity.y)*.18;      
       body.velocity.x*=.65;body.velocity.z*=.65      
@@ -374,7 +374,7 @@ updateWaferPhysics=function(dt){
     if(Math.abs(p.x)>8.8||p.z>11.8||p.z<-41.8){shatterWafer(body,p.clone(),2.2);continue}      
     let shattered=false;      
     for(const collider of colliders){      
-      if(Math.abs(p.x-collider.x)<collider.w/2&&Math.abs(p.z-collider.z)<collider.d/2&&p.y<2.8&&body.velocity.length()>1.7){      
+      if(Math.abs(p.x-collider.x)<collider.w/2&&Math.abs(p.z-collider.z)<collider.d/2&&p.y<2.8&&body.velocity.length()>2){
         shatterWafer(body,p.clone(),body.velocity.length());shattered=true;break      
       }      
     }      
@@ -444,9 +444,7 @@ updateXRMovement=function(dt,now){
     if(xrHeadDirection.lengthSq()<.001)xrHeadDirection.set(0,0,-1);      
     xrHeadDirection.normalize();      
     const side=new THREE.Vector3().crossVectors(xrHeadDirection,new THREE.Vector3(0,1,0)).normalize();      
-    let nx=clamp(player.position.x+(side.x*sx+xrHeadDirection.x*-sy)*speed*dt,-8.25,8.25),nz=clamp(player.position.z+(side.z*sx+xrHeadDirection.z*-sy)*speed*dt,-40.5,11.2);      
-    for(const collider of colliders){if(Math.abs(nx-collider.x)<collider.w/2+.34&&Math.abs(nz-collider.z)<collider.d/2+.34){nx=player.position.x;nz=player.position.z;break}}      
-    player.position.x=nx;player.position.z=nz      
+    movePlayerColliderTo(player.position.x+(side.x*sx+xrHeadDirection.x*-sy)*speed*dt,player.position.z+(side.z*sx+xrHeadDirection.z*-sy)*speed*dt,playerRoomBounds())      
   }      
   if(rg&&rg.axes.length>=4){      
     const ax=rg.axes[2]||0,ay=rg.axes[3]||0;      

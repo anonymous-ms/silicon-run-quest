@@ -6,7 +6,7 @@ const designMode={
   fromYaw:0,toYaw:0,returnYaw:0,fromPitch:0,toPitch:0,returnPitch:0,  
   gain:0,intercept:0,gainComplete:false,regression:null,regressionAttempts:0,regressionBest:null,stageStartedAt:0,timingStep:-1,  
   schematicComplete:false,schematicSubmitted:false,schematicScore:0,layoutComplete:false,layoutScore:0,layoutConnected:0,
-  schematicDrag:null,schematicLinks:new Set(),circuit:null,layoutKeepOutViolations:0,  
+  schematicDrag:null,schematicLinks:new Set(),circuit:null,
   layer:'M1',layoutActive:null,layoutNodes:[],layoutRoutes:[],layoutDraft:null,layoutHoverNodes:[],
   releasedBodies:new Set()  
 };  
@@ -137,23 +137,14 @@ function segmentsIntersect(a,b,c,d){
   const c1=cross(a,b,c),c2=cross(a,b,d),c3=cross(c,d,a),c4=cross(c,d,b);  
   return c1*c2<0&&c3*c4<0  
 }  
-function layoutPointBlocked(point){  
-  const canvas=$('designCanvas'),h=canvas.height,g=layoutGeometry(canvas.width,h);  
-  if(point.x<g.margin||point.x>g.plotW-g.margin||point.y<g.margin||point.y>h-g.margin)return true;return layoutPointInKeepout(point,g)
-}  
-function layoutPointInKeepout(point,g=layoutGeometry($('designCanvas').width,$('designCanvas').height)){return g.keepouts.some(rect=>point.x>rect.x&&point.x<rect.x+rect.w&&point.y>rect.y&&point.y<rect.y+rect.h)}
 function segmentIntersectsRect(a,b,r){
   let low=0,high=1;const dx=b.x-a.x,dy=b.y-a.y;
   const clip=(p,q)=>{if(Math.abs(p)<1e-9)return q>=0;const t=q/p;if(p<0){if(t>high)return false;low=Math.max(low,t)}else{if(t<low)return false;high=Math.min(high,t)}return true};
   return clip(-dx,a.x-r.x)&&clip(dx,r.x+r.w-a.x)&&clip(-dy,a.y-r.y)&&clip(dy,r.y+r.h-a.y)
 }
-function layoutSegmentBlocked(a,b){const c=$('designCanvas'),g=layoutGeometry(c.width,c.height);return g.keepouts.some(rect=>segmentIntersectsRect(a,b,rect))}
 function layoutDraftValid(draft){  
-  if(!draft||draft.points.length<2||draft.points.some(layoutPointBlocked))return false;
-  for(let i=1;i<draft.points.length;i++)if(layoutSegmentBlocked(draft.points[i-1],draft.points[i]))return false;
-  const end=layoutNode(draft.toId);if(draft.toId&&!end)return false;if(!end?.terminal&&layoutPointBlocked(draft.points.at(-1)))return false;  
-  for(const route of designMode.layoutRoutes){if(route.layer!==draft.layer)continue;for(let draftIndex=1;draftIndex<draft.points.length;draftIndex++){const a=draft.points[draftIndex-1],b=draft.points[draftIndex];for(let routeIndex=1;routeIndex<route.points.length;routeIndex++){const c=route.points[routeIndex-1],d=route.points[routeIndex];if(segmentsIntersect(a,b,c,d))return false}}}  
-  return true  
+  if(!draft||draft.points.length<2||draft.points.some(point=>!Number.isFinite(point.x)||!Number.isFinite(point.y)))return false;
+  return !draft.toId||Boolean(layoutNode(draft.toId))
 }  
 function layoutNetConnected(net){
   const start=layoutNode(`IN${net.slice(1)}`),target=`OUT${({N1:2,N2:3,N3:1})[net]}`;if(!start||!layoutNode(target))return false;
@@ -172,20 +163,27 @@ function layoutNetworkComponents(){
   const components=[];for(const start of adjacency.keys()){if(componentByState.has(start))continue;const id=components.length,component={id,nets:new Set(),layers:new Set()},queue=[start];componentByState.set(start,id);while(queue.length){const current=queue.pop(),split=current.lastIndexOf('|'),node=layoutNode(current.slice(0,split));component.layers.add(current.slice(split+1));if(node?.net)component.nets.add(node.net);for(const next of adjacency.get(current)||[])if(!componentByState.has(next)){componentByState.set(next,id);queue.push(next)}}components.push(component)}return{components,componentByState,stateKey}
 }
 function layoutTrackDistance(a,b,c,d){if(segmentsIntersect(a,b,c,d))return 0;return Math.min(pointSegmentDistance(a,c,d),pointSegmentDistance(b,c,d),pointSegmentDistance(c,a,b),pointSegmentDistance(d,a,b))}
+function layoutRouteViolations(route,g){
+  const boundary=route.points.some(point=>point.x<g.margin||point.x>g.plotW-g.margin||point.y<g.margin||point.y>$('designCanvas').height-g.margin)?1:0;
+  const keepOuts=g.keepouts.filter(rect=>route.points.slice(1).some((point,index)=>segmentIntersectsRect(route.points[index],point,rect))).length;
+  return{boundary,keepOuts}
+}
 function scoreLayoutNetwork(){
-  const network=layoutNetworkComponents(),wrongConnections=network.components.reduce((count,component)=>count+Math.max(0,component.nets.size-1),0),shortPairs=new Set(),trackWidth=10;let length=0;
+  const network=layoutNetworkComponents(),wrongConnections=network.components.reduce((count,component)=>count+Math.max(0,component.nets.size-1),0),shortPairs=new Set(),trackWidth=10,g=layoutGeometry($('designCanvas').width,$('designCanvas').height);let length=0,boundaryViolations=0,keepOutViolations=0;
+  designMode.layoutRoutes.forEach(route=>{const violations=layoutRouteViolations(route,g);boundaryViolations+=violations.boundary;keepOutViolations+=violations.keepOuts});
   designMode.layoutRoutes.forEach((route,index)=>{for(let pointIndex=1;pointIndex<route.points.length;pointIndex++){const a=route.points[pointIndex-1],b=route.points[pointIndex];length+=Math.hypot(b.x-a.x,b.y-a.y);for(let otherIndex=index+1;otherIndex<designMode.layoutRoutes.length;otherIndex++){const other=designMode.layoutRoutes[otherIndex];if(route.layer!==other.layer)continue;const firstComponent=network.componentByState.get(network.stateKey(route.fromId,route.layer)),secondComponent=network.componentByState.get(network.stateKey(other.fromId,other.layer));if(firstComponent===secondComponent)continue;const firstNets=network.components[firstComponent]?.nets||new Set(),secondNets=network.components[secondComponent]?.nets||new Set(),sharedNet=[...firstNets].some(net=>secondNets.has(net));if(sharedNet&&firstNets.size===1&&secondNets.size===1)continue;for(let otherPoint=1;otherPoint<other.points.length;otherPoint++)if(layoutTrackDistance(a,b,other.points[otherPoint-1],other.points[otherPoint])<=trackWidth){shortPairs.add(`${index}:${otherIndex}`);break}}}});
-  const shorts=shortPairs.size,lengthPenalty=length*.001,score=clamp(100-wrongConnections*24-shorts*25-lengthPenalty,0,100),connected=[1,2,3].filter(index=>layoutNetConnected(`N${index}`)).length,twoLayerNet=network.components.some(component=>component.nets.size===1&&component.layers.has('M1')&&component.layers.has('M2'));return{score,wrongConnections,shorts,length,lengthPenalty,connected,twoLayerNet}
+  const shorts=shortPairs.size,lengthPenalty=length*.001,boundaryPenalty=boundaryViolations*15,keepOutPenalty=keepOutViolations*15,score=clamp(100-wrongConnections*24-shorts*25-boundaryPenalty-keepOutPenalty-lengthPenalty,0,100),connected=[1,2,3].filter(index=>layoutNetConnected(`N${index}`)).length,twoLayerNet=network.components.some(component=>component.nets.size===1&&component.layers.has('M1')&&component.layers.has('M2'));return{score,wrongConnections,shorts,boundaryViolations,keepOutViolations,boundaryPenalty,keepOutPenalty,length,lengthPenalty,connected,twoLayerNet}
 }
 function updateLayoutState(){  
-  const result=scoreLayoutNetwork(),vias=designMode.layoutNodes.filter(node=>!node.terminal&&node.metals.size>1).length;designMode.layoutScore=result.score;designMode.layoutConnected=result.connected;designMode.layoutComplete=result.connected===3&&!result.wrongConnections&&!result.shorts&&result.twoLayerNet;
+  const result=scoreLayoutNetwork(),vias=designMode.layoutNodes.filter(node=>!node.terminal&&node.metals.size>1).length;designMode.layoutScore=result.score;designMode.layoutConnected=result.connected;designMode.layoutComplete=result.connected===3&&!result.wrongConnections&&!result.shorts&&!result.boundaryViolations&&!result.keepOutViolations&&result.twoLayerNet;
   setDesignProgress(designMode.layoutComplete,`${result.connected}/3 · ${result.score.toFixed(1)}%`,'NET QUALITY');
-  const issues=`${result.wrongConnections} wrong connections · ${result.shorts} shorts · ${result.lengthPenalty.toFixed(1)} length penalty · ${result.twoLayerNet?'two-layer route present':'no via-linked two-layer route'}`;
-  setDesignMessage(designMode.layoutComplete?`All nets connect without shorts; at least one uses both layers with ${vias} automatic vias. ${issues}.`:`${issues}. Connect IN1 → OUT2, IN2 → OUT3 and IN3 → OUT1; at least one net must cross layers at a junction.`,designMode.layoutComplete?'good':result.wrongConnections||result.shorts?'warn':'')
+  const issues=`${result.wrongConnections} wrong connections · ${result.shorts} shorts · ${result.boundaryViolations} boundary breaches · ${result.keepOutViolations} keep-out breaches · ${result.lengthPenalty.toFixed(1)} length penalty · ${result.twoLayerNet?'two-layer route present':'no via-linked two-layer route'}`;
+  setDesignMessage(designMode.layoutComplete?`All nets connect without shorts or restricted-area breaches; at least one uses both layers with ${vias} automatic vias. ${issues}.`:`${issues}. Connect IN1 → OUT2, IN2 → OUT3 and IN3 → OUT1; at least one net must cross layers at a junction.`,designMode.layoutComplete?'good':result.wrongConnections||result.shorts||result.boundaryViolations||result.keepOutViolations?'warn':'')
 }  
 function developerSnapshot(){
   const rows=[];let stage='Awaiting stage',score=null,formula='';
   const add=(label,value,effect,diagnostic=false)=>rows.push({label,value:String(value),effect,diagnostic});
+  const heldWafer=carriedWafers().find(body=>body.heldBy!=null);if(heldWafer){add('Held wafer',heldWafer.lotId,heldWafer.pattern);add('Wafer progress',`${heldWafer.records.length}/${stations.length}`,stations[heldWafer.nextStage]?.short||'Fabrication complete')}
   const inDesign=designWorld.active||designMode.phase!=='idle'||parallel?.active?.nextStage===0;
   if(inDesign&&designMode.step===0){
     stage='Linear regression';
@@ -197,7 +195,7 @@ function developerSnapshot(){
     add('Required links',correct,`${correct} correct connections`);add('Opens',opens,`-${opens*35} points`);add('Shorts',shorts,`-${shorts*25} points`);score=clamp(100-opens*35-shorts*25,0,100);formula=`FoM = clamp(100 - ${opens}×35 - ${shorts}×25, 0, 100)`;
   }else if(inDesign&&designMode.step===2){
     stage='Two-layer layout';const result=scoreLayoutNetwork(),opens=Math.max(0,3-result.connected),openGate=opens?'blocked':'pass',viaGate=result.twoLayerNet?'pass':'blocked';
-    add('Open nets',opens,`${openGate} release gate`);add('Wrong connections',result.wrongConnections,`-${result.wrongConnections*24} points`);add('Short pairs',result.shorts,`-${result.shorts*25} points`);add('Route length penalty',result.lengthPenalty.toFixed(2),`-${result.lengthPenalty.toFixed(2)} points`);add('Two-layer via route',result.twoLayerNet?'yes':'no',`${viaGate} release gate`);add('Keep-out violations',designMode.layoutKeepOutViolations,'Rejected attempts; no merit deduction',true);score=result.score;formula=`FoM = clamp(100 - ${result.wrongConnections}×24 - ${result.shorts}×25 - ${result.lengthPenalty.toFixed(2)}, 0, 100)`;
+    add('Open nets',opens,`${openGate} release gate`);add('Wrong connections',result.wrongConnections,`-${result.wrongConnections*24} points`);add('Short pairs',result.shorts,`-${result.shorts*25} points`);add('Boundary breaches',result.boundaryViolations,`-${result.boundaryPenalty} points`);add('Keep-out breaches',result.keepOutViolations,`-${result.keepOutPenalty} points`);add('Route length penalty',result.lengthPenalty.toFixed(2),`-${result.lengthPenalty.toFixed(2)} points`);add('Two-layer via route',result.twoLayerNet?'yes':'no',`${viaGate} release gate`);score=result.score;formula=`FoM = clamp(100 - ${result.wrongConnections}×24 - ${result.shorts}×25 - ${result.boundaryViolations}×15 - ${result.keepOutViolations}×15 - ${result.lengthPenalty.toFixed(2)}, 0, 100)`;
   }else if(state.started&&parallel?.active&&stations[state.current]){
     const index=Math.min(state.current,stations.length-1),station=stations[index],st=status[index],controlRows=station.controls.map(control=>{const fitness=controlFitness(control,st.values[control.key]),award=fitness*control.weight;return{control,fitness,award}}),endpoint=clamp(100-Math.abs(st.metric-station.metric.target)/station.metric.tol*25,0,100),weighted=controlRows.reduce((sum,row)=>sum+row.award,endpoint*1.8),weight=controlRows.reduce((sum,row)=>sum+row.control.weight,1.8);
     stage=station.short;controlRows.forEach(({control,fitness,award})=>add(control.label,`${fitness.toFixed(1)}%`,`weight ${control.weight} · ${award.toFixed(1)} pts`));add(station.metric.label,`${endpoint.toFixed(1)}%`,`weight 1.8 · ${(endpoint*1.8).toFixed(1)} pts`);score=weighted/weight;formula=`FoM = ${weighted.toFixed(1)} weighted points / ${weight.toFixed(1)} total weight`;
@@ -272,17 +270,17 @@ function onDesignPointerMove(e){
   if(designMode.step===1&&designMode.schematicDrag){const p=designPointer(e);if(!Number.isFinite(p.x)||!Number.isFinite(p.y))return;designMode.schematicDrag.x=p.x;designMode.schematicDrag.y=p.y;drawDesignStage()}  
 }  
 function onDesignPointerUp(e){if(designMode.step!==1||!designMode.schematicDrag)return;const p=designPointer(e),nodes=schematicGeometry($('designCanvas').width,$('designCanvas').height),from=nodes.find(n=>n.id===designMode.schematicDrag.from),to=nearestDesignNode(p,nodes,designWorld.active?42:Math.max(30,$('designCanvas').width*.025));if(to&&to.id!==from.id){const k=edgeKey(from.id,to.id);designMode.schematicLinks.has(k)?designMode.schematicLinks.delete(k):designMode.schematicLinks.add(k);designMode.schematicSubmitted=false;designMode.schematicComplete=false}designMode.schematicDrag=null;updateSchematicState();drawDesignStage()}  
-function freeLayoutPoint(p){const c=$('designCanvas'),g=layoutGeometry(c.width,c.height);return{x:clamp(p.x,g.margin,g.plotW-g.margin),y:clamp(p.y,g.margin,c.height-g.margin)}}
+function freeLayoutPoint(p){const c=$('designCanvas'),g=layoutGeometry(c.width,c.height);return{x:clamp(p.x,0,g.plotW),y:clamp(p.y,0,c.height)}}
 function layoutElbowPoints(start,end,layer){const dx=end.x-start.x,dy=end.y-start.y,points=[{x:start.x,y:start.y,layer}];if(Math.abs(dx)>=Math.abs(dy)){if(Math.abs(dy)<1){points.push({x:end.x,y:end.y,layer});return points}const midX=start.x+dx/2;points.push({x:midX,y:start.y,layer},{x:midX,y:end.y,layer})}else{if(Math.abs(dx)<1){points.push({x:end.x,y:end.y,layer});return points}const midY=start.y+dy/2;points.push({x:start.x,y:midY,layer},{x:end.x,y:midY,layer})}points.push({x:end.x,y:end.y,layer});return points}
 function beginLayoutWire(point){const node=nearestLayoutNode(point);if(!node){setDesignMessage('Start on one of the six terminals or a wire junction.','warn');return}designMode.layoutDraft={fromId:node.id,toId:null,layer:designMode.layer,points:[{x:node.x,y:node.y,layer:designMode.layer}],valid:false};updateLayoutWire(point)}
 function updateLayoutWire(point){const draft=designMode.layoutDraft;if(!draft)return;const target=nearestLayoutNode(point,draft.fromId),end=target?{x:target.x,y:target.y}:freeLayoutPoint(point),start=layoutNode(draft.fromId);draft.toId=target?.id||null;draft.points=layoutElbowPoints(start,end,draft.layer);draft.valid=target?.id!==draft.fromId&&Math.hypot(end.x-start.x,end.y-start.y)>Math.max(18,$('designCanvas').width*.012)&&layoutDraftValid(draft);designMode.layoutHoverNodes=target?[{id:target.id}]:[];drawDesignStage()}
-function finishLayoutWire(point){if(!designMode.layoutDraft)return;updateLayoutWire(point);const draft=designMode.layoutDraft;if(!draft.valid){const g=layoutGeometry($('designCanvas').width,$('designCanvas').height),keepOutHit=draft.points.some(point=>layoutPointInKeepout(point,g))||draft.points.slice(1).some((point,index)=>layoutSegmentBlocked(draft.points[index],point));if(keepOutHit)designMode.layoutKeepOutViolations++;designMode.layoutDraft=null;designMode.layoutHoverNodes=[];setDesignMessage('Wire rejected. End on a node or clear the keep-out and same-layer traces.','warn');drawDesignStage();return}const start=layoutNode(draft.fromId);let end=layoutNode(draft.toId);if(!end){const point=draft.points.at(-1);let index=1;while(layoutNode(`J${index}`))index++;end={id:`J${index}`,kind:'junction',label:'JUNCTION',x:point.x,y:point.y,terminal:false,metals:new Set()};designMode.layoutNodes.push(end)}if(designMode.layoutRoutes.some(route=>route.layer===draft.layer&&((route.fromId===start.id&&route.toId===end.id)||(route.fromId===end.id&&route.toId===start.id)))){if(end.id.startsWith('J')&&!end.metals.size)designMode.layoutNodes.pop();designMode.layoutDraft=null;designMode.layoutHoverNodes=[];setDesignMessage('Those two points are already connected on this layer.','warn');drawDesignStage();return}start.metals.add(draft.layer);end.metals.add(draft.layer);designMode.layoutRoutes.push({fromId:start.id,toId:end.id,layer:draft.layer,points:draft.points.map(point=>({...point}))});designMode.layoutDraft=null;designMode.layoutHoverNodes=[];updateLayoutState();drawDesignStage();if(designWorld.active)syncDesignBoard()}
+function finishLayoutWire(point){if(!designMode.layoutDraft)return;updateLayoutWire(point);const draft=designMode.layoutDraft;if(!draft.valid){designMode.layoutDraft=null;designMode.layoutHoverNodes=[];setDesignMessage('Wire rejected. Start on a terminal or junction and finish at another node or a free endpoint.','warn');drawDesignStage();return}const start=layoutNode(draft.fromId);let end=layoutNode(draft.toId);if(!end){const point=draft.points.at(-1);let index=1;while(layoutNode(`J${index}`))index++;end={id:`J${index}`,kind:'junction',label:'JUNCTION',x:point.x,y:point.y,terminal:false,metals:new Set()};designMode.layoutNodes.push(end)}if(designMode.layoutRoutes.some(route=>route.layer===draft.layer&&((route.fromId===start.id&&route.toId===end.id)||(route.fromId===end.id&&route.toId===start.id)))){if(end.id.startsWith('J')&&!end.metals.size)designMode.layoutNodes.pop();designMode.layoutDraft=null;designMode.layoutHoverNodes=[];setDesignMessage('Those two points are already connected on this layer.','warn');drawDesignStage();return}start.metals.add(draft.layer);end.metals.add(draft.layer);designMode.layoutRoutes.push({fromId:start.id,toId:end.id,layer:draft.layer,points:draft.points.map(point=>({...point}))});designMode.layoutDraft=null;designMode.layoutHoverNodes=[];updateLayoutState();drawDesignStage();if(designWorld.active)syncDesignBoard()}
 function layoutPaletteAction(){return false}
 function onDesignClick(e){if(designMode.step!==2||designWorld.active)return;const point=designPointer(e);if(!Number.isFinite(point.x)||!Number.isFinite(point.y))return;if(layoutPaletteAction(point))return;if(!designMode.layoutDraft)beginLayoutWire(point);else finishLayoutWire(point)}
 function resetDesignStage(){  
   if(designMode.step===0){createRegressionChallenge();updateGainState()}  
   if(designMode.step===1){clearSchematicWires()}  
-  if(designMode.step===2){designMode.layoutActive=null;designMode.layoutRoutes=[];designMode.layoutDraft=null;designMode.layoutKeepOutViolations=0;initializeLayoutNodes();updateLayoutState();drawDesignStage();if(designWorld.active)syncDesignBoard()}  
+  if(designMode.step===2){designMode.layoutActive=null;designMode.layoutRoutes=[];designMode.layoutDraft=null;initializeLayoutNodes();updateLayoutState();drawDesignStage();if(designWorld.active)syncDesignBoard()}  
 }  
 function releaseDesign(){  
   const body=parallel?.active;  

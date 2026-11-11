@@ -1,0 +1,28 @@
+#xrButton {
+  left: 50%;
+  right: auto;
+  top: 14px;
+  bottom: auto;
+  transform: translateX(-50%);
+}
+
+.developer-stack {
+  position: fixed;
+  z-index: 24;
+  left: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-start;
+  gap: 8px;
+  max-height: calc(100vh - 32px);
+  pointer-events: none;
+}
+
+.developer-stack > .developer-pane,
+.developer-stack > .performance-pane {
+  position: relative;
+  inset: auto;
+  flex: none;
+  pointer-events: auto;
+}
