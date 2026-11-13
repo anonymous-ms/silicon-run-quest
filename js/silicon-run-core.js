@@ -278,6 +278,65 @@ return pivot
 }        
 function createMachine(s,i){const g=new THREE.Group(),x=s.side*6.65;g.position.set(x,0,s.z);g.rotation.y=s.side<0?Math.PI/2:-Math.PI/2;scene.add(g);const lamp=machineShell(g,s),accent=mat(s.color,.35,.25),dark=mat(0x07121a,.6,.2),glass=mat(s.color,.12,.08,true,.22,s.color);if(s.type==='design'){box(2.2,1.1,.14,dark,g,0,2.05,.05);const screen=box(1.95,.86,.04,mat(0x0b85a5,.1,.2,true,.9,C.cyan),g,0,2.05,.14);effects.push({kind:'screen',obj:screen,index:i})}if(s.type==='deposition'||s.type==='metal'){const chamber=cyl(.72,1.35,glass,g,0,2.08,0);cyl(.83,.13,accent,g,0,1.42,0);cyl(.83,.13,accent,g,0,2.69,0);cyl(.3,.35,dark,g,0,2.96,0);effects.push({kind:s.type==='metal'?'metal':'vapor',obj:chamber,index:i})}if(s.type==='spinner'||s.type==='wetbench'){cyl(.78,.35,dark,g,0,1.92,0);const chuck=cyl(.37,.12,accent,g,0,2.11,0);effects.push({kind:'spin',obj:chuck,index:i});if(s.type==='spinner'){mesh(new THREE.SphereGeometry(.92,26,14,0,Math.PI*2,0,Math.PI/2),glass,g,0,1.98,0);box(.12,.8,.12,accent,g,.52,2.54,0);box(.52,.1,.1,accent,g,.3,2.86,0)}else{box(.32,.75,.32,accent,g,-.72,2.16,0);box(.32,.75,.32,accent,g,.72,2.16,0)}}if(s.type==='furnace'){box(1.95,1.15,1.15,dark,g,0,2.08,0);const glow=cyl(.46,.08,mat(0xff7d28,.2,.25,true,.35,C.orange),g,0,2.08,.6);glow.rotation.x=Math.PI/2;effects.push({kind:'furnace',obj:glow,index:i});box(1.55,.08,.9,mat(0xa9b9bd,.75,.15),g,0,1.7,.45)}if(s.type==='aligner'){box(1.25,.18,1.25,dark,g,0,1.87,0);box(1.05,.05,1.05,glass,g,0,2.03,0);box(.2,1.15,.2,accent,g,-.65,2.38,0);const head=box(1.35,.3,.75,accent,g,0,2.92,0),beam=cyl(.48,.72,mat(C.cyan,0,.1,true,.12,C.cyan),g,0,2.45,0);effects.push({kind:'expose',obj:beam,head,index:i})}if(s.type==='rie'){const chamber=cyl(.8,1.28,glass,g,0,2.12,0);cyl(.88,.15,accent,g,0,1.48,0);cyl(.88,.15,accent,g,0,2.75,0);const plasma=cyl(.56,.42,mat(C.magenta,0,.15,true,.08,C.magenta),g,0,2.05,0);const piston=cyl(.16,.8,mat(0xe7eff1,.9,.12),g,0,2.75,0);effects.push({kind:'plasma',obj:plasma,piston,index:i})}if(s.type==='implanter'){box(2.35,.72,.72,dark,g,0,2.23,0);for(let q=-.8;q<=.8;q+=.4){const coil=mesh(new THREE.TorusGeometry(.4,.07,10,24),accent,g,q,2.23,0);coil.rotation.y=Math.PI/2}const beam=box(1.8,.045,.045,mat(C.violet,0,.12,true,.08,C.violet),g,0,2.23,0);effects.push({kind:'beam',obj:beam,index:i})}if(s.type==='probe'){box(1.7,.12,1.1,dark,g,0,1.86,0);box(.28,1.3,.28,accent,g,-.65,2.35,.2);const scope=cyl(.3,.75,dark,g,-.15,2.74,0);scope.rotation.z=Math.PI/2;const arm1=box(.05,.85,.05,mat(C.green,.7,.15),g,.32,2.23,.1);arm1.rotation.z=.55;const arm2=box(.05,.85,.05,mat(C.green,.7,.15),g,-.02,2.23,-.1);arm2.rotation.z=-.55;effects.push({kind:'probe',obj:scope,index:i})}        
 const tray=box(.76,.06,.76,mat(0xaabcc2,.75,.18),g,0,1.72,.35),wafer=createWafer(.72);wafer.position.set(0,1.82,.35);wafer.rotation.set(-Math.PI/2,0,0);wafer.visible=false;g.add(wafer);const chamberTarget=box(1.46,1.02,.035,mat(0x000000,0,1,true,.001),g,0,2.13,.84);chamberTarget.material.depthWrite=false;chamberTarget.material.colorWrite=false;chamberTarget.userData={interactive:true,type:'button',label:'CHAMBER',kind:'machine',action:'chamber',machineIndex:i,baseColor:s.color,visualButton:false};interactives.push(chamberTarget);const door=createDoor(g,s.color,i),panel=box(1.55,1.55,.12,mat(0x0a1720,.55,.22),g,0,1.08,.98);const controls=s.controls.map((c,j)=>makeControl(g,c,j,i));const doorBtn=makeButton(g,-.85,.44,1.03,'DOOR',0x65bfff,{kind:'machine',action:'door',machineIndex:i}),loadBtn=makeButton(g,-.29,.44,1.03,'LOAD',0x57df9a,{kind:'machine',action:'load',machineIndex:i}),startBtn=makeButton(g,.29,.44,1.03,'START',0xa8e6b0,{kind:'machine',action:'start',machineIndex:i}),stopBtn=makeButton(g,.85,.44,1.03,'STOP',0xf4a6a6,{kind:'machine',action:'stop',machineIndex:i}),unloadBtn=makeButton(g,0,.16,1.03,'UNLOAD',0xffcf56,{kind:'machine',action:'unload',machineIndex:i});const m={group:g,lamp,station:s,index:i,world:new THREE.Vector3(x,1.5,s.z),door,doorHandle:door.userData.handle,wafer,tray,chamberTarget,controls,buttons:{door:doorBtn,load:loadBtn,start:startBtn,stop:stopBtn,unload:unloadBtn}};machines.push(m);addCollider(x,s.z,2.6,3.7)}        
+
+const createMachineWithGenericInterior=createMachine;
+createMachine=function(s,i){
+  const machineIndex=machines.length;
+  createMachineWithGenericInterior(s,i);
+  if(s.type!=='deposition')return;
+  const machine=machines[machineIndex],group=machine.group;
+  // Remove the generic vertical bell-jar parts.
+  for(const part of [...group.children]){
+    if(!part.isMesh||part.geometry.type!=='CylinderGeometry'||part.position.x!==0||part.position.z!==0||![1.42,2.08,2.69,2.96].some(y=>Math.abs(part.position.y-y)<.001))continue;
+    group.remove(part);part.geometry.dispose();part.material.dispose()
+  }
+  for(let n=effects.length-1;n>=0;n--)if(effects[n].kind==='vapor'&&effects[n].index===i)effects.splice(n,1);
+
+  // ---- Horizontal tube furnace geometry (tweak these numbers) ----
+  const CY=2.1,TUBE_R=.46,TUBE_LEN=1.6,COIL_R=.53,FLANGE_R=.66;
+  const refractory=mat(0x70858b,.34,.58),inner=mat(0x26373e,.12,.82),rackMetal=mat(0x9baeb0,.62,.34),gasMat=mat(0x8db6bc,.45,.3);
+  const quartz=new THREE.MeshStandardMaterial({color:0xd8f2ed,metalness:.04,roughness:.2,transparent:true,opacity:.35,side:THREE.DoubleSide,depthWrite:false});
+  const flangeMat=new THREE.MeshStandardMaterial({color:0x70858b,metalness:.34,roughness:.58,side:THREE.DoubleSide});
+
+  // Open quartz tube along Z (front faces the door).
+  const tube=mesh(new THREE.CylinderGeometry(TUBE_R,TUBE_R,TUBE_LEN,40,1,true),quartz,group,0,CY,0);tube.rotation.x=Math.PI/2;
+  // Front and back flanges, plus a closed back wall.
+  mesh(new THREE.RingGeometry(TUBE_R,FLANGE_R,48),flangeMat,group,0,CY,TUBE_LEN/2);
+  mesh(new THREE.RingGeometry(TUBE_R,FLANGE_R,48),flangeMat,group,0,CY,-TUBE_LEN/2);
+  mesh(new THREE.CircleGeometry(TUBE_R,40),inner,group,0,CY,-TUBE_LEN/2+.01);
+
+  // Heater coil rings wrapped around the tube (shared material is animated).
+  const heaterMaterial=new THREE.MeshStandardMaterial({color:0x6a2a19,metalness:.72,roughness:.3,emissive:0xff481c,emissiveIntensity:.06});
+  let heater=null;
+  for(let z=-.6;z<=.61;z+=.2){const ring=mesh(new THREE.TorusGeometry(COIL_R,.02,8,40),heaterMaterial,group,0,CY,z);heater=heater||ring}
+
+  // Quartz wafer boat: replaces the generic tray (machine.tray keeps the same role).
+  const oldTray=machine.tray;group.remove(oldTray);oldTray.geometry.dispose();oldTray.material.dispose();
+  const rack=new THREE.Group();rack.name='oxidation-quartz-wafer-rack';group.add(rack);machine.tray=rack;
+  for(const x of [-.22,.22])box(.04,.04,.9,quartz,rack,x,1.72,.35);
+  for(const z of [-.05,.75])box(.48,.03,.04,quartz,rack,0,1.72,z);
+
+  // Gas inlet through the back wall, nozzles blowing toward the front.
+  const inlet=cyl(.04,.3,gasMat,group,0,CY,-TUBE_LEN/2-.15,16);inlet.rotation.x=Math.PI/2;
+  const jets=[];
+  for(const [dx,dy] of [[-.16,.16],[.16,.16],[-.16,-.16],[.16,-.16]]){
+    const nozzle=cyl(.016,.2,rackMetal,group,dx,CY+dy,-.7,12);nozzle.rotation.x=Math.PI/2;
+    const jet=mesh(new THREE.ConeGeometry(.035,.22,12),new THREE.MeshBasicMaterial({color:0x8cecff,transparent:true,opacity:0,depthWrite:false}),group,dx,CY+dy,-.52);
+    jet.rotation.x=Math.PI/2;jet.visible=false;jets.push(jet)
+  }
+  effects.push({kind:'oxidationFurnace',index:i,heater,jets})
+};
+
+const animateMachineEffects=animateEffects;
+animateEffects=function(t,dt){
+  animateMachineEffects(t,dt);
+  for(const effect of effects){
+    if(effect.kind!=='oxidationFurnace')continue;
+    const on=status[effect.index]?.state==='running';
+    effect.heater.material.emissiveIntensity=on?1.8+.45*Math.sin(t*8):.06;
+    effect.jets.forEach((jet,index)=>{jet.visible=on;jet.material.opacity=on?.18+.08*Math.sin(t*12+index):0})
+  }
+};
 function newRun(){state.lotId='SR-'+String(Math.floor(1000+Math.random()*9000));state.carrying=false;state.current=0;state.completed=false;state.runStart=0;state.elapsed=0;state.cycle=null;state.records=[];state.pattern='Logic grid';phys.stockRespawnAt=0;phys.stockReady=null;phys.waferEverPicked=false;setWaferDynamic(false);setWaferStaged(false);phys.waferVelocity.set(0,0,0);phys.jumpOffset=0;phys.jumpVelocity=0;phys.crouchHeld=false;player.position.set(0,renderer.xr.isPresenting?.86:2.58,7.7);yaw=Math.PI;pitch=-.03;player.rotation.y=yaw;status.forEach((st,i)=>{st.state='locked';st.values=Object.fromEntries(stations[i].controls.map(c=>[c.key,c.initial]));st.score=null;st.deviations=[];st.metric=0;st.doorTarget=0;st.doorAmount=0;st.transfer=null;machines[i+1].wafer.visible=false;if(machines[i+1].kind==='fabrication'&&machines[i+1].door)machines[i+1].door.rotation.y=0});state.handWafer.visible=false;$('lotId').textContent=state.lotId;$('report').style.display='none';updateAll();toast('Traveller '+state.lotId+' prepared. Dispense one blank wafer from stock.')}        
 function formatTime(ms){const t=Math.max(0,ms),m=Math.floor(t/60000),s=Math.floor(t%60000/1000),x=Math.floor(t%1000);return`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(x).padStart(3,'0')}`}        
 function getRuns(){try{return JSON.parse(localStorage.getItem('waferFabRunsV2')||'[]').filter(r=>Number.isFinite(r.time))}catch(e){return[]}}        
