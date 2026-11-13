@@ -403,7 +403,7 @@ function machineWaferCollisionBounds(){
       machine.group.traverse(object=>{      
         if(!object.isMesh||object===machine.wafer||object===machine.chamberTarget||object.userData.labelWidth!=null)return;      
         for(let parent=object;parent&&parent!==machine.group;parent=parent.parent){if(parent===machine.wafer||parent===machine.chamberTarget)return}      
-        waferCollisionMeshes.push({mesh:object,machineGroup:machine.group,machineIndex:index-1,bounds:new THREE.Box3()})      
+        waferCollisionMeshes.push({mesh:object,machineGroup:machine.group,machineIndex:index-1,bounds:new THREE.Box3(),geometry:object.geometry})      
       })      
     })      
   }      
@@ -470,8 +470,17 @@ function integrateHeldWafer(body,grab,dt){
       }      
       for(const entry of machineBounds){      
         if(entry.machineIndex===grab.slotMachineIndex)continue;      
+        const geom=entry.geometry;
+        if(geom&&geom.type==='RingGeometry'){
+          entry.mesh.updateWorldMatrix(true,false);
+          const invMatrix=entry.mesh.matrixWorld.clone().invert();
+          const localPos=candidate.clone().applyMatrix4(invMatrix);
+          const r=Math.hypot(localPos.x,localPos.y);
+          const inner=geom.parameters.innerRadius;
+          if(r<inner)continue;
+        }
         const contact=resolveWaferAABB(candidate,extents,entry.bounds);if(contact)contacts.push(contact)      
-      }      
+      }
       const playerLow=player.position.y-1.5,playerHigh=player.position.y+.18,dx=candidate.x-player.position.x,dz=candidate.z-player.position.z,playerDistance=Math.hypot(dx,dz),playerClearance=.34+WAFER_RADIUS;      
       if(candidate.y+extents.y>playerLow&&candidate.y-extents.y<playerHigh&&playerDistance<playerClearance){      
         const nx=playerDistance>.001?dx/playerDistance:(grab.velocity.x<0?1:-1),nz=playerDistance>.001?dz/playerDistance:(grab.velocity.z<0?1:0);      
