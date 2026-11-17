@@ -10,12 +10,15 @@
   position: fixed;
   z-index: 24;
   left: 16px;
-  bottom: 16px;
+  top: 416px;
+  bottom: auto;
+  width: 356px;
   display: flex;
-  flex-direction: column-reverse;
-  align-items: flex-start;
+  flex-direction: column;
+  align-items: stretch;
   gap: 8px;
-  max-height: calc(100vh - 32px);
+  max-height: calc(100vh - 432px);
+  overflow-y: auto;
   pointer-events: none;
 }
 
@@ -23,6 +26,15 @@
 .developer-stack > .performance-pane {
   position: relative;
   inset: auto;
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 10px;
   flex: none;
   pointer-events: auto;
+}
+
+.perf-stats {
+  margin-top: 3px;
+  font: 700 10px ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #8fe8ff;
 }

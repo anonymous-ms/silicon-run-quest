@@ -11,6 +11,11 @@
     'parallel-wafer-runtime.js',
     'design-workstation-runtime.js',
     'design-world-runtime.js',
+    'cleanroom-lod.js',
+    'cleanroom-debug.js',
+    'cleanroom-realism.js',
+    'cleanroom-pedagogy.js',
+    'cleanroom-audio.js',
     'silicon-run-startup.js'
   ];
   const loadNext = index => {

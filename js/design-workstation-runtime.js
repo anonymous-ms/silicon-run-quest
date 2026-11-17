@@ -123,8 +123,16 @@ function updateSchematicState(){ensureCircuitChallenge();$('designNext').disable
 function clearSchematicWires(){designMode.schematicLinks.clear();designMode.schematicDrag=null;designMode.schematicSubmitted=false;designMode.schematicComplete=false;updateSchematicState();drawDesignStage()}
 function layoutGeometry(w,h){  
   const paletteW=0,plotW=w,margin=Math.max(45,plotW*.065),innerH=h-2*margin;  
-  const outputNets=[2,3,1];return{margin,plotW,paletteW,inputs:[0,1,2].map(i=>({id:`IN${i+1}`,kind:'input',net:`N${i+1}`,label:`IN${i+1}`,x:margin+18,y:margin+innerH*(.22+i*.28)})),outputs:outputNets.map((labelNet,i)=>({id:`OUT${labelNet}`,kind:'output',net:`N${i+1}`,label:`OUT${labelNet}`,x:plotW-margin-18,y:margin+innerH*(.22+i*.28)})),keepouts:[{x:plotW*.31,y:margin,w:plotW*.14,h:h*.29},{x:plotW*.55,y:h-margin-h*.31,w:plotW*.14,h:h*.31}]}
-  }  
+  // NOTE: Output terminal vertical order (OUT2 top, OUT3 middle, OUT1 bottom) is intentionally mis-ordered relative to IN1..IN3
+  // so that connecting IN1->OUT1, IN2->OUT2 and IN3->OUT3 forces the player to route wires crossing over each other across M1/M2.
+  const outputOrder=[2,3,1];
+  return{
+    margin,plotW,paletteW,
+    inputs:[0,1,2].map(i=>({id:`IN${i+1}`,kind:'input',net:`N${i+1}`,label:`IN${i+1}`,x:margin+18,y:margin+innerH*(.22+i*.28)})),
+    outputs:outputOrder.map((pinNum,i)=>({id:`OUT${pinNum}`,kind:'output',net:`N${pinNum}`,label:`OUT${pinNum}`,x:plotW-margin-18,y:margin+innerH*(.22+i*.28)})),
+    keepouts:[{x:plotW*.31,y:margin,w:plotW*.14,h:h*.29},{x:plotW*.55,y:h-margin-h*.31,w:plotW*.14,h:h*.31}]
+  }
+}
 function initializeLayoutNodes(){const canvas=$('designCanvas');if(canvas.width<960||canvas.height<600){canvas.width=1280;canvas.height=800}const g=layoutGeometry(canvas.width,canvas.height);designMode.layoutNodes=[...g.inputs,...g.outputs].map(node=>({...node,terminal:true,metals:new Set()}));designMode.layoutHoverNodes=[]}
 function layoutNode(id){return designMode.layoutNodes.find(node=>node.id===id)}
 function nearestLayoutNode(point,excludeId=null,max=Math.max(30,$('designCanvas').width*.025)){let best=null,d=max;for(const node of designMode.layoutNodes){if(node.id===excludeId)continue;const distance=Math.hypot(point.x-node.x,point.y-node.y);if(distance<d){best=node;d=distance}}return best}
@@ -147,7 +155,8 @@ function layoutDraftValid(draft){
   return !draft.toId||Boolean(layoutNode(draft.toId))
 }  
 function layoutNetConnected(net){
-  const start=layoutNode(`IN${net.slice(1)}`),target=`OUT${({N1:2,N2:3,N3:1})[net]}`;if(!start||!layoutNode(target))return false;
+  // Intentional crossover test: match IN1->OUT1 (top-left to bottom-right), IN2->OUT2, and IN3->OUT3 by net number.
+  const pinNum=net.slice(1),start=layoutNode(`IN${pinNum}`),target=`OUT${pinNum}`;if(!start||!layoutNode(target))return false;
   const queue=[...start.metals].map(layer=>({id:start.id,layer})),seen=new Set();
   while(queue.length){const current=queue.shift(),key=`${current.id}:${current.layer}`;if(seen.has(key))continue;seen.add(key);if(current.id===target)return true;
     for(const route of designMode.layoutRoutes){if(route.layer!==current.layer)continue;if(route.fromId===current.id)queue.push({id:route.toId,layer:current.layer});else if(route.toId===current.id)queue.push({id:route.fromId,layer:current.layer})}
@@ -172,13 +181,13 @@ function scoreLayoutNetwork(){
   const network=layoutNetworkComponents(),wrongConnections=network.components.reduce((count,component)=>count+Math.max(0,component.nets.size-1),0),shortPairs=new Set(),trackWidth=10,g=layoutGeometry($('designCanvas').width,$('designCanvas').height);let length=0,boundaryViolations=0,keepOutViolations=0;
   designMode.layoutRoutes.forEach(route=>{const violations=layoutRouteViolations(route,g);boundaryViolations+=violations.boundary;keepOutViolations+=violations.keepOuts});
   designMode.layoutRoutes.forEach((route,index)=>{for(let pointIndex=1;pointIndex<route.points.length;pointIndex++){const a=route.points[pointIndex-1],b=route.points[pointIndex];length+=Math.hypot(b.x-a.x,b.y-a.y);for(let otherIndex=index+1;otherIndex<designMode.layoutRoutes.length;otherIndex++){const other=designMode.layoutRoutes[otherIndex];if(route.layer!==other.layer)continue;const firstComponent=network.componentByState.get(network.stateKey(route.fromId,route.layer)),secondComponent=network.componentByState.get(network.stateKey(other.fromId,other.layer));if(firstComponent===secondComponent)continue;const firstNets=network.components[firstComponent]?.nets||new Set(),secondNets=network.components[secondComponent]?.nets||new Set(),sharedNet=[...firstNets].some(net=>secondNets.has(net));if(sharedNet&&firstNets.size===1&&secondNets.size===1)continue;for(let otherPoint=1;otherPoint<other.points.length;otherPoint++)if(layoutTrackDistance(a,b,other.points[otherPoint-1],other.points[otherPoint])<=trackWidth){shortPairs.add(`${index}:${otherIndex}`);break}}}});
-  const shorts=shortPairs.size,lengthPenalty=length*.001,boundaryPenalty=boundaryViolations*15,keepOutPenalty=keepOutViolations*15,score=clamp(100-wrongConnections*24-shorts*25-boundaryPenalty-keepOutPenalty-lengthPenalty,0,100),connected=[1,2,3].filter(index=>layoutNetConnected(`N${index}`)).length,twoLayerNet=network.components.some(component=>component.nets.size===1&&component.layers.has('M1')&&component.layers.has('M2'));return{score,wrongConnections,shorts,boundaryViolations,keepOutViolations,boundaryPenalty,keepOutPenalty,length,lengthPenalty,connected,twoLayerNet}
+  const shorts=shortPairs.size,lengthPenalty=length*.001,boundaryPenalty=boundaryViolations*15,keepOutPenalty=keepOutViolations*15,connected=[1,2,3].filter(index=>layoutNetConnected(`N${index}`)).length,opens=Math.max(0,3-connected),openPenalty=opens*22,twoLayerNet=network.components.some(component=>component.nets.size===1&&component.layers.has('M1')&&component.layers.has('M2')),score=clamp(100-openPenalty-wrongConnections*24-shorts*25-boundaryPenalty-keepOutPenalty-lengthPenalty,0,100);return{score,opens,openPenalty,wrongConnections,shorts,boundaryViolations,keepOutViolations,boundaryPenalty,keepOutPenalty,length,lengthPenalty,connected,twoLayerNet}
 }
 function updateLayoutState(){  
-  const result=scoreLayoutNetwork(),vias=designMode.layoutNodes.filter(node=>!node.terminal&&node.metals.size>1).length;designMode.layoutScore=result.score;designMode.layoutConnected=result.connected;designMode.layoutComplete=result.connected===3&&!result.wrongConnections&&!result.shorts&&!result.boundaryViolations&&!result.keepOutViolations&&result.twoLayerNet;
-  setDesignProgress(designMode.layoutComplete,`${result.connected}/3 · ${result.score.toFixed(1)}%`,'NET QUALITY');
-  const issues=`${result.wrongConnections} wrong connections · ${result.shorts} shorts · ${result.boundaryViolations} boundary breaches · ${result.keepOutViolations} keep-out breaches · ${result.lengthPenalty.toFixed(1)} length penalty · ${result.twoLayerNet?'two-layer route present':'no via-linked two-layer route'}`;
-  setDesignMessage(designMode.layoutComplete?`All nets connect without shorts or restricted-area breaches; at least one uses both layers with ${vias} automatic vias. ${issues}.`:`${issues}. Connect IN1 → OUT2, IN2 → OUT3 and IN3 → OUT1; at least one net must cross layers at a junction.`,designMode.layoutComplete?'good':result.wrongConnections||result.shorts||result.boundaryViolations||result.keepOutViolations?'warn':'')
+  const result=scoreLayoutNetwork(),vias=designMode.layoutNodes.filter(node=>!node.terminal&&node.metals.size>1).length;designMode.layoutScore=result.score;designMode.layoutConnected=result.connected;designMode.layoutClean=result.connected===3&&!result.wrongConnections&&!result.shorts&&!result.boundaryViolations&&!result.keepOutViolations&&result.twoLayerNet;designMode.layoutComplete=true;
+  setDesignProgress(true,`${result.connected}/3 · ${result.score.toFixed(1)}%`,'NET QUALITY');
+  const issues=`${result.opens} open nets · ${result.wrongConnections} wrong connections · ${result.shorts} shorts · ${result.boundaryViolations} boundary breaches · ${result.keepOutViolations} keep-out breaches · ${result.lengthPenalty.toFixed(1)} length penalty · ${result.twoLayerNet?'two-layer route present':'no via-linked two-layer route'}`;
+  setDesignMessage(designMode.layoutClean?`All nets connect cleanly (IN1→OUT1, IN2→OUT2, IN3→OUT3) with ${vias} vias. ${issues}.`:`Penalty preview — ${issues}. Connect IN1 → OUT1, IN2 → OUT2, IN3 → OUT3 with M1/M2 crossovers or release now with score penalty.`,designMode.layoutClean?'good':'warn')
 }  
 function developerSnapshot(){
   const rows=[];let stage='Awaiting stage',score=null,formula='';
@@ -194,8 +203,8 @@ function developerSnapshot(){
     stage='Circuit repair';ensureCircuitChallenge();const required=designMode.circuit.removed,links=designMode.schematicLinks,opens=[...required].filter(key=>!links.has(key)).length,shorts=[...links].filter(key=>!required.has(key)).length,correct=[...links].filter(key=>required.has(key)).length;
     add('Required links',correct,`${correct} correct connections`);add('Opens',opens,`-${opens*35} points`);add('Shorts',shorts,`-${shorts*25} points`);score=clamp(100-opens*35-shorts*25,0,100);formula=`FoM = clamp(100 - ${opens}×35 - ${shorts}×25, 0, 100)`;
   }else if(inDesign&&designMode.step===2){
-    stage='Two-layer layout';const result=scoreLayoutNetwork(),opens=Math.max(0,3-result.connected),openGate=opens?'blocked':'pass',viaGate=result.twoLayerNet?'pass':'blocked';
-    add('Open nets',opens,`${openGate} release gate`);add('Wrong connections',result.wrongConnections,`-${result.wrongConnections*24} points`);add('Short pairs',result.shorts,`-${result.shorts*25} points`);add('Boundary breaches',result.boundaryViolations,`-${result.boundaryPenalty} points`);add('Keep-out breaches',result.keepOutViolations,`-${result.keepOutPenalty} points`);add('Route length penalty',result.lengthPenalty.toFixed(2),`-${result.lengthPenalty.toFixed(2)} points`);add('Two-layer via route',result.twoLayerNet?'yes':'no',`${viaGate} release gate`);score=result.score;formula=`FoM = clamp(100 - ${result.wrongConnections}×24 - ${result.shorts}×25 - ${result.boundaryViolations}×15 - ${result.keepOutViolations}×15 - ${result.lengthPenalty.toFixed(2)}, 0, 100)`;
+    stage='Two-layer layout';const result=scoreLayoutNetwork(),opens=result.opens;
+    add('Open nets',opens,`-${result.openPenalty} pts (release allowed)`);add('Wrong connections',result.wrongConnections,`-${result.wrongConnections*24} points`);add('Short pairs',result.shorts,`-${result.shorts*25} points`);add('Boundary breaches',result.boundaryViolations,`-${result.boundaryPenalty} points`);add('Keep-out breaches',result.keepOutViolations,`-${result.keepOutPenalty} points`);add('Route length penalty',result.lengthPenalty.toFixed(2),`-${result.lengthPenalty.toFixed(2)} points`);add('Two-layer via route',result.twoLayerNet?'yes':'no',result.twoLayerNet?'pass':'single-layer warning');score=result.score;formula=`FoM = clamp(100 - ${opens}×22 - ${result.wrongConnections}×24 - ${result.shorts}×25 - ${result.boundaryViolations}×15 - ${result.keepOutViolations}×15 - ${result.lengthPenalty.toFixed(2)}, 0, 100)`;
   }else if(state.started&&parallel?.active&&stations[state.current]){
     const index=Math.min(state.current,stations.length-1),station=stations[index],st=status[index],controlRows=station.controls.map(control=>{const fitness=controlFitness(control,st.values[control.key]),award=fitness*control.weight;return{control,fitness,award}}),endpoint=clamp(100-Math.abs(st.metric-station.metric.target)/station.metric.tol*25,0,100),weighted=controlRows.reduce((sum,row)=>sum+row.award,endpoint*1.8),weight=controlRows.reduce((sum,row)=>sum+row.control.weight,1.8);
     stage=station.short;controlRows.forEach(({control,fitness,award})=>add(control.label,`${fitness.toFixed(1)}%`,`weight ${control.weight} · ${award.toFixed(1)} pts`));add(station.metric.label,`${endpoint.toFixed(1)}%`,`weight 1.8 · ${(endpoint*1.8).toFixed(1)} pts`);score=weighted/weight;formula=`FoM = ${weighted.toFixed(1)} weighted points / ${weight.toFixed(1)} total weight`;
@@ -207,10 +216,10 @@ function renderDeveloperPane(){
   body.innerHTML=`<div class="developer-stage">${escapeHtml(snapshot.stage)}</div><table class="developer-table"><thead><tr><th>Calculation</th><th>Count / value</th><th>Penalty / award</th></tr></thead><tbody>${snapshot.rows.map(row=>`<tr class="${row.diagnostic?'diagnostic':''}"><td>${escapeHtml(row.label)}</td><td>${escapeHtml(row.value)}</td><td>${escapeHtml(row.effect)}</td></tr>`).join('')}</tbody></table><small class="developer-formula">${escapeHtml(snapshot.formula)}</small>`;
   $('developerFom').textContent=`FoM: ${snapshot.score==null?'--':snapshot.score.toFixed(1)+'%'}`;
 }
-function drawXRDeveloperPane(ctx){if(!ctx||!userPreferences.developerPanel)return;const snapshot=developerSnapshot();ctx.fillStyle='rgba(2,10,16,.96)';ctx.fillRect(390,78,350,380);ctx.strokeStyle='#53e7ff';ctx.lineWidth=3;ctx.strokeRect(390,78,350,380);ctx.fillStyle='#53e7ff';ctx.font='900 17px monospace';ctx.fillText('STAGE MERIT',410,108);ctx.fillStyle='#d9e8ed';ctx.font='800 14px monospace';ctx.fillText(snapshot.stage.slice(0,30),410,134);ctx.font='12px monospace';snapshot.rows.slice(0,8).forEach((row,index)=>{ctx.fillStyle=row.diagnostic?'#ffcf56':'#b8cbd3';ctx.fillText(`${row.label}: ${row.value}`.slice(0,40),410,164+index*25);ctx.fillStyle='#819da9';ctx.fillText(row.effect.slice(0,38),410,180+index*25)});ctx.fillStyle='#67f6a3';ctx.font='900 15px monospace';ctx.fillText(`FoM ${snapshot.score==null?'--':snapshot.score.toFixed(1)+'%'} · ${currentFPS} FPS`,410,426);ctx.fillStyle='#8ca7b8';ctx.font='12px monospace';ctx.fillText('Performance sample: 1 Hz',410,446)}
+function drawXRDeveloperPane(ctx){if(!ctx||!userPreferences.developerPanel)return;const snapshot=developerSnapshot(),calls=renderer?.info?.render?.calls??0,tris=renderer?.info?.render?.triangles??0;ctx.fillStyle='rgba(2,10,16,.96)';ctx.fillRect(390,78,350,380);ctx.strokeStyle='#53e7ff';ctx.lineWidth=3;ctx.strokeRect(390,78,350,380);ctx.fillStyle='#53e7ff';ctx.font='900 17px monospace';ctx.fillText('STAGE MERIT',410,108);ctx.fillStyle='#d9e8ed';ctx.font='800 14px monospace';ctx.fillText(snapshot.stage.slice(0,30),410,134);ctx.font='12px monospace';snapshot.rows.slice(0,8).forEach((row,index)=>{ctx.fillStyle=row.diagnostic?'#ffcf56':'#b8cbd3';ctx.fillText(`${row.label}: ${row.value}`.slice(0,40),410,164+index*25);ctx.fillStyle='#819da9';ctx.fillText(row.effect.slice(0,38),410,180+index*25)});ctx.fillStyle='#67f6a3';ctx.font='900 15px monospace';ctx.fillText(`FoM ${snapshot.score==null?'--':snapshot.score.toFixed(1)+'%'} · ${currentFPS} FPS`,410,420);ctx.fillStyle='#8ca7b8';ctx.font='12px monospace';ctx.fillText(`Calls ${calls} · Tris ${tris}`,410,444)}
 function updateDeveloperMetrics(now){
   fpsFrameCount++;if(!fpsSampleAt)fpsSampleAt=now;if(now-fpsSampleAt<1000)return;currentFPS=Math.round(fpsFrameCount*1000/(now-fpsSampleAt));fpsFrameCount=0;fpsSampleAt=now;
-  if(userPreferences.developerPanel){$('performanceFps').textContent=`${currentFPS} FPS`;renderDeveloperPane();if(renderer.xr.isPresenting)drawXRHandset(now)}
+  if(userPreferences.developerPanel){const calls=renderer?.info?.render?.calls??0,tris=renderer?.info?.render?.triangles??0,lodInfo=globalThis.CleanroomLOD?.getStats?.();$('performanceFps').textContent=`${currentFPS} FPS`;const ps=$('performanceStats');if(ps)ps.textContent=`Calls: ${calls} · Tris: ${tris.toLocaleString?.()??tris}${lodInfo?` · LOD ${lodInfo.near}/${lodInfo.mid}/${lodInfo.far}`:''}`;renderDeveloperPane();if(renderer.xr.isPresenting)drawXRHandset(now)}
 }
 function drawGain(ctx,w,h){if(!designMode.regression)createRegressionChallenge();const r=designMode.regression,p={l:w*.1,r:w*.05,t:h*.09,b:h*.13},pw=w-p.l-p.r,ph=h-p.t-p.b,ys=r.points.flatMap(q=>[q.y,designMode.gain*q.x+designMode.intercept]),ya=Math.max(8,...ys.map(Math.abs))*1.12,X=x=>p.l+(x+5)/10*pw,Y=y=>p.t+(ya-y)/(2*ya)*ph;ctx.fillStyle='#02090e';ctx.fillRect(0,0,w,h);ctx.strokeStyle='#183544';for(let i=0;i<=10;i++){ctx.beginPath();ctx.moveTo(p.l+pw*i/10,p.t);ctx.lineTo(p.l+pw*i/10,h-p.b);ctx.stroke()}for(let i=0;i<=8;i++){ctx.beginPath();ctx.moveTo(p.l,p.t+ph*i/8);ctx.lineTo(w-p.r,p.t+ph*i/8);ctx.stroke()}ctx.strokeStyle='#789aaa';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(p.l,Y(0));ctx.lineTo(w-p.r,Y(0));ctx.moveTo(X(0),p.t);ctx.lineTo(X(0),h-p.b);ctx.stroke();ctx.strokeStyle='#ff9d3c';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(X(-5),Y(-5*designMode.gain+designMode.intercept));ctx.lineTo(X(5),Y(5*designMode.gain+designMode.intercept));ctx.stroke();ctx.fillStyle='#53e7ff';for(const q of r.points){ctx.beginPath();ctx.arc(X(q.x),Y(q.y),6,0,7);ctx.fill()}ctx.fillStyle='#9ab5c1';ctx.font='16px monospace';ctx.fillText('● measured samples',p.l+10,p.t+22);ctx.fillStyle='#ff9d3c';ctx.fillText('— candidate y = mx + c',p.l+10,p.t+46)}  
 function drawMos(ctx,device,w,h,nodes){const gate=nodes.find(node=>node.id===device[0]+'G');CircuitSymbols.drawMos(ctx,device,w,h,'#f4f5f1',gate)}  
@@ -248,6 +257,14 @@ function drawLayout(ctx,w,h){
   const g=layoutGeometry(w,h),colors={M1:'#ffe52b',M2:'#168dff'};ctx.fillStyle='#061017';ctx.fillRect(0,0,w,h);  
   ctx.fillStyle='rgba(120,38,45,.3)';ctx.fillRect(0,0,g.plotW,g.margin);ctx.fillRect(0,h-g.margin,g.plotW,g.margin);ctx.fillRect(0,g.margin,g.margin,h-2*g.margin);ctx.fillRect(g.plotW-g.margin,g.margin,g.margin,h-2*g.margin);ctx.strokeStyle='#ff6579';ctx.lineWidth=4;ctx.strokeRect(g.margin,g.margin,g.plotW-2*g.margin,h-2*g.margin);g.keepouts.forEach(r=>{ctx.fillStyle='#241a1b';ctx.fillRect(r.x,r.y,r.w,r.h);ctx.strokeStyle='#81524c';ctx.strokeRect(r.x,r.y,r.w,r.h)});  
   const routeDraw=(route,alpha=1)=>{ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=colors[route.layer];ctx.lineWidth=9;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();ctx.moveTo(route.points[0].x,route.points[0].y);route.points.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));ctx.stroke();ctx.restore()};  
+  if(!designWorld.active){
+    for(const route of designMode.layoutRoutes)routeDraw(route,1);
+    if(designMode.layoutDraft)routeDraw(designMode.layoutDraft,.65);
+    for(const node of designMode.layoutNodes){
+      if(node.terminal){ctx.fillStyle=node.kind==='input'?'#ff6579':'#6f78ff';ctx.fillRect(node.x-12,node.y-15,24,30);ctx.strokeStyle='#eaf7fb';ctx.lineWidth=2;ctx.strokeRect(node.x-12,node.y-15,24,30)}
+      else{const via=node.metals.size>1;ctx.fillStyle=via?'#d56b1f':'#8faab8';ctx.beginPath();ctx.arc(node.x,node.y,via?10:6,0,Math.PI*2);ctx.fill();if(via){ctx.strokeStyle='#ffe52b';ctx.lineWidth=2;ctx.stroke()}}
+    }
+  }
   if(designMode.layoutDraft){const end=designMode.layoutDraft.points.at(-1);ctx.fillStyle=designMode.layoutDraft.valid?colors[designMode.layoutDraft.layer]:'#ff6579';ctx.beginPath();ctx.arc(end.x,end.y,10,0,Math.PI*2);ctx.fill()}  
   if(!designWorld.active)drawLayoutLabels(ctx,w,h)
 }  
@@ -286,10 +303,18 @@ function releaseDesign(){
   const body=parallel?.active;  
   if(!body){setDesignMessage('Dispense a wafer before releasing a fabrication design.','warn');return}  
   if(body.nextStage!==0){setDesignMessage('The active wafer already has a released sensor design.','warn');return}  
-  recordActivity('Two-layer layout',performance.now()-designMode.stageStartedAt,designMode.layoutScore||0,body.lotId);
-  body.pattern='Logic grid';body.records[0]={score:100,metric:24,ratio:1,processSeconds:24,values:{regressionScore:designMode.regressionBest?.score||0,gradient:designMode.regressionBest?.m??designMode.gain,intercept:designMode.regressionBest?.c??designMode.intercept,circuit:designMode.circuit?.id,circuitScore:designMode.schematicScore,layoutNets:3,metalLayers:2}};  
+  const layout=scoreLayoutNetwork(),regScore=designMode.regressionBest?.score??0,cktScore=designMode.schematicScore||0,layScore=layout.score;
+  const stageScore=Number(((regScore+cktScore+layScore)/3).toFixed(1));
+  const deviations=[];
+  if(layout.opens)deviations.push(`${layout.opens} open layout net(s) (-${layout.openPenalty} pts)`);
+  if(layout.wrongConnections)deviations.push(`${layout.wrongConnections} wrong net connection(s)`);
+  if(layout.shorts)deviations.push(`${layout.shorts} short(s)`);
+  if(layout.boundaryViolations)deviations.push(`${layout.boundaryViolations} boundary breach(es)`);
+  if(layout.keepOutViolations)deviations.push(`${layout.keepOutViolations} keep-out breach(es)`);
+  recordActivity('Two-layer layout',performance.now()-designMode.stageStartedAt,layScore,body.lotId);
+  body.pattern='Logic grid';body.records[0]={score:stageScore,metric:24,ratio:1,processSeconds:24,deviations,values:{regressionScore:regScore,gradient:designMode.regressionBest?.m??designMode.gain,intercept:designMode.regressionBest?.c??designMode.intercept,circuit:designMode.circuit?.id,circuitScore:cktScore,layoutScore:layScore,layoutNets:layout.connected,metalLayers:2}};  
   body.nextStage=1;body.startedAt=body.startedAt||performance.now();designMode.releasedBodies.add(body.id);  
-  status[0].state='complete';status[0].metric=24;status[0].score=100;status[0].deviations=[];setLamp(0);  
-  syncActiveWafer(body);state.current=1;toast(`${body.lotId} sensor design released. Proceed to the oxidation furnace.`);updateAll();closeDesignMode()  
+  status[0].state='complete';status[0].metric=24;status[0].score=stageScore;status[0].deviations=deviations;setLamp(0);  
+  syncActiveWafer(body);state.current=1;toast(`${body.lotId} design released (${stageScore.toFixed(0)}%). Proceed to oxidation.`,stageScore>=80?'':'warn');updateAll();closeDesignMode()  
 }  
 

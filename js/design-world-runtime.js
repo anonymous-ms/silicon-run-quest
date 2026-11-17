@@ -17,7 +17,7 @@ function worldActionList(){if(designWorld.stage===0)return[['SUBMIT FIT','submit
 function ensureDesignActionPanel(){if(designWorld.actionPanel)return;const panel=new THREE.Group();panel.position.set(6.4,4.3,-8.72);designWorld.root.add(panel);box(3.55,8.1,.18,mat(0x0a1a24,.2,.55),panel,0,0,0);const title=labelMesh('DESIGN CONTROLS','#53e7ff',2.8,.32,30);title.position.set(0,3.55,.105);panel.add(title);designWorld.actionPanel=panel;rebuildDesignActionButtons()}
 function rebuildDesignActionButtons(){if(!designWorld.actionPanel)return;for(const button of designWorld.actionButtons){button.parent?.remove(button);button.userData.labelMesh?.parent?.remove(button.userData.labelMesh);button.geometry.dispose();button.material.dispose();button.userData.labelMesh?.material.map?.dispose();button.userData.labelMesh?.material.dispose();button.userData.labelMesh?.geometry.dispose()}designWorld.actionButtons=[];const actions=worldActionList(),buttonH=.82,gap=.22,total=actions.length*buttonH+(actions.length-1)*gap,top=total/2-buttonH/2;actions.forEach(([label,action],index)=>{const y=top-index*(buttonH+gap),layer=action==='m1'||action==='m2',selected=layer&&designMode.layer===action.toUpperCase(),color=layer?(action==='m1'?0xffe52b:0x168dff):action==='submit'?0x67f6a3:0x54717f,surface=box(3.1,buttonH,.09,mat(selected?color:0x142a35,.24,.4,false,1,selected?color:0),designWorld.actionPanel,0,y,.15);surface.material.emissiveIntensity=selected?.32:0;surface.userData={action,label,baseColor:color,layer,selected};const caption=labelMesh(label,'#eff8fb',2.6,layer?.68:.34,layer?60:30);caption.position.set(0,y,.205);designWorld.actionPanel.add(caption);surface.userData.labelMesh=caption;designWorld.actionButtons.push(surface)});designWorld.actionSignature=`${designWorld.stage}:${designMode.layer}:${designMode.layoutComplete}`}
 function setDesignPanelStatus(text,color='#a9c0cb'){if(!designWorld.actionPanel)return;if(designWorld.actionStatus?.userData.text===text&&designWorld.actionStatus.userData.color===color)return;if(designWorld.actionStatus){const old=designWorld.actionStatus;old.parent?.remove(old);old.material.map?.dispose();old.material.dispose();old.geometry.dispose()}const label=labelMesh(text,color,3.1,.28,23);label.position.set(0,-3.62,.105);label.userData.text=text;label.userData.color=color;designWorld.actionPanel.add(label);designWorld.actionStatus=label}
-function syncDesignActionPanel(){ensureDesignActionPanel();const signature=`${designWorld.stage}:${designMode.layer}:${designMode.layoutComplete}`;if(signature!==designWorld.actionSignature)rebuildDesignActionButtons();if(designWorld.actionNotice)setDesignPanelStatus(designWorld.actionNotice,'#ff8b79');else if(designWorld.stage===2)setDesignPanelStatus(`${designMode.layoutConnected}/3 NETS · ${designMode.layoutScore.toFixed(1)}% QUALITY`,designMode.layoutComplete?'#67f6a3':'#d5e5ea');else setDesignPanelStatus(designWorld.stage===0?'FIT THE REGRESSION':'REPAIR TWO CIRCUIT CONNECTIONS')}
+function syncDesignActionPanel(){ensureDesignActionPanel();const signature=`${designWorld.stage}:${designMode.layer}:${!!designMode.layoutClean}:${designMode.layoutScore?.toFixed?.(0)||0}`;if(signature!==designWorld.actionSignature)rebuildDesignActionButtons();if(designWorld.actionNotice)setDesignPanelStatus(designWorld.actionNotice,'#ff8b79');else if(designWorld.stage===2)setDesignPanelStatus(`${designMode.layoutConnected}/3 NETS · ${designMode.layoutScore.toFixed(1)}% QUALITY`,designMode.layoutClean?'#67f6a3':'#ffcf56');else setDesignPanelStatus(designWorld.stage===0?'FIT THE REGRESSION':'REPAIR TWO CIRCUIT CONNECTIONS')}
 function designActionHit(origin,direction){raycaster.set(origin,direction);return raycaster.intersectObjects(designWorld.actionButtons,false)[0]?.object||null}
 function activateDesignAction(button){if(!button)return false;const action=button.userData.action;if(action==='m1'||action==='m2')setWorldLayer(action.toUpperCase());else executeWorldAction(action);return true}
 function designXRAction(controller){if(!controller||!designWorld.actionButtons.length)return null;controller.updateMatrixWorld(true);const rotation=new THREE.Matrix4().extractRotation(controller.matrixWorld),origin=new THREE.Vector3().setFromMatrixPosition(controller.matrixWorld),direction=new THREE.Vector3(0,0,-1).applyMatrix4(rotation).normalize();return designActionHit(origin,direction)}
@@ -83,8 +83,18 @@ function executeWorldAction(action){
   if(action==='m1'||action==='m2'){setWorldLayer(action.toUpperCase());return}  
   if(action==='submit'){
     if(designWorld.stage===1){submitSchematic();syncDesignBoard();if(designMode.schematicComplete){designMode.step=2;designWorld.stage=2;designWorld.layout3DSignature='';designMode.layoutActive=null;designMode.layoutDraft=null;initializeLayoutNodes();renderDesignStep();syncDesignBoard();toast('Circuit verified. Two-layer layout is now active on the wall.')}return}  
-    if(designMode.layoutComplete){const body=parallel?.active;if(!body){const message='Release blocked: dispense a wafer first.';setDesignMessage(message,'warn');toast(message,'warn');syncDesignActionPanel();return}if(body.nextStage!==0){const message='Release blocked: this wafer already has a sensor design.';setDesignMessage(message,'warn');toast(message,'warn');syncDesignActionPanel();return}leaveDesignWorld(false);releaseDesign();toast('Sensor design released. The next production activity is ready.');return}  
-    const result=scoreLayoutNetwork(),message=`Release blocked: ${result.connected}/3 nets, ${result.wrongConnections} wrong connections, ${result.shorts} shorts, ${result.boundaryViolations} boundary breaches, ${result.keepOutViolations} keep-out breaches.`;designWorld.actionNotice=message.toUpperCase();setDesignMessage(message,'warn');toast(message,'warn');syncDesignActionPanel();return  
+    const body=parallel?.active;
+    if(!body){const message='Release blocked: dispense a wafer first.';designWorld.actionNotice=message.toUpperCase();setDesignMessage(message,'warn');toast(message,'warn');syncDesignActionPanel();return}
+    if(body.nextStage!==0){const message='Release blocked: this wafer already has a sensor design.';designWorld.actionNotice=message.toUpperCase();setDesignMessage(message,'warn');toast(message,'warn');syncDesignActionPanel();return}
+    const result=scoreLayoutNetwork();
+    designWorld.actionNotice='';
+    leaveDesignWorld(false);releaseDesign();
+    if(result.opens||result.wrongConnections||result.shorts||result.boundaryViolations||result.keepOutViolations){
+      toast(`Released with layout penalties (${result.score.toFixed(0)}%: ${result.opens} opens, ${result.shorts} shorts, ${result.boundaryViolations+result.keepOutViolations} no-go).`,'warn');
+    }else{
+      toast('Clean sensor design released. Next station is ready.');
+    }
+    return
   }  
 }  
 function boardPointFromRay(origin,direction){  
@@ -101,7 +111,7 @@ function designDesktopPointerDown(e){if(designWorld.active)blockDesignWorldActiv
 function designDesktopUp(e){if(!designWorld.active||!designWorld.dragging)return;e?.preventDefault?.();e?.stopImmediatePropagation?.();designBoardAction('up',desktopDesignPoint());designWorld.dragging=false}  
 function designXRStart(c){if(!designWorld.active)return false;const action=designXRAction(c);if(action){activateDesignAction(action);pulseXR(.45,45);return true}const p=xrDesignPoint(c);if(!p)return false;designWorld.xrDragging.add(handKey(c));designBoardAction('down',p);pulseXR(.35,35);return true}  
 function designXREnd(c){if(!designWorld.active||!designWorld.xrDragging.has(handKey(c)))return false;designBoardAction('up',xrDesignPoint(c));if(designWorld.stage===0)designWorld.gainDrag=null;designWorld.xrDragging.delete(handKey(c));return true}  
-function updateDesignInteraction(){if(!designWorld.active||state.paused)return;const action=renderer.xr.isPresenting?designXRAction(xrController1):designDesktopAction();for(const button of designWorld.actionButtons){const hovered=button===action,selected=button.userData.layer&&designMode.layer===button.userData.action.toUpperCase(),releaseBlocked=button.userData.action==='submit'&&designWorld.stage===2&&!designMode.layoutComplete,color=releaseBlocked?0x713441:hovered?0x67f6a3:selected?button.userData.baseColor:0x142a35;button.material.color.setHex(color);button.material.emissive.setHex(hovered||selected?color:0);button.material.emissiveIntensity=hovered?.35:selected?.24:0;button.scale.setScalar(hovered?1.035:1)}if(designWorld.stage===2){const hovers=[];if(renderer.xr.isPresenting){for(const c of [xrController0,xrController1]){const point=xrDesignPoint(c),node=point&&nearestLayoutNode(point,designMode.layoutDraft?.fromId);if(node)hovers.push({id:node.id})}}else{const point=desktopDesignPoint(),node=point&&nearestLayoutNode(point,designMode.layoutDraft?.fromId);if(node)hovers.push({id:node.id})}designMode.layoutHoverNodes=hovers}if(designWorld.dragging)designBoardAction('move',desktopDesignPoint());for(const c of [xrController0,xrController1])if(designWorld.xrDragging.has(handKey(c)))designBoardAction('move',xrDesignPoint(c));syncDesignBoard()}
+function updateDesignInteraction(){if(!designWorld.active||state.paused)return;const action=renderer.xr.isPresenting?designXRAction(xrController1):designDesktopAction();for(const button of designWorld.actionButtons){const hovered=button===action,selected=button.userData.layer&&designMode.layer===button.userData.action.toUpperCase(),noWafer=button.userData.action==='submit'&&designWorld.stage===2&&(!parallel?.active||parallel.active.nextStage!==0),hasWarnings=button.userData.action==='submit'&&designWorld.stage===2&&!noWafer&&!designMode.layoutClean,color=noWafer?0x713441:hovered?0x67f6a3:hasWarnings?0x7a5718:selected?button.userData.baseColor:0x142a35;button.material.color.setHex(color);button.material.emissive.setHex(hovered||selected?color:0);button.material.emissiveIntensity=hovered?.35:selected?.24:0;button.scale.setScalar(hovered?1.035:1)}if(designWorld.stage===2){const hovers=[];if(renderer.xr.isPresenting){for(const c of [xrController0,xrController1]){const point=xrDesignPoint(c),node=point&&nearestLayoutNode(point,designMode.layoutDraft?.fromId);if(node)hovers.push({id:node.id})}}else{const point=desktopDesignPoint(),node=point&&nearestLayoutNode(point,designMode.layoutDraft?.fromId);if(node)hovers.push({id:node.id})}designMode.layoutHoverNodes=hovers}if(designWorld.dragging)designBoardAction('move',desktopDesignPoint());for(const c of [xrController0,xrController1])if(designWorld.xrDragging.has(handKey(c)))designBoardAction('move',xrDesignPoint(c));syncDesignBoard()}
 function updateDesignLocomotion(dt){  
   if(renderer.xr.isPresenting||!designWorld.active)return;let f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0),r=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0),n=Math.hypot(f,r)||1;f/=n;r/=n;const crouch=keys.ShiftLeft||keys.ShiftRight,sprint=(keys.ControlLeft||keys.ControlRight)&&!crouch,speed=crouch?1.2:sprint?5.2:2.75;movePlayerColliderTo(player.position.x+(-Math.sin(yaw)*f+Math.cos(yaw)*r)*speed*dt,player.position.z+(-Math.cos(yaw)*f-Math.sin(yaw)*r)*speed*dt,playerRoomBounds());player.position.y=lerp(player.position.y,crouch?1.29:2.58,1-Math.exp(-dt*10));player.rotation.y=yaw;camera.rotation.x=pitch  
 }  
@@ -212,7 +222,7 @@ newRun=function(){
 // V8.12: projected desktop mouse grip for physical wafer handling.
 const desktopGrip={
   controller:new THREE.Group(),anchor:null,visual:null,hand:null,fingers:[],beam:null,hover:null,
-  reach:.42,depth:1.05,desiredDepth:1.05,minDepth:.4,maxDepth:8,wheelRemainder:0,suppressClick:false,xrSnapshots:new Map()
+  reach:.42,depth:1.37,desiredDepth:1.37,minDepth:.4,maxDepth:8,wheelRemainder:0,suppressClick:false,xrSnapshots:new Map()
 };
 desktopGrip.controller.userData={handIndex:'mouse',handedness:'Desktop'};
 let desktopDoorGrab=null;
@@ -255,7 +265,7 @@ function desktopGripEnabled(){return state.started&&!renderer.xr.isPresenting&&d
 function nearestDesktopWafer(max=desktopGrip.reach){
   if(!desktopGrip.anchor)return null;const p=desktopGrip.anchor.getWorldPosition(new THREE.Vector3());let best=null,d=max;
   for(const body of parallel.wafers){
-    if(body.broken||body.heldBy!=null||!body.view.visible)continue;
+    if(body.broken||body.grabbable===false||body.heldBy!=null||!body.view.visible)continue;
     if(body.machineIndex!=null){const st=status[body.machineIndex];if(!st||!['done','unloadedDoorOpen'].includes(st.state)||st.doorAmount<=.45)continue}
     const q=body.view.getWorldPosition(new THREE.Vector3()),n=p.distanceTo(q);if(n<=d){d=n;best={body,distance:n,point:q}}
   }
@@ -268,6 +278,7 @@ function nearestDesktopDoorHandle(){
 }
 function beginDesktopDoorGrab(){
   if(state.paused||desktopDoorGrab||getHandGrab(desktopGrip.controller))return false;const target=nearestDesktopDoorHandle();if(!target)return false;
+  if(status[target.index]?.state==='running'){if(typeof notifyDoorLocked==='function')notifyDoorLocked(target.index);else toast((stations[target.index]?.name||'Machine')+' door is locked while running. Press STOP first.','warn');phys.doorVelocities[target.index]=0;return true}
   desktopDoorGrab={index:target.index,lastAt:performance.now()};phys.doorVelocities[target.index]=0;return true
 }
 function endDesktopDoorGrab(){desktopDoorGrab=null}
@@ -288,9 +299,10 @@ function updateDesktopHandPose(dt,now,grabbing){
 function grabDesktopWafer(){
   if(!desktopGripEnabled()||getHandGrab(desktopGrip.controller))return false;const near=nearestDesktopWafer();if(!near)return false;
   const body=near.body,anchor=desktopGrip.anchor,sourceMachineIndex=body.machineIndex;desktopGrip.desiredDepth=desktopGrip.depth;desktopGrip.wheelRemainder=0;anchor.position.z=-desktopGrip.desiredDepth;const target=anchor.getWorldPosition(new THREE.Vector3());detachPreserve(body.view,scene);body.view.position.copy(target);body.view.scale.setScalar(1);
-  body.dynamic=false;body.staged=false;body.heldBy='mouse';if(phys.stockReady===body.view)phys.stockReady=null;
+  const wasStaged=!!body.staged;body.dynamic=false;body.staged=false;body.heldBy='mouse';if(phys.stockReady===body.view)phys.stockReady=null;if(wasStaged&&stockMachine?.robot){stockMachine.robot.phase='animating';stockMachine.robot.t=0}
   if(sourceMachineIndex!=null){const machine=machines[sourceMachineIndex+1];if(status[sourceMachineIndex].state==='done')status[sourceMachineIndex].state='unloadedDoorOpen';if(machine?.body===body){machine.body=null;machine.wafer.visible=false}body.machineIndex=null}
-  const grab={kind:'wafer',controller:desktopGrip.controller,body,last:target.clone(),velocity:new THREE.Vector3(),slotMachineIndex:sourceMachineIndex};setHandGrab(desktopGrip.controller,grab);
+  const grab={kind:'wafer',controller:desktopGrip.controller,body,last:target.clone(),velocity:new THREE.Vector3(),slotMachineIndex:sourceMachineIndex,snappedStation:null};setHandGrab(desktopGrip.controller,grab);
+  updateHeldWaferGrab(grab,0);
   syncActiveWafer(body);phys.waferEverPicked=true;if(phys.pickupGuide)phys.pickupGuide.visible=false;scheduleStockReplacement();desktopGrip.suppressClick=true;
   toast(`Desktop grip picked up wafer ${body.lotId}. Release left mouse to let go.`);return true
 }
@@ -303,7 +315,7 @@ function releaseDesktopWafer(place=true){
 function updateDesktopGrip(dt,now){
   ensureDesktopGrip();const enabled=desktopGripEnabled();desktopGrip.anchor.visible=enabled;desktopGrip.beam.visible=enabled;if(!enabled){desktopGrip.hover=null;return}
   const grab=getHandGrab(desktopGrip.controller);
-  if(grab?.kind==='wafer'){desktopGrip.hover=null;colourDesktopGrip(C.amber,.62)}
+  if(grab?.kind==='wafer'){updateHeldWaferGrab(grab,dt);desktopGrip.hover=null;colourDesktopGrip(grab.snappedStation!=null?C.green:C.amber,.62)}
   else{desktopGrip.hover=nearestDesktopWafer();colourDesktopGrip(desktopGrip.hover?C.green:C.cyan,desktopGrip.hover?.58:.34)}
   updateDesktopHandPose(dt,now,grab?.kind==='wafer')
 }
@@ -313,11 +325,11 @@ function adjustDesktopGripDistance(event){
   event.preventDefault();const unit=event.deltaMode===1?3:event.deltaMode===2?1:100;desktopGrip.wheelRemainder+=event.deltaY/unit;const steps=Math.trunc(desktopGrip.wheelRemainder);if(!steps)return;desktopGrip.wheelRemainder-=steps;desktopGrip.desiredDepth=clamp(desktopGrip.desiredDepth*Math.pow(1.03,steps),desktopGrip.minDepth,desktopGrip.maxDepth);desktopGrip.anchor.position.z=-desktopGrip.desiredDepth
 }
 function closestPointOnDesktopDoor(machine,point){
-  machine.door.updateWorldMatrix(true,false);const a=machine.door.localToWorld(new THREE.Vector3(-.92,0,0)),b=machine.door.localToWorld(new THREE.Vector3(.92,0,0)),dx=b.x-a.x,dz=b.z-a.z,t=clamp(((point.x-a.x)*dx+(point.z-a.z)*dz)/(dx*dx+dz*dz||1),0,1);return{x:a.x+dx*t,z:a.z+dz*t}
+  machine.door.updateWorldMatrix(true,false);const a=machine.door.localToWorld(new THREE.Vector3(0,0,0)),b=machine.door.localToWorld(new THREE.Vector3(1.66,0,0)),dx=b.x-a.x,dz=b.z-a.z,t=clamp(((point.x-a.x)*dx+(point.z-a.z)*dz)/(dx*dx+dz*dz||1),0,1);return{x:a.x+dx*t,z:a.z+dz*t}
 }
 function applyDesktopDoorPlayerImpact(dt){
   if(!state.started||state.paused||renderer.xr.isPresenting||document.pointerLockElement!==renderer.domElement)return;let forward=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0),right=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0),length=Math.hypot(forward,right);if(!length)return;forward/=length;right/=length;const speed=(state.crouching?1.2:2.75)+(state.sprinting?4.4*state.stamina:0),vx=(-Math.sin(yaw)*forward+Math.cos(yaw)*right)*speed,vz=(-Math.cos(yaw)*forward-Math.sin(yaw)*right)*speed,playerPoint={x:player.position.x,z:player.position.z};
-  status.forEach((st,index)=>{const machine=machines[index+1];if(!machine||machine.kind!=='fabrication'||!machine.door)return;const nearest=closestPointOnDesktopDoor(machine,playerPoint),dx=nearest.x-playerPoint.x,dz=nearest.z-playerPoint.z,distance=Math.hypot(dx,dz);if(distance>.48||distance<1e-4||(vx*dx+vz*dz)/distance<=0)return;const pivot=machine.door.getWorldPosition(new THREE.Vector3()),handle=machine.door.localToWorld(new THREE.Vector3(.92,0,0)),torque=(handle.x-pivot.x)*vz-(handle.z-pivot.z)*vx;if(Math.abs(torque)<.01)return;phys.doorVelocities[index]=clamp((phys.doorVelocities[index]||0)+Math.sign(torque)*Math.min(1.2,speed*dt*1.35),-4,4)})
+  status.forEach((st,index)=>{if(st.state==='running')return;const machine=machines[index+1];if(!machine||machine.kind!=='fabrication'||!machine.door)return;const nearest=closestPointOnDesktopDoor(machine,playerPoint),dx=nearest.x-playerPoint.x,dz=nearest.z-playerPoint.z,distance=Math.hypot(dx,dz);if(distance>.48||distance<1e-4||(vx*dx+vz*dz)/distance<=0)return;const pivot=machine.door.getWorldPosition(new THREE.Vector3()),handle=machine.door.localToWorld(new THREE.Vector3(1.54,0,0)),torque=(handle.x-pivot.x)*vz-(handle.z-pivot.z)*vx;if(Math.abs(torque)<.01)return;phys.doorVelocities[index]=clamp((phys.doorVelocities[index]||0)+Math.sign(torque)*Math.min(1.2,speed*dt*1.35),-4,4)})
 }
 function resolveDesktopDoorPlayerCollision(previous){
   if(renderer.xr.isPresenting)return;const radius=.39;
@@ -326,12 +338,20 @@ function resolveDesktopDoorPlayerCollision(previous){
 const v812UpdateMovement=updateMovement;
 updateMovement=function(dt){const previous=player.position.clone();applyDesktopDoorPlayerImpact(dt);const intended=colliders.splice(0);try{v812UpdateMovement(dt)}finally{colliders.push(...intended)}const targetX=player.position.x,targetZ=player.position.z;player.position.x=previous.x;player.position.z=previous.z;movePlayerColliderTo(targetX,targetZ,playerRoomBounds(),previous);resolveDesktopDoorPlayerCollision(previous)};
 const v812ToggleDoor=toggleDoor;
-toggleDoor=function(index){const opening=status[index].doorTarget<=.5;v812ToggleDoor(index);if(!renderer.xr.isPresenting)phys.doorVelocities[index]=opening?3.2:-3.2};
+toggleDoor=function(index){if(status[index]?.state==='running'){if(typeof notifyDoorLocked==='function')notifyDoorLocked(index);else toast((stations[index]?.name||'Machine')+' door is locked while running. Press STOP first.','warn');return}const opening=status[index].doorTarget<=.5;v812ToggleDoor(index);if(!renderer.xr.isPresenting)phys.doorVelocities[index]=opening?3.2:-3.2};
 const v812UpdateDoors=updateDoors;
 updateDoors=function(dt){
   if(renderer.xr.isPresenting){v812UpdateDoors(dt);return}
-  status.forEach((st,index)=>{const machine=machines[index+1];if(!machine||machine.kind!=='fabrication'||!machine.door)return;let velocity=phys.doorVelocities[index]||0;
-    st.doorAmount=clamp(st.doorAmount+velocity*dt,0,1.5);velocity*=Math.exp(-dt*(desktopDoorGrab?.index===index?1.9:2.8));if(st.doorAmount===0&&velocity<0||st.doorAmount===1.5&&velocity>0)velocity=0;
+  status.forEach((st,index)=>{const machine=machines[index+1];if(!machine||machine.kind!=='fabrication'||!machine.door)return;if(st.state==='running'){st.doorAmount=0;st.doorTarget=0;phys.doorVelocities[index]=0;machine.door.rotation.y=0;return}let velocity=phys.doorVelocities[index]||0;
+    const held=desktopDoorGrab?.index===index;
+    if(!held&&st.doorAmount>0&&st.doorAmount<DOOR_MAGNET_ANGLE&&velocity<=.65){
+      velocity-=3.4*dt;if(velocity>0)velocity*=.45;
+    }else{
+      velocity*=Math.exp(-dt*(held?1.9:2.8));
+    }
+    st.doorAmount=clamp(st.doorAmount+velocity*dt,0,1.5);
+    if((st.doorAmount<=.002&&!held&&velocity<=0)||(st.doorAmount===0&&velocity<0)){st.doorAmount=0;st.doorTarget=0;velocity=0}
+    else if(st.doorAmount===1.5&&velocity>0){velocity=0}
     phys.doorVelocities[index]=velocity;machine.door.rotation.y=-st.doorAmount*Math.PI/2;if(st.doorAmount===0){if(st.state==='loadedDoorOpen')st.state='loaded';else if(st.state==='unloadedDoorOpen')completeStage(index)}
   })
 };
@@ -351,7 +371,7 @@ raycastFocus=function(){
   v811RaycastFocus();if(!state.started||renderer.xr.isPresenting||designMode.phase!=='idle'||designWorld.active)return;
   ensureDesktopGrip();const grab=getHandGrab(desktopGrip.controller),near=grab?.kind==='wafer'?null:nearestDesktopWafer(),crosshair=$('crosshair'),tag=$('focusTag');
   crosshair.classList.toggle('desktop-wafer-ready',!!near&&!grab);crosshair.classList.toggle('desktop-wafer-held',grab?.kind==='wafer');
-  if(grab?.kind==='wafer'){tag.style.opacity='1';tag.style.borderColor='#ffcf56';tag.textContent=`${grab.body.lotId} — RELEASE LEFT MOUSE TO DROP`;$('prompt').textContent='Projected grip holding wafer · release left mouse to place or drop'}
+  if(grab?.kind==='wafer'){const snapped=grab.snappedStation!=null,snapName=grab.snappedStation==='delivery'?'FINAL DELIVERY BENCH':(stations[grab.snappedStation]?.short?.toUpperCase()||'STATION');tag.style.opacity='1';tag.style.borderColor=snapped?'#67f6a3':'#ffcf56';tag.textContent=snapped?`${grab.body.lotId} — SNAPPED TO ${snapName} · RELEASE TO ${grab.snappedStation==='delivery'?'SUBMIT':'SEAT'}`:`${grab.body.lotId} — RELEASE LEFT MOUSE TO DROP`;$('prompt').textContent=snapped?'Wafer snapped to locator · release left mouse to place or move outside sphere':'Projected grip holding wafer · release left mouse to place or drop'}
   else if(near){tag.style.opacity='1';tag.style.borderColor='#67f6a3';tag.textContent=`${near.body.lotId} — HOLD LEFT MOUSE TO GRAB`;$('prompt').textContent='Wafer within projected grip range · hold left mouse to pick up'}
 };
 const v811BindDesktopGrip=bind;
@@ -383,32 +403,21 @@ const v811NewRunDesktopGrip=newRun;
 newRun=function(){releaseDesktopWafer(false);v811NewRunDesktopGrip();desktopGrip.hover=null;desktopGrip.suppressClick=false};
 
 
-// V8.13: controller-ray selection for the design workstation display.
-function xrScreenTarget(controller){
+// V8.13.1: either Quest controller can select the design computer at controller ray range.
+const XR_DESIGN_SCREEN_RANGE=XR_POINTER_REACH;
+function xrDesignScreenHit(controller){
   if(!controller)return null;
   const rotation=new THREE.Matrix4().extractRotation(controller.matrixWorld);
   const origin=new THREE.Vector3().setFromMatrixPosition(controller.matrixWorld);
   const direction=new THREE.Vector3(0,0,-1).applyMatrix4(rotation).normalize();
   raycaster.set(origin,direction);
   for(const hit of raycaster.intersectObjects(interactives,false)){
-    if(hit.distance>3.4)break;
-    if(hit.object.userData?.kind==='designTerminal')return hit.object;
+    if(hit.distance>XR_DESIGN_SCREEN_RANGE)break;
+    if(hit.object.userData?.kind==='designTerminal')return hit;
   }
   return null;
 }
-const v812TriggerStart=onXRTriggerStart;
-onXRTriggerStart=function(controller){
-  if(!state.paused&&!designWorld.active){
-    const screen=xrScreenTarget(controller);
-    if(screen){
-      state.focus=screen;
-      pulseXR(.35,35);
-      activateFocused();
-      return;
-    }
-  }
-  v812TriggerStart(controller);
-};
+function xrScreenTarget(controller){return xrDesignScreenHit(controller)?.object||null}
 const v812SetXRFocus=setXRFocus;
 setXRFocus=function(controller=xrController1){
   v812SetXRFocus();
@@ -424,21 +433,6 @@ setXRFocus=function(controller=xrController1){
     }
   }
 };
-// V8.13.1: either Quest controller can select the design computer at close range.
-const XR_DESIGN_SCREEN_RANGE=XR_POINTER_REACH;
-function xrDesignScreenHit(controller){
-  if(!controller)return null;
-  const rotation=new THREE.Matrix4().extractRotation(controller.matrixWorld);
-  const origin=new THREE.Vector3().setFromMatrixPosition(controller.matrixWorld);
-  const direction=new THREE.Vector3(0,0,-1).applyMatrix4(rotation).normalize();
-  raycaster.set(origin,direction);
-  for(const hit of raycaster.intersectObjects(interactives,false)){
-    if(hit.distance>XR_DESIGN_SCREEN_RANGE)break;
-    if(hit.object.userData?.kind==='designTerminal')return hit;
-  }
-  return null;
-}
-function xrScreenTarget(controller){return xrDesignScreenHit(controller)?.object||null}
 const v813TriggerStart=onXRTriggerStart;
 onXRTriggerStart=function(controller){
   if(!state.paused&&!designWorld.active){
@@ -452,7 +446,7 @@ onXRTriggerStart=function(controller){
 (function(){
   const VERSION='V8.13.2', UPDATED='24 OCT 2026';
   function showRelease(){
-    const host=document.querySelector('#intro .cardInner');
+    const host=document.querySelector('#intro .cardInner, #intro .menu-brand');
     if(!host||document.getElementById('releaseIndicator'))return;
     const tag=document.createElement('div');
     tag.id='releaseIndicator';tag.className='release-indicator';tag.setAttribute('aria-label','Latest code update');
@@ -472,6 +466,7 @@ updateXRButtons=function(now){
   xrLeftSource=sources.find(source=>source.handedness==='left')||xrLeftSource;
   xrRightSource=sources.find(source=>source.handedness==='right')||xrRightSource;
   if(state.paused){
+    if(controlsTraining.active){pollVRControlsTraining();return}
     const left=xrLeftSource?.gamepad,right=xrRightSource?.gamepad;
     if(left){edgeButton('ls',!!left.buttons[3]?.pressed,unstuckPlayer);edgeButton('lx',!!left.buttons[4]?.pressed,()=>{xrPausePage=xrPausePage==='more'?'pause':'more';drawXRPauseOverlay()});edgeButton('ly',!!left.buttons[5]?.pressed,()=>{if(xrPausePage==='more'){toggleDeveloperPanel();drawXRPauseOverlay()}})}
     if(right){const resume=()=>{setXRPaused(false);pulseXR(.4,45)};edgeButton('rs',!!right.buttons[3]?.pressed,resume);edgeButton('ra',!!right.buttons[4]?.pressed,()=>xrPausePage==='more'?adjustGuiTextSize(-1):resume());edgeButton('rb',!!right.buttons[5]?.pressed,()=>xrPausePage==='more'?adjustGuiTextSize(1):resume())}
@@ -484,7 +479,11 @@ updateXRButtons=function(now){
 const v814Loop=loop;
 loop=function(now){
   updateDeveloperMetrics(now);
-  if(renderer.xr.isPresenting&&state.paused){updateXRButtons(now);if(state.paused)drawXRPauseOverlay();renderer.render(scene,camera);return}
+  if(renderer.xr.isPresenting&&state.paused){
+    updateGhostHandPose(phys.handData[0],xrController0.userData.handedness==='right'?xrRightSource:xrLeftSource,.016);
+    updateGhostHandPose(phys.handData[1],xrController1.userData.handedness==='left'?xrLeftSource:xrRightSource,.016);
+    updateXRButtons(now);if(state.paused)drawXRPauseOverlay();renderer.render(scene,camera);return
+  }
   v814Loop(now)
 };
 const v814XRTriggerStart=onXRTriggerStart,v814XRTriggerEnd=onXRTriggerEnd,v814XRSqueezeStart=onXRSqueezeStart,v814XRSqueezeEnd=onXRSqueezeEnd;
@@ -493,6 +492,6 @@ onXRTriggerEnd=function(controller){if(state.paused){designWorld.xrDragging.dele
 onXRSqueezeStart=function(controller){if(state.paused)return;v814XRSqueezeStart(controller)};
 onXRSqueezeEnd=function(controller){if(state.paused)return;v814XRSqueezeEnd(controller)};
 const v812DrawXRPauseOverlay=drawXRPauseOverlay;
-drawXRPauseOverlay=function(){v812DrawXRPauseOverlay();if(xrPausePage==='more'||!xrOverlayCtx||!xrOverlayTexture)return;const ctx=xrOverlayCtx;ctx.fillStyle='rgba(3,12,20,.98)';ctx.fillRect(240,538,544,30);ctx.textAlign='center';ctx.fillStyle='#b8cbd3';ctx.font='14px monospace';ctx.fillText('LEFT STICK CLICK: UNSTUCK',512,558);xrOverlayTexture.needsUpdate=true};
+drawXRPauseOverlay=function(){v812DrawXRPauseOverlay();if(controlsTraining.active||xrPausePage==='more'||!xrOverlayCtx||!xrOverlayTexture)return;const ctx=xrOverlayCtx;ctx.fillStyle='rgba(3,12,20,.98)';ctx.fillRect(240,538,544,30);ctx.textAlign='center';ctx.fillStyle='#b8cbd3';ctx.font='14px monospace';ctx.fillText('LEFT STICK CLICK: UNSTUCK',512,558);xrOverlayTexture.needsUpdate=true};
 
 
