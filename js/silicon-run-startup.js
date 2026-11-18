@@ -77,7 +77,7 @@ function installPhotoresistStation(){
 
 function installHandAlignLaunchHook(){
   const params=new URLSearchParams(location.search);
-  const enabled=params.get('debug')==='hand-align'||params.get('test')==='hand-align';
+  const enabled=params.has('debug-hand-align')||params.get('debug')==='hand-align'||params.get('test')==='hand-align';
   if(!enabled)return;
 
   scene.children.slice().forEach(child=>scene.remove(child));
@@ -119,8 +119,8 @@ function installHandAlignLaunchHook(){
     {position:[0,.46,.12],target:[0,0,0]}
   ];
   const offsets={
-    right:{position:[.028,-.085,-.070],rotation:[-.82,.42,-.38]},
-    left:{position:[-.028,-.085,-.070],rotation:[-.82,-.42,.38]}
+    right:{position:[.031,-.083,.046],rotation:[.10471975511965978,-.24434609527920614,1.5533430342749532]},
+    left:{position:[-.031,-.083,.046],rotation:[.10471975511965978,.24434609527920614,-1.5533430342749532]}
   };
 
   const root=new THREE.Group();
@@ -155,6 +155,7 @@ function installHandAlignLaunchHook(){
     const data=phys.handData[handedness==='left'?0:1];
     const offset=offsets[handedness];
     data.root.position.set(offset.position[0],offset.position[1],offset.position[2]);
+    data.root.rotation.order='XYZ';
     data.root.rotation.set(offset.rotation[0],offset.rotation[1],offset.rotation[2]);
     data.root.scale.set(handedness==='left'?1:-1,1,1);
     if(handGizmo?.parent)handGizmo.parent.remove(handGizmo);
@@ -204,6 +205,7 @@ function installHandAlignLaunchHook(){
     if(!data)return;
     const offset=offsets[handedness];
     data.root.position.set(offset.position[0],offset.position[1],offset.position[2]);
+    data.root.rotation.order='XYZ';
     data.root.rotation.set(offset.rotation[0],offset.rotation[1],offset.rotation[2]);
     data.root.scale.set(handedness==='left'?1:-1,1,1);
     readout();
@@ -238,7 +240,7 @@ function installHandAlignLaunchHook(){
     else if(event.key==='h'||event.key==='H'){handedness=handedness==='left'?'right':'left';$('handAlignHand').value=handedness;rebuildHand()}
     else if(event.key==='c'||event.key==='C'){viewIndex=(viewIndex+1)%viewPresets.length;applyCameraPreset()}
     else if(event.key==='v'||event.key==='V'){showGizmos=!showGizmos;controllerGizmo.visible=showGizmos;if(handGizmo)handGizmo.visible=showGizmos}
-    else if(event.key==='r'||event.key==='R'){offset.position.splice(0,3,...(handedness==='right'?[.028,-.085,-.070]:[-.028,-.085,-.070]));offset.rotation.splice(0,3,...(handedness==='right'?[-.82,.42,-.38]:[-.82,-.42,.38]))}
+    else if(event.key==='r'||event.key==='R'){offset.position.splice(0,3,...(handedness==='right'?[.031,-.083,.046]:[-.031,-.083,.046]));offset.rotation.splice(0,3,...(handedness==='right'?[.10471975511965978,-.24434609527920614,1.5533430342749532]:[.10471975511965978,.24434609527920614,-1.5533430342749532]))}
     else return;
     reapply();buildControls();
   });
