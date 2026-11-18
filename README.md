@@ -123,6 +123,7 @@ The same local server prints a hand/controller alignment harness URL:
 
 ```text
 http://127.0.0.1:<port>/index.html?debug=hand-align&hand=right
+http://127.0.0.1:<port>/index.html?debug-hand-align&hand=right
 ```
 
 The harness uses no XR tracking or main cleanroom scene. Use the on-screen sliders or keyboard hotkeys to adjust the selected hand root relative to the controller:

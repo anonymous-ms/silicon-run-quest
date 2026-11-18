@@ -339,7 +339,7 @@ test('Hand alignment harness launches without VR tracking and exposes live trans
   const startupSrc = read('js/silicon-run-startup.js');
   const serverSrc = read('scripts/test-launch.js');
   const readme = read('README.md');
-  assert(startupSrc.includes("params.get('debug')==='hand-align'") && startupSrc.includes('installHandAlignLaunchHook'),
+  assert(startupSrc.includes("params.has('debug-hand-align')") && startupSrc.includes("params.get('debug')==='hand-align'") && startupSrc.includes('installHandAlignLaunchHook'),
     'The shipped startup must expose a standalone ?debug=hand-align launch hook');
   assert(startupSrc.includes('hand-align-panel') && startupSrc.includes('__handAlignDebug') && startupSrc.includes('copyJson'),
     'The harness must expose live adjustment, JSON export, and a debug API');
@@ -372,8 +372,8 @@ test('VR handsets use mirrored handedness and calibrated zero-pose offsets', () 
     'VR ghost controllers must use a named per-hand zero-pose and live handedness calibration');
   assert(coreSrc.includes("left:{mirror:1") && coreSrc.includes("right:{mirror:-1"),
     'Left and right handset models must use opposite left-right mirror factors');
-  assert(coreSrc.includes("left:{mirror:1,position:[-.028,-.085,-.070],rotation:[-.82,-.42,.38]") &&
-         coreSrc.includes("right:{mirror:-1,position:[.028,-.085,-.070],rotation:[-.82,.42,-.38]"),
+  assert(coreSrc.includes("left:{mirror:1,position:[-.031,-.083,.046],rotation:[0.10471975511965978,0.24434609527920614,-1.5533430342749532]") &&
+         coreSrc.includes("right:{mirror:-1,position:[.031,-.083,.046],rotation:[0.10471975511965978,-0.24434609527920614,1.5533430342749532]"),
     'Left and right hands must use the calibrated down/back/palm-in grip pose');
   assert(coreSrc.includes("deviceRotation:[-.34,0,0]"),
     'The physical controller mesh must retain a neutral local axis instead of inheriting handset roll');
