@@ -1,6 +1,6 @@
 'use strict';
 // V8.7 isolated 3D schematic and layout spaces.  
-const designWorld={root:null,board:null,texture:null,labelCanvas:null,labelTexture:null,labelOverlay:null,active:false,stage:0,returnPos:new THREE.Vector3(),returnYaw:0,returnPitch:0,dragging:false,gainDrag:null,xrDragging:new Set(),w:12,h:7.5,layout3D:null,layout3DSignature:'',layoutPreview3D:null,actionPanel:null,actionButtons:[],actionSignature:'',actionNotice:''};
+const designWorld={root:null,board:null,texture:null,labelCanvas:null,labelTexture:null,labelOverlay:null,active:false,stage:0,returnPos:new THREE.Vector3(),returnYaw:0,returnPitch:0,dragging:false,gainDrag:null,xrDragging:new Set(),w:12,h:7.5,layout3D:null,layout3DSignature:'',layoutPreview3D:null,actionPanel:null,actionButtons:[],actionSignature:'',actionNotice:'',cleanroomHiddenRoots:null};
 function ensureDesignWorld(){  
   if(designWorld.root)return;  
   const root=new THREE.Group();root.position.set(0,0,165);root.visible=false;scene.add(root);designWorld.root=root;  
@@ -63,11 +63,24 @@ function drawWorldGainControls(ctx,w,h){
 function syncDesignBoard(){if(!designWorld.active)return;const c=$('designCanvas');if(c.width<960||c.height<600){c.width=1280;c.height=800}if(designWorld.labelCanvas.width!==c.width||designWorld.labelCanvas.height!==c.height){designWorld.labelCanvas.width=c.width;designWorld.labelCanvas.height=c.height}drawDesignStage();const ctx=c.getContext('2d');if(designWorld.stage===0)drawWorldGainControls(ctx,c.width,c.height);const p=renderer.xr.isPresenting?null:desktopDesignPoint();if(p){ctx.strokeStyle='#53e7ff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,10,0,Math.PI*2);ctx.moveTo(p.x-15,p.y);ctx.lineTo(p.x+15,p.y);ctx.moveTo(p.x,p.y-15);ctx.lineTo(p.x,p.y+15);ctx.stroke()}const labels=designWorld.labelCanvas.getContext('2d');labels.clearRect(0,0,designWorld.labelCanvas.width,designWorld.labelCanvas.height);if(designWorld.stage===2)drawLayoutLabels(labels,c.width,c.height);designWorld.labelTexture.needsUpdate=true;syncDesignActionPanel();syncLayout3D();updateLayoutPreview3D();designWorld.texture.needsUpdate=true}
 function enterDesignWorld(stage){  
   ensureDesignWorld();if(!designWorld.active){designWorld.returnPos.copy(player.position);designWorld.returnYaw=yaw;designWorld.returnPitch=pitch}  
+  if(!designWorld.cleanroomHiddenRoots){
+    designWorld.cleanroomHiddenRoots=[];
+    scene.children.slice().forEach(child=>{
+      if(child!==designWorld.root&&child!==player){
+        designWorld.cleanroomHiddenRoots.push({object:child,visible:child.visible});
+        child.visible=false;
+      }
+    });
+  }
   designWorld.active=true;designWorld.stage=stage;$('designReset').hidden=stage===1;designWorld.root.visible=true;if(stage===2){if(!designMode.layoutNodes.length)initializeLayoutNodes();designWorld.layout3DSignature='';updateLayoutState()}state.focus=null;state.nearest=null;$('designTerminal').className='';$('designTerminal').setAttribute('aria-hidden','true');document.body.classList.remove('design-editing');designMode.phase='world';$('designTerminal').className='';$('designTerminal').setAttribute('aria-hidden','true');document.body.classList.remove('design-editing');  
   player.position.set(0,renderer.xr.isPresenting?.86:2.58,172);yaw=0;pitch=-.03;player.rotation.y=yaw;camera.rotation.x=pitch;Object.keys(keys).forEach(k=>keys[k]=false);if(!renderer.xr.isPresenting)renderer.domElement.requestPointerLock?.();syncDesignBoard();toast(stage===1?'Circuit space active: click-drag directly between wall terminals. F submits, R resets, X clears.':'Layout active: choose M1 or M2, hold a terminal or junction, drag an elbow and release to commit. F releases.')  
 }  
 function leaveDesignWorld(returnOverlay=true){  
-  if(!designWorld.active)return;if(designWorld.layout3D){disposeDesignObject(designWorld.layout3D);designWorld.layout3D=null;designWorld.layout3DSignature=''}designWorld.active=false;designWorld.root.visible=false;designWorld.dragging=false;state.focus=null;state.nearest=null;designWorld.xrDragging.clear();player.position.copy(designWorld.returnPos);yaw=designWorld.returnYaw;pitch=designWorld.returnPitch;player.rotation.y=yaw;camera.rotation.x=pitch;  
+  if(!designWorld.active)return;if(designWorld.layout3D){disposeDesignObject(designWorld.layout3D);designWorld.layout3D=null;designWorld.layout3DSignature=''}designWorld.active=false;designWorld.root.visible=false;designWorld.dragging=false;state.focus=null;state.nearest=null;designWorld.xrDragging.clear();player.position.copy(designWorld.returnPos);yaw=designWorld.returnYaw;pitch=designWorld.returnPitch;player.rotation.y=yaw;camera.rotation.x=pitch;
+  if(designWorld.cleanroomHiddenRoots){
+    designWorld.cleanroomHiddenRoots.forEach(({object,visible})=>{if(object?.parent)object.visible=visible});
+    designWorld.cleanroomHiddenRoots=null;
+  }
   if(returnOverlay&&designMode.step===0){designMode.phase='active';$('designTerminal').className='active';$('designTerminal').setAttribute('aria-hidden','false');document.body.classList.add('design-editing');renderDesignStep();setTimeout(resizeDesignCanvas,0)}else{designMode.phase='idle';$('designTerminal').className='';$('designTerminal').setAttribute('aria-hidden','true');document.body.classList.remove('design-editing')}  
 }  
 function worldToolbarButtons(){return[]}  
@@ -465,6 +478,13 @@ updateXRButtons=function(now){
   const session=renderer.xr.getSession(),sources=session?[...session.inputSources]:[];
   xrLeftSource=sources.find(source=>source.handedness==='left')||xrLeftSource;
   xrRightSource=sources.find(source=>source.handedness==='right')||xrRightSource;
+  if(xrMainMenuActive&&!state.started){
+    const right=xrRightSource?.gamepad;
+    edgeButton('vr_menu_tutorial',!!right?.buttons?.[4]?.pressed||!!xrButtonPressed(xrRightSource,0),()=>startVRMainMenuChoice(true));
+    edgeButton('vr_menu_run',!!right?.buttons?.[5]?.pressed,()=>startVRMainMenuChoice(false));
+    drawXRMainMenuOverlay();
+    return;
+  }
   if(state.paused){
     if(controlsTraining.active){pollVRControlsTraining();return}
     const left=xrLeftSource?.gamepad,right=xrRightSource?.gamepad;

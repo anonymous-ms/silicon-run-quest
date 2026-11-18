@@ -335,6 +335,20 @@ test('LED light bars orient longitudinally and Settings includes Developer View,
     'Developer stack box must sit separately under the top-left #hud panel');
 });
 
+test('Map, VR menu, design-world isolation, requirements, and station wafer visibility', () => {
+  const coreSrc = read('js/silicon-run-core.js');
+  const worldSrc = read('js/design-world-runtime.js');
+  assert(coreSrc.includes('h-20-(10-z)/49*(h-38)'), 'The cleanroom map Z axis must be vertically flipped');
+  assert(coreSrc.includes('rotate(Math.PI-yaw)'), 'The rendered player arrow must rotate 180 degrees with the map');
+  assert(coreSrc.includes('drawXRMainMenuOverlay') && coreSrc.includes('START TUTORIAL') && coreSrc.includes('startVRMainMenuChoice'),
+    'VR must expose a first-session menu and launch the tutorial or standard run');
+  assert(coreSrc.includes('Process target and all recipe requirements shown above'), 'VR wrist specifications must display process requirements');
+  assert(worldSrc.includes('cleanroomHiddenRoots') && worldSrc.includes('child.visible=false') && worldSrc.includes('cleanroomHiddenRoots=null'),
+    'Entering the isolated sensor design world must hide and restore cleanroom scene roots');
+  assert(coreSrc.includes('wafer.visible=false;g.add(wafer)') && coreSrc.includes('m.wafer.visible=false'),
+    'Fabrication stations must not create or restore a wafer before one is seated');
+});
+
 test('Stock station uses 3-sided black cassette box and auto-replenishing robot arm with no DISPENSE button', () => {
   const coreSrc = read('js/silicon-run-core.js');
   const parallelSrc = read('js/parallel-wafer-runtime.js');

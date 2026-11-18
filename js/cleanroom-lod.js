@@ -79,9 +79,11 @@
     const showFine = tier === 'near';
     for (const obj of rec.midDetails) obj.visible = showMid;
     for (const obj of rec.fineDetails) obj.visible = showFine;
-    const st = status[rec.index];
+    // Keep near machine chamber lights in the renderer's stable light set.
+    // Process state changes only their intensity, avoiding shader recompilation
+    // when a machine transitions from idle to running.
     for (const light of rec.lights) {
-      light.visible = tier === 'near' && st?.state === 'running';
+      light.visible = tier === 'near';
     }
   }
 
