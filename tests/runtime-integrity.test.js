@@ -335,6 +335,30 @@ test('LED light bars orient longitudinally and Settings includes Developer View,
     'Developer stack box must sit separately under the top-left #hud panel');
 });
 
+test('VR controls training uses a fixed black 3D UI stage and retains handset models', () => {
+  const coreSrc = read('js/silicon-run-core.js');
+  assert(coreSrc.includes('enterXRTrainingEnvironment') && coreSrc.includes('leaveXRTrainingEnvironment'),
+    'VR training must enter and leave a dedicated isolated training stage');
+  assert(coreSrc.includes("scene.background=new THREE.Color(0x000000)") && coreSrc.includes('xrTrainingHiddenRoots'),
+    'VR training must hide the cleanroom behind a black scene');
+  assert(coreSrc.includes('xrTrainingRoot.quaternion.copy(camera.quaternion)') && coreSrc.includes('camera.getWorldDirection(direction)'),
+    'The training card must be fixed in world 3D space in front of the initial VR view');
+  assert(coreSrc.includes('xrHandset.visible=false') && coreSrc.includes('freezeXRWorldForPause()'),
+    'VR training must freeze world movement and keep ghost controller/hand models visible');
+});
+
+test('VR handsets use mirrored handedness and calibrated zero-pose offsets', () => {
+  const coreSrc = read('js/silicon-run-core.js');
+  const baseSrc = read('js/base.js');
+  assert(coreSrc.includes('XR_HAND_ZERO_POSE') && coreSrc.includes('applyGhostHandZeroPose'),
+    'VR ghost controllers must use a named per-hand zero-pose and live handedness calibration');
+  assert(coreSrc.includes("left:{mirror:1") && coreSrc.includes("right:{mirror:-1"),
+    'Left and right handset models must use opposite left-right mirror factors');
+  assert(coreSrc.includes("deviceRotation:[-.34,-.05,.12]") && coreSrc.includes("deviceRotation:[-.34,.05,-.12]"),
+    'Left and right handset devices must receive opposite wrist tilt offsets');
+  assert(baseSrc.includes("mirror=handedness==='left'?1:-1"), 'Legacy handset renderer must share the handedness mirror convention');
+});
+
 test('Map, VR menu, design-world isolation, requirements, and station wafer visibility', () => {
   const coreSrc = read('js/silicon-run-core.js');
   const worldSrc = read('js/design-world-runtime.js');

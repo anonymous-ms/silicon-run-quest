@@ -22,7 +22,12 @@ const status=stations.map(s=>({state:'locked',values:Object.fromEntries(s.contro
 let scene,camera,renderer,player,clock,yaw=Math.PI,pitch=-.03,lastFrame=0,stockMachine=null,deliveryStation=null;let xrController0=null,xrController1=null,xrGrip0=null,xrGrip1=null,xrRay=null,xrAdjustAt=0,xrTurnLatch=false,xrHandset=null,xrHandsetCanvas=null,xrHandsetCtx=null,xrHandsetTexture=null,xrHandsetUpdated=0,xrTargetRing=null,xrObjectiveBeacon=null,xrLeftSource=null,xrRightSource=null,xrOverlay=null,xrOverlayCanvas=null,xrOverlayCtx=null,xrOverlayTexture=null;const machines=[],interactives=[],effects=[],colliders=[],keys={},sharpsBins=[],waferShards=[];const raycaster=new THREE.Raycaster();const xrTempMatrix=new THREE.Matrix4(),xrOrigin=new THREE.Vector3(),xrDirection=new THREE.Vector3(),xrHeadDirection=new THREE.Vector3();const phys={grab:null,doorGrab:null,waferBody:null,waferVelocity:new THREE.Vector3(),waferLastPos:new THREE.Vector3(),waferReleaseY:0,waferFree:false,lastHandPos:new THREE.Vector3(),handVelocity:new THREE.Vector3(),doorVelocities:[],buttons:{},hudVisible:true,beaconVisible:true,handData:[],waferStaged:false,waferEverPicked:false,pickupGuide:null,pinchDistance:.12,stockReady:null,stockRespawnAt:0,stockRespawnMs:5000,jumpVelocity:0,jumpOffset:0,crouchHeld:false,baseRigY:.86};        
 let xrRay0=null,xrHitBlobs=[];
 let xrMainMenuActive=false;
+let xrTrainingRoot=null,xrTrainingHiddenRoots=null,xrTrainingPreviousBackground=null,xrTrainingPreviousFog=null;
 const XR_POINTER_REACH=30;
+const XR_HAND_ZERO_POSE={
+  left:{mirror:1,position:[-.006,-.024,-.008],rotation:[-.28,-.14,.18],devicePosition:[-.006,-.042,.024],deviceRotation:[-.34,-.05,.12]},
+  right:{mirror:-1,position:[.006,-.024,-.008],rotation:[-.28,.14,-.18],devicePosition:[.006,-.042,.024],deviceRotation:[-.34,.05,-.12]}
+};
 const PREFERENCES_KEY='siliconRunPreferencesV1',ACTIVITY_RECORDS_KEY='waferFabActivitiesV1',GUI_TEXT_SIZES=[5,8,12,20,30,50];
 const userPreferences=loadUserPreferences();
 let tutorialMode=false,tutorialLastObjective='',tutorialDismissed=false;
@@ -268,12 +273,15 @@ guideFloorRing=mesh(new THREE.RingGeometry(.46,.66,36),new THREE.MeshBasicMateri
 scene.add(guideBeacon);guideBeacon.visible=false;guideFloorRing.visible=false;
 createSharpsBins();createXROverlay()}        
 function createGhostHand(grip,handedness,index){
-  const mirror=handedness==='left'?-1:1;
+  const initialPose=XR_HAND_ZERO_POSE[handedness]||XR_HAND_ZERO_POSE.right;
+  const mirror=initialPose.mirror;
   // Translucent Meta Quest frosted ghost hand gripping the Touch Plus controller
   const root=new THREE.Group();
   const ghostMat=new THREE.MeshStandardMaterial({color:0xeef6fb,transparent:true,opacity:.44,roughness:.36,metalness:.06,emissive:0x2e5e78,emissiveIntensity:.24,depthWrite:false});
   const rimMat=new THREE.MeshBasicMaterial({color:0xb8e9ff,transparent:true,opacity:.32,depthWrite:false,toneMapped:false});
-  root.position.set(0,-.024,-.008);root.rotation.set(-.34,mirror*.11,mirror*.07);root.scale.x=mirror;grip.add(root);
+  root.position.set(initialPose.position[0],initialPose.position[1],initialPose.position[2]);
+  root.rotation.set(initialPose.rotation[0],initialPose.rotation[1],initialPose.rotation[2]);
+  root.scale.set(initialPose.mirror,1,1);grip.add(root);
   // Sculpted wrist cuff + palm pad
   const cuff=mesh(new THREE.CylinderGeometry(.032,.038,.065,16),ghostMat,root,0,-.028,.048);cuff.rotation.x=Math.PI/2+.16;
   const cuffRim=mesh(new THREE.TorusGeometry(.035,.0025,8,24),rimMat,root,0,-.034,.078);cuffRim.rotation.x=.16;
@@ -307,7 +315,7 @@ function createGhostHand(grip,handedness,index){
   const thumbTip=mesh(new THREE.SphereGeometry(.0076,10,8),ghostMat,thumbMid,0,0,-.029);
 
   // Meta Quest Touch Plus ringless controller geometry
-  const device=new THREE.Group();device.position.set(0,-.042,.024);grip.add(device);
+  const device=new THREE.Group();device.position.set(initialPose.devicePosition[0],initialPose.devicePosition[1],initialPose.devicePosition[2]);device.rotation.set(initialPose.deviceRotation[0],initialPose.deviceRotation[1],initialPose.deviceRotation[2]);grip.add(device);
   const whiteShell=mat(0xeef2f5,.08,.36);
   const faceplateMat=mat(0x1b2128,.16,.44);
   const bezelMat=mat(0xcad5dc,.42,.28);
@@ -345,8 +353,27 @@ function createGhostHand(grip,handedness,index){
   const pinchAnchor=new THREE.Group();pinchAnchor.position.set(mirror*.002,.005,-.121);grip.add(pinchAnchor);
   const marker=mesh(new THREE.TorusGeometry(.014,.0035,8,24),new THREE.MeshBasicMaterial({color:C.cyan,transparent:true,opacity:.9,depthTest:false,toneMapped:false}),pinchAnchor);marker.rotation.x=Math.PI/2;marker.renderOrder=50;
   const dot=mesh(new THREE.SphereGeometry(.0055,10,7),new THREE.MeshBasicMaterial({color:0xffffff,depthTest:false,toneMapped:false}),pinchAnchor);dot.renderOrder=51;
-  const data={index,handedness,mirror,grip,root,fingers,thumbBase,thumbMid,thumbTip,pinchAnchor,marker,dot,device,triggerPivot,triggerMesh:trigger,gripButton,stickPivot,stick:stickCap,faceButtons,menuButton,led,trigger:0,gripValue:0};
+  const data={index,handedness,mirror,grip,root,fingers,thumbBase,thumbMid,thumbTip,pinchAnchor,marker,dot,device,triggerPivot,triggerMesh:trigger,gripButton,stickPivot,stickWell,stick:stickCap,faceButtons,menuButton,led,trigger:0,gripValue:0};
   phys.handData[index]=data;return data;
+}
+function applyGhostHandZeroPose(data,handedness){
+  if(!data)return;
+  const pose=XR_HAND_ZERO_POSE[handedness]||XR_HAND_ZERO_POSE.right;
+  data.handedness=handedness;
+  data.mirror=pose.mirror;
+  data.root.position.set(pose.position[0],pose.position[1],pose.position[2]);
+  data.root.rotation.set(pose.rotation[0],pose.rotation[1],pose.rotation[2]);
+  data.root.scale.set(pose.mirror,1,1);
+  if(data.device){
+    data.device.position.set(pose.devicePosition[0],pose.devicePosition[1],pose.devicePosition[2]);
+    data.device.rotation.set(pose.deviceRotation[0],pose.deviceRotation[1],pose.deviceRotation[2]);
+  }
+  data.gripButton.position.x=-pose.mirror*.019;
+  data.stickPivot.position.x=-pose.mirror*.018;
+  data.stickWell.position.x=-pose.mirror*.018;
+  data.faceButtons.forEach((button,index)=>button.position.x=pose.mirror*(index===0?.016:.028));
+  data.menuButton.position.x=-pose.mirror*.026;
+  data.pinchAnchor.position.x=pose.mirror*.002;
 }
 function updateGhostHandPose(data,source,dt){
   if(!data)return;
@@ -404,10 +431,10 @@ function pulseXR(strength=.35,duration=35){const src=xrRightSource||xrLeftSource
 function setupXR(){        
 const makeRay=()=>{const g=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,-1)]),l=new THREE.Line(g,new THREE.LineBasicMaterial({color:C.cyan,transparent:true,opacity:.62}));l.name='XR interaction ray';l.scale.z=XR_POINTER_REACH;return l};        
 xrController0=renderer.xr.getController(0);xrController1=renderer.xr.getController(1);xrGrip0=renderer.xr.getControllerGrip(0);xrGrip1=renderer.xr.getControllerGrip(1);player.add(xrController0,xrController1,xrGrip0,xrGrip1);createGhostHand(xrGrip0,'left',0);createGhostHand(xrGrip1,'right',1);xrController0.userData.grip=xrGrip0;xrController0.userData.pinchAnchor=phys.handData[0].pinchAnchor;xrController0.userData.handIndex=0;xrController1.userData.grip=xrGrip1;xrController1.userData.pinchAnchor=phys.handData[1].pinchAnchor;xrController1.userData.handIndex=1;xrRay0=makeRay();xrController0.add(xrRay0);xrRay=makeRay();xrController1.add(xrRay);createXRHandset();createXRSpatialAids();        
-xrController0.addEventListener('connected',e=>{xrController0.userData.handedness=e.data.handedness;if(e.data.handedness==='left')xrLeftSource=e.data;else if(e.data.handedness==='right')xrRightSource=e.data});xrController1.addEventListener('connected',e=>{xrController1.userData.handedness=e.data.handedness;if(e.data.handedness==='right')xrRightSource=e.data;else if(e.data.handedness==='left')xrLeftSource=e.data});        
+xrController0.addEventListener('connected',e=>{xrController0.userData.handedness=e.data.handedness;if(phys.handData[0])applyGhostHandZeroPose(phys.handData[0],e.data.handedness);if(e.data.handedness==='left')xrLeftSource=e.data;else if(e.data.handedness==='right')xrRightSource=e.data});xrController1.addEventListener('connected',e=>{xrController1.userData.handedness=e.data.handedness;if(phys.handData[1])applyGhostHandZeroPose(phys.handData[1],e.data.handedness);if(e.data.handedness==='right')xrRightSource=e.data;else if(e.data.handedness==='left')xrLeftSource=e.data});
 [xrController0,xrController1].forEach((c,i)=>{c.userData.hand=i===0?'left':'right';c.addEventListener('selectstart',()=>onXRTriggerStart(c));c.addEventListener('selectend',()=>onXRTriggerEnd(c));c.addEventListener('squeezestart',()=>onXRSqueezeStart(c));c.addEventListener('squeezeend',()=>onXRSqueezeEnd(c))});        
 renderer.xr.addEventListener('sessionstart',()=>{document.body.classList.add('xr-presenting');$('xrButton').style.display='none';if(document.pointerLockElement)document.exitPointerLock?.();player.position.y=.86;if(!state.started){xrMainMenuActive=true;state.paused=true;drawXRMainMenuOverlay()}if(state.handWafer&&state.handWafer.parent===camera){camera.remove(state.handWafer);scene.add(state.handWafer);state.handWafer.visible=false}if(controlsTraining.active){startControlsTraining('vr')}toast('Quest physical-space mode active. Left wrist shows the traveller.');});        
-renderer.xr.addEventListener('sessionend',()=>{document.body.classList.remove('xr-presenting');xrMainMenuActive=false;if(xrOverlay)xrOverlay.visible=false;$('xrButton').style.display=state.started?'block':'none';player.position.y=2.58;if(state.handWafer){state.handWafer.parent?.remove(state.handWafer);camera.add(state.handWafer);state.handWafer.position.set(.48,-.38,-.8);state.handWafer.rotation.set(.6,-.25,.15);state.handWafer.scale.setScalar(1)}});        
+renderer.xr.addEventListener('sessionend',()=>{leaveXRTrainingEnvironment();document.body.classList.remove('xr-presenting');xrMainMenuActive=false;if(xrOverlay)xrOverlay.visible=false;$('xrButton').style.display=state.started?'block':'none';player.position.y=2.58;if(state.handWafer){state.handWafer.parent?.remove(state.handWafer);camera.add(state.handWafer);state.handWafer.position.set(.48,-.38,-.8);state.handWafer.rotation.set(.6,-.25,.15);state.handWafer.scale.setScalar(1)}});
 if(!navigator.xr){$('xrButton').disabled=true;$('xrButton').textContent='WEBXR NOT AVAILABLE'}        
 }        
 async function enterXR(){        
@@ -441,6 +468,66 @@ function createSharpsBins(){
 function ensureWaferPickupGuide(){if(phys.pickupGuide)return phys.pickupGuide;const g=new THREE.Group(),ring=mesh(new THREE.TorusGeometry(.42,.016,10,48),new THREE.MeshBasicMaterial({color:C.cyan,transparent:true,opacity:.9,toneMapped:false}),g);ring.rotation.x=Math.PI/2;const pillar=mesh(new THREE.CylinderGeometry(.008,.008,.5,8),new THREE.MeshBasicMaterial({color:C.cyan,transparent:true,opacity:.55,toneMapped:false}),g,0,.27,0);const arrow=mesh(new THREE.ConeGeometry(.065,.16,12),new THREE.MeshBasicMaterial({color:C.green,toneMapped:false}),g,0,.58,0);arrow.rotation.x=Math.PI;const label=labelMesh('PINCH WAFER HERE','#ffffff',1.25,.24,28);label.position.set(0,.78,0);label.rotation.x=-.18;g.add(label);g.visible=false;scene.add(g);phys.pickupGuide=g;return g}        
 function updateWaferPickupGuide(now){const g=ensureWaferPickupGuide();g.visible=renderer.xr.isPresenting&&phys.waferStaged&&!phys.waferEverPicked&&state.handWafer?.visible;if(g.visible){const p=state.handWafer.getWorldPosition(new THREE.Vector3());g.position.set(p.x,p.y+.025,p.z);g.rotation.y=now*.001;const q=.95+.08*Math.sin(now*.006);g.scale.setScalar(q)}}        
 function createXROverlay(){xrOverlayCanvas=document.createElement('canvas');xrOverlayCanvas.width=1024;xrOverlayCanvas.height=640;xrOverlayCtx=xrOverlayCanvas.getContext('2d');installScaledCanvasText(xrOverlayCtx);xrOverlayTexture=new THREE.CanvasTexture(xrOverlayCanvas);xrOverlayTexture.colorSpace=THREE.SRGBColorSpace;xrOverlay=mesh(new THREE.PlaneGeometry(1.35,.84),new THREE.MeshBasicMaterial({map:xrOverlayTexture,transparent:true,depthTest:false,toneMapped:false}),camera,0,0,-1.45);xrOverlay.renderOrder=999;xrOverlay.visible=false}
+function enterXRTrainingEnvironment(){
+  if(!renderer?.xr?.isPresenting||xrTrainingRoot)return;
+  xrTrainingPreviousBackground=scene.background;
+  xrTrainingPreviousFog=scene.fog;
+  scene.background=new THREE.Color(0x000000);
+  scene.fog=null;
+  xrTrainingHiddenRoots=[];
+  scene.children.slice().forEach(child=>{
+    if(child!==player&&child!==xrTrainingRoot){
+      xrTrainingHiddenRoots.push({object:child,visible:child.visible});
+      child.visible=false;
+    }
+  });
+  xrTrainingRoot=new THREE.Group();
+  xrTrainingRoot.name='vr-controls-training-stage';
+  camera.getWorldPosition(xrTrainingRoot.position);
+  const direction=new THREE.Vector3();
+  camera.getWorldDirection(direction);
+  xrTrainingRoot.position.addScaledVector(direction,1.65);
+  xrTrainingRoot.quaternion.copy(camera.quaternion);
+  scene.add(xrTrainingRoot);
+  xrTrainingHiddenRoots.push({object:xrTrainingRoot,visible:true});
+  const backdrop=mesh(new THREE.PlaneGeometry(2.8,1.8),new THREE.MeshBasicMaterial({color:0x02070a,depthTest:false,depthWrite:false,toneMapped:false}),xrTrainingRoot,0,0,-.02);
+  backdrop.renderOrder=998;
+  const rim=mesh(new THREE.RingGeometry(.91,1.34,64),new THREE.MeshBasicMaterial({color:0x53e7ff,transparent:true,opacity:.08,side:THREE.DoubleSide,depthTest:false,depthWrite:false,toneMapped:false}),xrTrainingRoot,0,0,-.015);
+  rim.renderOrder=998;rim.scale.set(1.55,1.05,1);
+  if(xrOverlay){xrOverlay.parent?.remove(xrOverlay);xrTrainingRoot.add(xrOverlay);xrOverlay.position.set(0,0,.02);xrOverlay.scale.set(1.55,1.12,1);xrOverlay.visible=true}
+  if(xrHandset)xrHandset.visible=false;
+  phys.hudVisible=false;
+  phys.beaconVisible=false;
+  state.paused=true;
+  freezeXRWorldForPause();
+  drawXRPauseOverlay();
+}
+function leaveXRTrainingEnvironment(){
+  if(!xrTrainingRoot&&!xrTrainingHiddenRoots)return;
+  if(xrOverlay){
+    xrOverlay.parent?.remove(xrOverlay);
+    camera.add(xrOverlay);
+    xrOverlay.position.set(0,0,-1.45);
+    xrOverlay.scale.set(1,1,1);
+    xrOverlay.visible=false;
+  }
+  if(xrTrainingHiddenRoots){
+    xrTrainingHiddenRoots.forEach(({object,visible})=>{
+      if(object===xrTrainingRoot)return;
+      if(object?.parent)object.visible=visible;
+    });
+  }
+  xrTrainingHiddenRoots=null;
+  xrTrainingRoot?.parent?.remove(xrTrainingRoot);
+  xrTrainingRoot=null;
+  if(xrTrainingPreviousBackground!==null)scene.background=xrTrainingPreviousBackground;
+  if(xrTrainingPreviousFog!==null)scene.fog=xrTrainingPreviousFog;
+  xrTrainingPreviousBackground=null;
+  xrTrainingPreviousFog=null;
+  phys.hudVisible=true;
+  phys.beaconVisible=true;
+  if(xrHandset)xrHandset.visible=true;
+}
 function drawXRMainMenuOverlay(){
   if(!xrOverlayCtx||!xrOverlayTexture)return;
   const g=xrOverlayCtx;
@@ -522,6 +609,7 @@ function startControlsTraining(mode=renderer?.xr?.isPresenting?'vr':'desktop'){
   }else{
     state.paused=true;
     if($('controlsTrainingPanel'))$('controlsTrainingPanel').hidden=true;
+    enterXRTrainingEnvironment();
     showXROverlay('pause');
   }
 }
@@ -529,7 +617,7 @@ function finishControlsTraining(){
   controlsTraining.active=false;controlsTraining.completed=true;
   if($('controlsTrainingPanel'))$('controlsTrainingPanel').hidden=true;
   state.paused=false;
-  if(renderer?.xr?.isPresenting)hideXROverlay();
+  if(renderer?.xr?.isPresenting){leaveXRTrainingEnvironment();hideXROverlay();}
   else try{renderer.domElement.requestPointerLock?.()?.catch(()=>{})}catch{}
   newRun();
   toast('Controls verified! Tutorial cleanroom run started. Dispense a blank wafer to begin the timer.');
