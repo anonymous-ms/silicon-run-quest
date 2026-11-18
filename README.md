@@ -119,4 +119,20 @@ To launch the local browser test harness directly at the Oxidation Furnace wafer
 node scripts/test-launch.js
 ```
 
+The same local server prints a hand/controller alignment harness URL:
+
+```text
+http://127.0.0.1:<port>/index.html?debug=hand-align&hand=right
+```
+
+The harness uses no XR tracking or main cleanroom scene. Use the on-screen sliders or keyboard hotkeys to adjust the selected hand root relative to the controller:
+
+- `A/D`, `W/S`, `Q/E`: position X/Y/Z
+- Arrow keys: Euler pitch/yaw/roll
+- `H`: switch left/right
+- `C`: cycle camera view
+- `V`: toggle axis gizmos
+- `R`: reset the selected hand
+- Hold `Shift` for larger keyboard adjustments
+
 (`.github/workflows/deploy-pages.yml` publishes the static root to GitHub Pages on pushes to `main` without running Node checks in CI—always run the checks above locally first.)

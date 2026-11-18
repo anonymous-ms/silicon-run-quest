@@ -50,7 +50,7 @@ test('service-worker offline fallback does not serve index.html for scripts or s
 test('every DOM element ID queried by the shipped runtime exists in index.html', () => {
   const html = read('index.html');
   const htmlIds = new Set([...html.matchAll(/\bid=["']([^"']+)["']/g)].map(m => m[1]));
-  const dynamicIds = new Set(['releaseIndicator']);
+  const dynamicIds = new Set(['releaseIndicator','handAlignHand','handAlignPosition','handAlignRotation','handAlignReadout','handAlignCopy']);
   const runtimeFiles = [
     'js/silicon-run-core.js',
     'js/parallel-wafer-runtime.js',
@@ -333,6 +333,20 @@ test('LED light bars orient longitudinally and Settings includes Developer View,
     'cleanroom-debug.js must implement Hitboxes, Normals, and Wireframe visualizers');
   assert(devCss.includes('top: 416px') && devCss.includes('left: 16px'),
     'Developer stack box must sit separately under the top-left #hud panel');
+});
+
+test('Hand alignment harness launches without VR tracking and exposes live transforms', () => {
+  const startupSrc = read('js/silicon-run-startup.js');
+  const serverSrc = read('scripts/test-launch.js');
+  const readme = read('README.md');
+  assert(startupSrc.includes("params.get('debug')==='hand-align'") && startupSrc.includes('installHandAlignLaunchHook'),
+    'The shipped startup must expose a standalone ?debug=hand-align launch hook');
+  assert(startupSrc.includes('hand-align-panel') && startupSrc.includes('__handAlignDebug') && startupSrc.includes('copyJson'),
+    'The harness must expose live adjustment, JSON export, and a debug API');
+  assert(startupSrc.includes('ArrowHelper') && startupSrc.includes('0xff2947') && startupSrc.includes('0x67f66a') && startupSrc.includes('0x2a88ff'),
+    'The harness must render red X, green Y, and blue Z controller/hand coordinate gizmos');
+  assert(serverSrc.includes('?debug=hand-align&hand=right'), 'The local test server must print the hand alignment URL');
+  assert(readme.includes('?debug=hand-align&hand=right'), 'README must document the isolated hand alignment launch');
 });
 
 test('VR controls training uses a fixed black 3D UI stage and retains handset models', () => {

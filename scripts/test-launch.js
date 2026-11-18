@@ -38,5 +38,6 @@ server.listen(0, '127.0.0.1', () => {
   const { port } = server.address();
   console.log(`Temporary test server running at:`);
   console.log(`  http://127.0.0.1:${port}/index.html?test=oxidation-snap`);
+  console.log(`  http://127.0.0.1:${port}/index.html?debug=hand-align&hand=right`);
   console.log(`Press Ctrl+C to stop.`);
 });
