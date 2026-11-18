@@ -341,4 +341,4 @@ function installFeatureModules(){
   globalThis.CleanroomAudio?.init();
 }
 
-try{buildEnvironment();bind();setupLaunchMenu();installFeatureModules();updateBenchmark();updateActivityLeaderboard();stations.forEach((_,i)=>updateControlMeshes(i));installPhotoresistStation();installTestLaunchHook();installHandAlignLaunchHook();renderer.setAnimationLoop(loop)}catch(err){console.error(err);document.body.innerHTML=`<div style="padding:40px;color:white;font-family:system-ui"><h1>Simulator could not initialise</h1><p>${err.message}</p><p>WebGL is required.</p></div>`}  
+try{buildEnvironment();bind();setupLaunchMenu();installFeatureModules();updateBenchmark();updateActivityLeaderboard();stations.forEach((_,i)=>updateControlMeshes(i));installPhotoresistStation();installTestLaunchHook();installHandAlignLaunchHook();renderer.setAnimationLoop(loop)}catch(err){console.error(err);document.body.innerHTML=`<div style="padding:40px;color:white;font-family:system-ui"><h1>Simulator could not initialise</h1><p>${err.message}</p><p>WebGL is required.</p></div>`}
