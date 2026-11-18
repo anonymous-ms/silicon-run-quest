@@ -25,8 +25,8 @@ let xrMainMenuActive=false;
 let xrTrainingRoot=null,xrTrainingHiddenRoots=null,xrTrainingPreviousBackground=null,xrTrainingPreviousFog=null;
 const XR_POINTER_REACH=30;
 const XR_HAND_ZERO_POSE={
-  left:{mirror:1,position:[-.006,-.024,-.008],rotation:[-.28,-.14,.18],devicePosition:[-.006,-.042,.024],deviceRotation:[-.34,-.05,.12]},
-  right:{mirror:-1,position:[.006,-.024,-.008],rotation:[-.28,.14,-.18],devicePosition:[.006,-.042,.024],deviceRotation:[-.34,.05,-.12]}
+  left:{mirror:1,position:[-.028,-.085,-.070],rotation:[-.82,-.42,.38],devicePosition:[0,-.042,.024],deviceRotation:[-.34,0,0]},
+  right:{mirror:-1,position:[.028,-.085,-.070],rotation:[-.82,.42,-.38],devicePosition:[0,-.042,.024],deviceRotation:[-.34,0,0]}
 };
 const PREFERENCES_KEY='siliconRunPreferencesV1',ACTIVITY_RECORDS_KEY='waferFabActivitiesV1',GUI_TEXT_SIZES=[5,8,12,20,30,50];
 const userPreferences=loadUserPreferences();
