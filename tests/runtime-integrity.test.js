@@ -341,8 +341,12 @@ test('VR controls training uses a fixed black 3D UI stage and retains handset mo
     'VR training must enter and leave a dedicated isolated training stage');
   assert(coreSrc.includes("scene.background=new THREE.Color(0x000000)") && coreSrc.includes('xrTrainingHiddenRoots'),
     'VR training must hide the cleanroom behind a black scene');
-  assert(coreSrc.includes('xrTrainingRoot.quaternion.copy(camera.quaternion)') && coreSrc.includes('camera.getWorldDirection(direction)'),
+  assert(coreSrc.includes('camera.getWorldQuaternion(worldQuaternion)') && coreSrc.includes('xrTrainingRoot.quaternion.copy(worldQuaternion)') && coreSrc.includes('camera.getWorldDirection(direction)'),
     'The training card must be fixed in world 3D space in front of the initial VR view');
+  assert(coreSrc.includes("xrMainMenuActive=true;state.paused=true;enterXRTrainingEnvironment();drawXRMainMenuOverlay()"),
+    'Entering VR from the first menu must create the dark fixed-card void before showing menu choices');
+  assert(coreSrc.includes('leaveXRTrainingEnvironment();') && coreSrc.includes('beginMenuRun(tutorial);'),
+    'Choosing a VR menu action must leave the void and only then start the chosen tutorial or run');
   assert(coreSrc.includes('xrHandset.visible=false') && coreSrc.includes('freezeXRWorldForPause()'),
     'VR training must freeze world movement and keep ghost controller/hand models visible');
 });

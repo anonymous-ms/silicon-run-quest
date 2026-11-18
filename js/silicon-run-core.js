@@ -433,7 +433,7 @@ const makeRay=()=>{const g=new THREE.BufferGeometry().setFromPoints([new THREE.V
 xrController0=renderer.xr.getController(0);xrController1=renderer.xr.getController(1);xrGrip0=renderer.xr.getControllerGrip(0);xrGrip1=renderer.xr.getControllerGrip(1);player.add(xrController0,xrController1,xrGrip0,xrGrip1);createGhostHand(xrGrip0,'left',0);createGhostHand(xrGrip1,'right',1);xrController0.userData.grip=xrGrip0;xrController0.userData.pinchAnchor=phys.handData[0].pinchAnchor;xrController0.userData.handIndex=0;xrController1.userData.grip=xrGrip1;xrController1.userData.pinchAnchor=phys.handData[1].pinchAnchor;xrController1.userData.handIndex=1;xrRay0=makeRay();xrController0.add(xrRay0);xrRay=makeRay();xrController1.add(xrRay);createXRHandset();createXRSpatialAids();        
 xrController0.addEventListener('connected',e=>{xrController0.userData.handedness=e.data.handedness;if(phys.handData[0])applyGhostHandZeroPose(phys.handData[0],e.data.handedness);if(e.data.handedness==='left')xrLeftSource=e.data;else if(e.data.handedness==='right')xrRightSource=e.data});xrController1.addEventListener('connected',e=>{xrController1.userData.handedness=e.data.handedness;if(phys.handData[1])applyGhostHandZeroPose(phys.handData[1],e.data.handedness);if(e.data.handedness==='right')xrRightSource=e.data;else if(e.data.handedness==='left')xrLeftSource=e.data});
 [xrController0,xrController1].forEach((c,i)=>{c.userData.hand=i===0?'left':'right';c.addEventListener('selectstart',()=>onXRTriggerStart(c));c.addEventListener('selectend',()=>onXRTriggerEnd(c));c.addEventListener('squeezestart',()=>onXRSqueezeStart(c));c.addEventListener('squeezeend',()=>onXRSqueezeEnd(c))});        
-renderer.xr.addEventListener('sessionstart',()=>{document.body.classList.add('xr-presenting');$('xrButton').style.display='none';if(document.pointerLockElement)document.exitPointerLock?.();player.position.y=.86;if(!state.started){xrMainMenuActive=true;state.paused=true;drawXRMainMenuOverlay()}if(state.handWafer&&state.handWafer.parent===camera){camera.remove(state.handWafer);scene.add(state.handWafer);state.handWafer.visible=false}if(controlsTraining.active){startControlsTraining('vr')}toast('Quest physical-space mode active. Left wrist shows the traveller.');});        
+renderer.xr.addEventListener('sessionstart',()=>{document.body.classList.add('xr-presenting');$('xrButton').style.display='none';if(document.pointerLockElement)document.exitPointerLock?.();player.position.y=.86;if(!state.started){xrMainMenuActive=true;state.paused=true;enterXRTrainingEnvironment();drawXRMainMenuOverlay()}if(state.handWafer&&state.handWafer.parent===camera){camera.remove(state.handWafer);scene.add(state.handWafer);state.handWafer.visible=false}if(controlsTraining.active){startControlsTraining('vr')}toast('Quest physical-space mode active. Left wrist shows the traveller.');});
 renderer.xr.addEventListener('sessionend',()=>{leaveXRTrainingEnvironment();document.body.classList.remove('xr-presenting');xrMainMenuActive=false;if(xrOverlay)xrOverlay.visible=false;$('xrButton').style.display=state.started?'block':'none';player.position.y=2.58;if(state.handWafer){state.handWafer.parent?.remove(state.handWafer);camera.add(state.handWafer);state.handWafer.position.set(.48,-.38,-.8);state.handWafer.rotation.set(.6,-.25,.15);state.handWafer.scale.setScalar(1)}});
 if(!navigator.xr){$('xrButton').disabled=true;$('xrButton').textContent='WEBXR NOT AVAILABLE'}        
 }        
@@ -487,7 +487,9 @@ function enterXRTrainingEnvironment(){
   const direction=new THREE.Vector3();
   camera.getWorldDirection(direction);
   xrTrainingRoot.position.addScaledVector(direction,1.65);
-  xrTrainingRoot.quaternion.copy(camera.quaternion);
+  const worldQuaternion=new THREE.Quaternion();
+  camera.getWorldQuaternion(worldQuaternion);
+  xrTrainingRoot.quaternion.copy(worldQuaternion);
   scene.add(xrTrainingRoot);
   xrTrainingHiddenRoots.push({object:xrTrainingRoot,visible:true});
   const backdrop=mesh(new THREE.PlaneGeometry(2.8,1.8),new THREE.MeshBasicMaterial({color:0x02070a,depthTest:false,depthWrite:false,toneMapped:false}),xrTrainingRoot,0,0,-.02);
@@ -556,6 +558,7 @@ function startVRMainMenuChoice(tutorial){
   if(!($('operator')?.textContent.trim()))$('operator').textContent=$('username')?.value.trim()||'VR Operator';
   userPreferences.username=$('username')?.value.trim()||'VR Operator';
   saveUserPreferences();
+  leaveXRTrainingEnvironment();
   hideXROverlay();
   beginMenuRun(tutorial);
 }
