@@ -358,8 +358,11 @@ test('VR handsets use mirrored handedness and calibrated zero-pose offsets', () 
     'VR ghost controllers must use a named per-hand zero-pose and live handedness calibration');
   assert(coreSrc.includes("left:{mirror:1") && coreSrc.includes("right:{mirror:-1"),
     'Left and right handset models must use opposite left-right mirror factors');
-  assert(coreSrc.includes("deviceRotation:[-.34,-.05,.12]") && coreSrc.includes("deviceRotation:[-.34,.05,-.12]"),
-    'Left and right handset devices must receive opposite wrist tilt offsets');
+  assert(coreSrc.includes("left:{mirror:1,position:[-.028,-.085,-.070],rotation:[-.82,-.42,.38]") &&
+         coreSrc.includes("right:{mirror:-1,position:[.028,-.085,-.070],rotation:[-.82,.42,-.38]"),
+    'Left and right hands must use the calibrated down/back/palm-in grip pose');
+  assert(coreSrc.includes("deviceRotation:[-.34,0,0]"),
+    'The physical controller mesh must retain a neutral local axis instead of inheriting handset roll');
   assert(baseSrc.includes("mirror=handedness==='left'?1:-1"), 'Legacy handset renderer must share the handedness mirror convention');
 });
 
