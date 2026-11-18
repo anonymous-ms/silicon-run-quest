@@ -471,7 +471,7 @@ onXRTriggerStart=function(controller){
 })();
 
 const v814XRMovement=updateXRMovement;
-updateXRMovement=function(dt,now){if(state.paused){drawXRPauseOverlay();return}v814XRMovement(dt,now)};
+updateXRMovement=function(dt,now){if(state.paused){if(xrMainMenuActive)drawXRMainMenuOverlay();else if(!controlsTraining.active)drawXRPauseOverlay();return}v814XRMovement(dt,now)};
 const v814XRButtons=updateXRButtons;
 updateXRButtons=function(now){
   if(!renderer.xr.isPresenting)return;
@@ -494,7 +494,7 @@ updateXRButtons=function(now){
   }
   const wasPaused=state.paused;v814XRButtons(now);
   if(!wasPaused&&state.paused){xrPausePage='pause';freezeXRWorldForPause()}
-  if(state.paused)drawXRPauseOverlay()
+  if(state.paused&&!xrMainMenuActive)drawXRPauseOverlay()
 };
 const v814Loop=loop;
 loop=function(now){
@@ -502,7 +502,7 @@ loop=function(now){
   if(renderer.xr.isPresenting&&state.paused){
     updateGhostHandPose(phys.handData[0],xrController0.userData.handedness==='right'?xrRightSource:xrLeftSource,.016);
     updateGhostHandPose(phys.handData[1],xrController1.userData.handedness==='left'?xrLeftSource:xrRightSource,.016);
-    updateXRButtons(now);if(state.paused)drawXRPauseOverlay();renderer.render(scene,camera);return
+    updateXRButtons(now);if(state.paused&&!xrMainMenuActive&&!controlsTraining.active)drawXRPauseOverlay();renderer.render(scene,camera);return
   }
   v814Loop(now)
 };
