@@ -75,6 +75,193 @@ function installPhotoresistStation(){
   loop=function(now){previousLoop(now);if(!overlay.hidden)photoresistChamber.setRuntimeState(runtimeState())};
 }
 
+function installHandAlignLaunchHook(){
+  const params=new URLSearchParams(location.search);
+  const enabled=params.get('debug')==='hand-align'||params.get('test')==='hand-align';
+  if(!enabled)return;
+
+  scene.children.slice().forEach(child=>scene.remove(child));
+  scene.background=new THREE.Color(0x020406);
+  scene.fog=null;
+  state.started=false;
+  state.paused=true;
+  controlsTraining.active=false;
+
+  const cameraGroup=new THREE.Group();
+  camera.position.set(0,.12,.46);
+  camera.rotation.set(0,0,0);
+  scene.add(camera);
+
+  scene.add(new THREE.HemisphereLight(0xffffff,0x18202a,2));
+  const keyLight=new THREE.DirectionalLight(0xffffff,2);
+  keyLight.position.set(.4,.6,.6);
+  scene.add(keyLight);
+  const rimLight=new THREE.DirectionalLight(0x53e7ff,1.4);
+  rimLight.position.set(-.4,.2,-.5);
+  scene.add(rimLight);
+
+  const style=document.createElement('style');
+  style.textContent='#intro,#hud,#machineGui,#mapWrap,#processStrip,#xrButton,#tutorialCoach,#report,#settingsPanel,#desktopPausePanel,#controlHelpPanel,#controlsTrainingPanel,#designTerminal,#developerDebugPane,#performancePane,.controls,.developer-stack,#log,#prompt,#crosshair,#focusTag{display:none!important}.hand-align-panel{position:fixed;z-index:10001;left:18px;top:18px;width:330px;color:#dcecf2;background:rgba(5,12,17,.96);border:1px solid #53e7ff;border-radius:8px;padding:14px;font-family:system-ui,sans-serif;font-size:12px}.hand-align-panel h2{margin:0 0 8px;font-size:16px;color:#53e7ff}.hand-align-panel label{display:grid;grid-template-columns:82px 1fr 58px;align-items:center;gap:7px;margin:6px 0}.hand-align-panel input[type=range]{width:100%}.hand-align-panel input[type=number]{width:58px;color:#eaf7fb;background:#0b1a22;border:1px solid #315163}.hand-align-panel select,.hand-align-panel button{color:#eaf7fb;background:#0b1a22;border:1px solid #315163;border-radius:4px;padding:5px}.hand-align-panel pre{max-height:110px;overflow:auto;margin:8px 0;color:#67f6a3;background:#02070a;padding:8px;font:11px monospace}.hand-align-help{color:#91a8b4;line-height:1.45}';
+  document.head.appendChild(style);
+
+  document.body.classList.add('hand-align-debug');
+  const panel=document.createElement('aside');
+  panel.className='hand-align-panel';
+  panel.innerHTML='<h2>VR Hand Alignment</h2><label>Hand<select id="handAlignHand"><option value="right">Right</option><option value="left">Left</option></select><span></span></label><div id="handAlignPosition"></div><div id="handAlignRotation"></div><div class="hand-align-help">A/D X · W/S Y · Q/E Z<br>Arrow keys adjust Euler X/Y/Z<br>C cycle view · R reset · H handedness · V gizmos<br>GIZMOS: X red · Y green · Z blue</div><pre id="handAlignReadout"></pre><button id="handAlignCopy" type="button">COPY OFFSET JSON</button>';
+  document.body.appendChild(panel);
+
+  let handedness=params.get('hand')==='left'?'left':'right';
+  let showGizmos=true;
+  let viewIndex=0;
+  const viewPresets=[
+    {position:[0,.12,.46],target:[0,0,0]},
+    {position:[.46,.12,0],target:[0,0,0]},
+    {position:[0,.46,.12],target:[0,0,0]}
+  ];
+  const offsets={
+    right:{position:[.028,-.085,-.070],rotation:[-.82,.42,-.38]},
+    left:{position:[-.028,-.085,-.070],rotation:[-.82,-.42,.38]}
+  };
+
+  const root=new THREE.Group();
+  root.name='hand-align-controller-root';
+  root.position.set(0,0,0);
+  root.rotation.set(0,0,0);
+  scene.add(root);
+  const ghostData=[];
+  let activeHand=null;
+
+  function axisGizmo(parent,length=.11){
+    const group=new THREE.Group();
+    group.name='hand-align-axis-gizmo';
+    group.add(new THREE.ArrowHelper(new THREE.Vector3(1,0,0),new THREE.Vector3(),length,0xff2947,.018,.012));
+    group.add(new THREE.ArrowHelper(new THREE.Vector3(0,1,0),new THREE.Vector3(),length,0x67f66a,.018,.012));
+    group.add(new THREE.ArrowHelper(new THREE.Vector3(0,0,1),new THREE.Vector3(),length,0x2a88ff,.018,.012));
+    parent.add(group);
+    return group;
+  }
+  const controllerGizmo=axisGizmo(root,.13);
+
+  let handGizmo=null;
+  function rebuildHand(){
+    if(activeHand){
+      activeHand.parent?.remove(activeHand);
+    }
+    const grip=new THREE.Group();
+    grip.name=`${handedness}-touch-plus-debug-grip`;
+    root.add(grip);
+    activeHand=grip;
+    createGhostHand(grip,handedness,handedness==='left'?0:1);
+    const data=phys.handData[handedness==='left'?0:1];
+    const offset=offsets[handedness];
+    data.root.position.set(offset.position[0],offset.position[1],offset.position[2]);
+    data.root.rotation.set(offset.rotation[0],offset.rotation[1],offset.rotation[2]);
+    data.root.scale.set(handedness==='left'?1:-1,1,1);
+    if(handGizmo?.parent)handGizmo.parent.remove(handGizmo);
+    handGizmo=axisGizmo(data.root,.095);
+    controllerGizmo.visible=showGizmos;
+    handGizmo.visible=showGizmos;
+    buildControls();
+  }
+
+  function readout(){
+    const offset=offsets[handedness];
+    const rot=offset.rotation.map(value=>Number(THREE.MathUtils.radToDeg(value).toFixed(2)));
+    const pos=offset.position.map(value=>Number(value.toFixed(5)));
+    const json={hand:handedness,position:{x:pos[0],y:pos[1],z:pos[2]},eulerDegrees:{x:rot[0],y:rot[1],z:rot[2]},eulerRadians:{x:offset.rotation[0],y:offset.rotation[1],z:offset.rotation[2]}};
+    $('handAlignReadout').textContent=JSON.stringify(json,null,2);
+    console.log('[HandAlign]',JSON.stringify(json));
+  }
+
+  function buildControls(){
+    const positionHost=$('handAlignPosition');
+    const rotationHost=$('handAlignRotation');
+    positionHost.innerHTML='';
+    rotationHost.innerHTML='';
+    const positionNames=['X','Y','Z'],rotationNames=['X','Y','Z'];
+    positionNames.forEach((name,index)=>{
+      const label=document.createElement('label');
+      label.innerHTML=`<span>Position ${name}</span><input type="range" min="-0.30" max="0.30" step="0.001" value="${offsets[handedness].position[index]}"><input type="number" step="0.001" value="${offsets[handedness].position[index]}">`;
+      const range=label.querySelector('input[type=range]'),number=label.querySelector('input[type=number]');
+      range.oninput=()=>{const v=Number(range.value);offsets[handedness].position[index]=v;number.value=v.toFixed(3);reapply()};
+      number.oninput=()=>{const v=Number(number.value);if(!Number.isFinite(v))return;offsets[handedness].position[index]=v;range.value=String(v);reapply()};
+      positionHost.appendChild(label);
+    });
+    rotationNames.forEach((name,index)=>{
+      const label=document.createElement('label');
+      const degrees=THREE.MathUtils.radToDeg(offsets[handedness].rotation[index]);
+      label.innerHTML=`<span>Rotation ${name}</span><input type="range" min="-180" max="180" step="1" value="${degrees.toFixed(2)}"><input type="number" step="1" value="${degrees.toFixed(2)}">`;
+      const range=label.querySelector('input[type=range]'),number=label.querySelector('input[type=number]');
+      range.oninput=()=>{const v=THREE.MathUtils.degToRad(Number(range.value));offsets[handedness].rotation[index]=v;number.value=Number(range.value).toFixed(1);reapply()};
+      number.oninput=()=>{const v=THREE.MathUtils.degToRad(Number(number.value));if(!Number.isFinite(v))return;offsets[handedness].rotation[index]=v;range.value=String(Number(number.value));reapply()};
+      rotationHost.appendChild(label);
+    });
+  }
+
+  function reapply(){
+    if(!activeHand)return;
+    const data=phys.handData[handedness==='left'?0:1];
+    if(!data)return;
+    const offset=offsets[handedness];
+    data.root.position.set(offset.position[0],offset.position[1],offset.position[2]);
+    data.root.rotation.set(offset.rotation[0],offset.rotation[1],offset.rotation[2]);
+    data.root.scale.set(handedness==='left'?1:-1,1,1);
+    readout();
+  }
+
+  $('handAlignHand').value=handedness;
+  $('handAlignHand').onchange=event=>{handedness=event.target.value;rebuildHand();readout()};
+  $('handAlignCopy').onclick=async()=>{
+    const text=$('handAlignReadout').textContent;
+    try{await navigator.clipboard?.writeText(text)}catch{}
+  };
+
+  function applyCameraPreset(){
+    const preset=viewPresets[viewIndex];
+    camera.position.set(preset.position[0],preset.position[1],preset.position[2]);
+    camera.lookAt(preset.target[0],preset.target[1],preset.target[2]);
+  }
+  addEventListener('keydown',event=>{
+    if(event.repeat)return;
+    const offset=offsets[handedness];
+    const step=event.shiftKey?0.01:0.001;
+    if(event.key==='a'||event.key==='A')offset.position[0]-=step;
+    else if(event.key==='d'||event.key==='D')offset.position[0]+=step;
+    else if(event.key==='w'||event.key==='W')offset.position[1]+=step;
+    else if(event.key==='s'||event.key==='S')offset.position[1]-=step;
+    else if(event.key==='q'||event.key==='Q')offset.position[2]-=step;
+    else if(event.key==='e'||event.key==='E')offset.position[2]+=step;
+    else if(event.key==='ArrowUp')offset.rotation[0]+=THREE.MathUtils.degToRad(event.shiftKey?10:1);
+    else if(event.key==='ArrowDown')offset.rotation[0]-=THREE.MathUtils.degToRad(event.shiftKey?10:1);
+    else if(event.key==='ArrowLeft')offset.rotation[1]-=THREE.MathUtils.degToRad(event.shiftKey?10:1);
+    else if(event.key==='ArrowRight')offset.rotation[1]+=THREE.MathUtils.degToRad(event.shiftKey?10:1);
+    else if(event.key==='h'||event.key==='H'){handedness=handedness==='left'?'right':'left';$('handAlignHand').value=handedness;rebuildHand()}
+    else if(event.key==='c'||event.key==='C'){viewIndex=(viewIndex+1)%viewPresets.length;applyCameraPreset()}
+    else if(event.key==='v'||event.key==='V'){showGizmos=!showGizmos;controllerGizmo.visible=showGizmos;if(handGizmo)handGizmo.visible=showGizmos}
+    else if(event.key==='r'||event.key==='R'){offset.position.splice(0,3,...(handedness==='right'?[.028,-.085,-.070]:[-.028,-.085,-.070]));offset.rotation.splice(0,3,...(handedness==='right'?[-.82,.42,-.38]:[-.82,-.42,.38]))}
+    else return;
+    reapply();buildControls();
+  });
+
+  rebuildHand();
+  readout();
+  applyCameraPreset();
+
+  globalThis.__handAlignDebug={
+    getOffset:()=>({hand:handedness,position:[...offsets[handedness].position],rotation:[...offsets[handedness].rotation]}),
+    setOffset:(position,rotation)=>{offsets[handedness].position=[...position];offsets[handedness].rotation=[...rotation];reapply();buildControls()},
+    setHandedness:value=>{if(!['left','right'].includes(value))return;handedness=value;$('handAlignHand').value=value;rebuildHand();readout()},
+    copyJson:()=>$('handAlignReadout').textContent
+  };
+
+  loop=function(now){
+    const dt=.016;
+    renderer.render(scene,camera);
+  };
+  renderer.setAnimationLoop(loop);
+  toast('Hand alignment debug hook active.');
+}
+
 function installTestLaunchHook(){
   const hook=new URLSearchParams(location.search).get('test');
   if(hook!=='oxidation-snap')return;
@@ -154,4 +341,4 @@ function installFeatureModules(){
   globalThis.CleanroomAudio?.init();
 }
 
-try{buildEnvironment();bind();setupLaunchMenu();installFeatureModules();updateBenchmark();updateActivityLeaderboard();stations.forEach((_,i)=>updateControlMeshes(i));installPhotoresistStation();installTestLaunchHook();renderer.setAnimationLoop(loop)}catch(err){console.error(err);document.body.innerHTML=`<div style="padding:40px;color:white;font-family:system-ui"><h1>Simulator could not initialise</h1><p>${err.message}</p><p>WebGL is required.</p></div>`}  
+try{buildEnvironment();bind();setupLaunchMenu();installFeatureModules();updateBenchmark();updateActivityLeaderboard();stations.forEach((_,i)=>updateControlMeshes(i));installPhotoresistStation();installTestLaunchHook();installHandAlignLaunchHook();renderer.setAnimationLoop(loop)}catch(err){console.error(err);document.body.innerHTML=`<div style="padding:40px;color:white;font-family:system-ui"><h1>Simulator could not initialise</h1><p>${err.message}</p><p>WebGL is required.</p></div>`}

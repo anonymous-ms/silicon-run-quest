@@ -50,7 +50,7 @@ test('service-worker offline fallback does not serve index.html for scripts or s
 test('every DOM element ID queried by the shipped runtime exists in index.html', () => {
   const html = read('index.html');
   const htmlIds = new Set([...html.matchAll(/\bid=["']([^"']+)["']/g)].map(m => m[1]));
-  const dynamicIds = new Set(['releaseIndicator']);
+  const dynamicIds = new Set(['releaseIndicator','handAlignHand','handAlignPosition','handAlignRotation','handAlignReadout','handAlignCopy']);
   const runtimeFiles = [
     'js/silicon-run-core.js',
     'js/parallel-wafer-runtime.js',
@@ -335,6 +335,20 @@ test('LED light bars orient longitudinally and Settings includes Developer View,
     'Developer stack box must sit separately under the top-left #hud panel');
 });
 
+test('Hand alignment harness launches without VR tracking and exposes live transforms', () => {
+  const startupSrc = read('js/silicon-run-startup.js');
+  const serverSrc = read('scripts/test-launch.js');
+  const readme = read('README.md');
+  assert(startupSrc.includes("params.get('debug')==='hand-align'") && startupSrc.includes('installHandAlignLaunchHook'),
+    'The shipped startup must expose a standalone ?debug=hand-align launch hook');
+  assert(startupSrc.includes('hand-align-panel') && startupSrc.includes('__handAlignDebug') && startupSrc.includes('copyJson'),
+    'The harness must expose live adjustment, JSON export, and a debug API');
+  assert(startupSrc.includes('ArrowHelper') && startupSrc.includes('0xff2947') && startupSrc.includes('0x67f66a') && startupSrc.includes('0x2a88ff'),
+    'The harness must render red X, green Y, and blue Z controller/hand coordinate gizmos');
+  assert(serverSrc.includes('?debug=hand-align&hand=right'), 'The local test server must print the hand alignment URL');
+  assert(readme.includes('?debug=hand-align&hand=right'), 'README must document the isolated hand alignment launch');
+});
+
 test('VR controls training uses a fixed black 3D UI stage and retains handset models', () => {
   const coreSrc = read('js/silicon-run-core.js');
   assert(coreSrc.includes('enterXRTrainingEnvironment') && coreSrc.includes('leaveXRTrainingEnvironment'),
@@ -358,8 +372,11 @@ test('VR handsets use mirrored handedness and calibrated zero-pose offsets', () 
     'VR ghost controllers must use a named per-hand zero-pose and live handedness calibration');
   assert(coreSrc.includes("left:{mirror:1") && coreSrc.includes("right:{mirror:-1"),
     'Left and right handset models must use opposite left-right mirror factors');
-  assert(coreSrc.includes("deviceRotation:[-.34,-.05,.12]") && coreSrc.includes("deviceRotation:[-.34,.05,-.12]"),
-    'Left and right handset devices must receive opposite wrist tilt offsets');
+  assert(coreSrc.includes("left:{mirror:1,position:[-.028,-.085,-.070],rotation:[-.82,-.42,.38]") &&
+         coreSrc.includes("right:{mirror:-1,position:[.028,-.085,-.070],rotation:[-.82,.42,-.38]"),
+    'Left and right hands must use the calibrated down/back/palm-in grip pose');
+  assert(coreSrc.includes("deviceRotation:[-.34,0,0]"),
+    'The physical controller mesh must retain a neutral local axis instead of inheriting handset roll');
   assert(baseSrc.includes("mirror=handedness==='left'?1:-1"), 'Legacy handset renderer must share the handedness mirror convention');
 });
 
