@@ -25,8 +25,8 @@ let xrMainMenuActive=false;
 let xrTrainingRoot=null,xrTrainingHiddenRoots=null,xrTrainingPreviousBackground=null,xrTrainingPreviousFog=null;
 const XR_POINTER_REACH=30;
 const XR_HAND_ZERO_POSE={
-  left:{mirror:1,position:[-.031,-.083,.046],rotation:[0.10471975511965978,0.24434609527920614,-1.5533430342749532],devicePosition:[0,-.042,.024],deviceRotation:[-.34,0,0]},
-  right:{mirror:-1,position:[.031,-.083,.046],rotation:[0.10471975511965978,-0.24434609527920614,1.5533430342749532],devicePosition:[0,-.042,.024],deviceRotation:[-.34,0,0]}
+  left:{mirror:1,chirality:-1,position:[-.031,-.083,.046],rotation:[0.10471975511965978,0.24434609527920614,-1.5533430342749532],devicePosition:[0,-.042,.024],deviceRotation:[-.34,0,0]},
+  right:{mirror:-1,chirality:1,position:[.031,-.083,.046],rotation:[0.10471975511965978,-0.24434609527920614,1.5533430342749532],devicePosition:[0,-.042,.024],deviceRotation:[-.34,0,0]}
 };
 const PREFERENCES_KEY='siliconRunPreferencesV1',ACTIVITY_RECORDS_KEY='waferFabActivitiesV1',GUI_TEXT_SIZES=[5,8,12,20,30,50];
 const userPreferences=loadUserPreferences();
@@ -277,12 +277,12 @@ function createGhostHand(grip,handedness,index){
   const mirror=initialPose.mirror;
   // Translucent Meta Quest frosted ghost hand gripping the Touch Plus controller
   const root=new THREE.Group();
-  const ghostMat=new THREE.MeshStandardMaterial({color:0xeef6fb,transparent:true,opacity:.44,roughness:.36,metalness:.06,emissive:0x2e5e78,emissiveIntensity:.24,depthWrite:false});
-  const rimMat=new THREE.MeshBasicMaterial({color:0xb8e9ff,transparent:true,opacity:.32,depthWrite:false,toneMapped:false});
+  const ghostMat=new THREE.MeshStandardMaterial({color:0xeef6fb,transparent:true,opacity:.44,roughness:.36,metalness:.06,emissive:0x2e5e78,emissiveIntensity:.24,depthWrite:false,side:THREE.DoubleSide});
+  const rimMat=new THREE.MeshBasicMaterial({color:0xb8e9ff,transparent:true,opacity:.32,depthWrite:false,toneMapped:false,side:THREE.DoubleSide});
   root.position.set(initialPose.position[0],initialPose.position[1],initialPose.position[2]);
   root.rotation.order='XYZ';
   root.rotation.set(initialPose.rotation[0],initialPose.rotation[1],initialPose.rotation[2]);
-  root.scale.set(initialPose.mirror,1,1);grip.add(root);
+  root.scale.set(initialPose.chirality,1,1);grip.add(root);
   // Sculpted wrist cuff + palm pad
   const cuff=mesh(new THREE.CylinderGeometry(.032,.038,.065,16),ghostMat,root,0,-.028,.048);cuff.rotation.x=Math.PI/2+.16;
   const cuffRim=mesh(new THREE.TorusGeometry(.035,.0025,8,24),rimMat,root,0,-.034,.078);cuffRim.rotation.x=.16;
@@ -365,7 +365,7 @@ function applyGhostHandZeroPose(data,handedness){
   data.root.position.set(pose.position[0],pose.position[1],pose.position[2]);
   data.root.rotation.order='XYZ';
   data.root.rotation.set(pose.rotation[0],pose.rotation[1],pose.rotation[2]);
-  data.root.scale.set(pose.mirror,1,1);
+  data.root.scale.set(pose.chirality,1,1);
   if(data.device){
     data.device.position.set(pose.devicePosition[0],pose.devicePosition[1],pose.devicePosition[2]);
     data.device.rotation.set(pose.deviceRotation[0],pose.deviceRotation[1],pose.deviceRotation[2]);

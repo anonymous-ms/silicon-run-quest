@@ -157,7 +157,7 @@ function installHandAlignLaunchHook(){
     data.root.position.set(offset.position[0],offset.position[1],offset.position[2]);
     data.root.rotation.order='XYZ';
     data.root.rotation.set(offset.rotation[0],offset.rotation[1],offset.rotation[2]);
-    data.root.scale.set(handedness==='left'?1:-1,1,1);
+    data.root.scale.set(handedness==='left'?-1:1,1,1);
     if(handGizmo?.parent)handGizmo.parent.remove(handGizmo);
     handGizmo=axisGizmo(data.root,.095);
     controllerGizmo.visible=showGizmos;
@@ -207,7 +207,7 @@ function installHandAlignLaunchHook(){
     data.root.position.set(offset.position[0],offset.position[1],offset.position[2]);
     data.root.rotation.order='XYZ';
     data.root.rotation.set(offset.rotation[0],offset.rotation[1],offset.rotation[2]);
-    data.root.scale.set(handedness==='left'?1:-1,1,1);
+    data.root.scale.set(handedness==='left'?-1:1,1,1);
     readout();
   }
 

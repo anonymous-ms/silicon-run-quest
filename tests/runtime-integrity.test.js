@@ -372,9 +372,13 @@ test('VR handsets use mirrored handedness and calibrated zero-pose offsets', () 
     'VR ghost controllers must use a named per-hand zero-pose and live handedness calibration');
   assert(coreSrc.includes("left:{mirror:1") && coreSrc.includes("right:{mirror:-1"),
     'Left and right handset models must use opposite left-right mirror factors');
-  assert(coreSrc.includes("left:{mirror:1,position:[-.031,-.083,.046],rotation:[0.10471975511965978,0.24434609527920614,-1.5533430342749532]") &&
-         coreSrc.includes("right:{mirror:-1,position:[.031,-.083,.046],rotation:[0.10471975511965978,-0.24434609527920614,1.5533430342749532]"),
+  assert(coreSrc.includes("left:{mirror:1,chirality:-1,position:[-.031,-.083,.046],rotation:[0.10471975511965978,0.24434609527920614,-1.5533430342749532]") &&
+         coreSrc.includes("right:{mirror:-1,chirality:1,position:[.031,-.083,.046],rotation:[0.10471975511965978,-0.24434609527920614,1.5533430342749532]"),
     'Left and right hands must use the calibrated down/back/palm-in grip pose');
+  assert(coreSrc.includes('root.scale.set(initialPose.chirality,1,1)') && coreSrc.includes('data.root.scale.set(pose.chirality,1,1)'),
+    'Hand geometry chirality must be mirrored at the hand root independently of controller feature mirroring');
+  assert(coreSrc.includes('side:THREE.DoubleSide') && baseSrc.includes('side:THREE.DoubleSide'),
+    'Hand materials must render correctly after mirrored negative-X geometry winding');
   assert(coreSrc.includes("deviceRotation:[-.34,0,0]"),
     'The physical controller mesh must retain a neutral local axis instead of inheriting handset roll');
   assert(baseSrc.includes("mirror=handedness==='left'?1:-1"), 'Legacy handset renderer must share the handedness mirror convention');
