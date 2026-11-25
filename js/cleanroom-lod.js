@@ -7,8 +7,8 @@
  *    (0 while inside the isolated Design Room at z = 165) while keeping diffuser strips glowing.
  * 2. Classifying each station into Near (<= 12 m), Mid (12..22 m), and Far (> 22 m) LOD tiers:
  *    - Near: full dials, scale ticks/labels, internal chamber assemblies, shroud & door.
- *    - Mid: unloads fine scale labels & control tick sprites while retaining shroud, door & hull.
- *    - Far / Design World: keeps lightweight outer hull & overhead sign only, unloading chamber interiors.
+ *    - Mid: reduces eligible primitive geometry and unloads fine labels while retaining the chamber.
+ *    - Far / Design World: reduces eligible geometry and keeps the outer hull and overhead sign.
  *
  * Extension hooks for future agents:
  * - `CleanroomLOD.FutureHooks.setLodProfile(name)`: swap between `'desktop'`, `'quest'`, and `'ultra'`
@@ -26,8 +26,106 @@
   const machineRecords = [];
   const ceilingLights = [];
   const stats = { near: 0, mid: 0, far: 0, activeLights: 0 };
+  const geometryVariants = new WeakMap();
   let initialized = false;
   let lastUpdateAt = 0;
+
+  function makePrimitiveGeometry(geometry, tier) {
+    const p = geometry.parameters;
+    const lower = tier === 'mid' ? 0.5 : 0.25;
+    const segments = (value, minimum) => Math.max(minimum, Math.floor(value * lower));
+    switch (geometry.type) {
+      case 'SphereGeometry':
+        return new THREE.SphereGeometry(
+          p.radius, segments(p.widthSegments, 6), segments(p.heightSegments, 4),
+          p.phiStart, p.phiLength, p.thetaStart, p.thetaLength
+        );
+      case 'CylinderGeometry':
+        return new THREE.CylinderGeometry(
+          p.radiusTop, p.radiusBottom, p.height, segments(p.radialSegments, 6),
+          p.heightSegments, p.openEnded, p.thetaStart, p.thetaLength
+        );
+      case 'ConeGeometry':
+        return new THREE.ConeGeometry(
+          p.radius, p.height, segments(p.radialSegments, 6),
+          p.heightSegments, p.openEnded, p.thetaStart, p.thetaLength
+        );
+      case 'TorusGeometry':
+        return new THREE.TorusGeometry(
+          p.radius, p.tube, segments(p.radialSegments, 3),
+          segments(p.tubularSegments, 6), p.arc
+        );
+      default:
+        return null;
+    }
+  }
+
+  function canReplaceGeometry(geometry) {
+    if (!geometry?.parameters || !geometry.attributes?.position || geometry.groups?.length) return false;
+    if (Object.keys(geometry.morphAttributes || {}).length) return false;
+    if (Object.keys(geometry.attributes).some(name => !['position', 'normal', 'uv'].includes(name))) return false;
+    const position = geometry.attributes.position;
+    const triangles = geometry.index ? geometry.index.count / 3 : position.count / 3;
+    if (triangles < 96) return false;
+
+    // Rebuild the original settings to reject transformed or custom-edited geometries.
+    const baseline = makeBaselineGeometry(geometry);
+    if (!baseline) return false;
+    const baselinePositions = baseline.attributes.position.array;
+    const sourcePositions = position.array;
+    const matches = baselinePositions.length === sourcePositions.length &&
+      baselinePositions.every((value, index) => Math.abs(value - sourcePositions[index]) < 1e-6);
+    baseline.dispose();
+    return matches;
+  }
+
+  function makeBaselineGeometry(geometry) {
+    const p = geometry.parameters;
+    switch (geometry.type) {
+      case 'SphereGeometry':
+        return new THREE.SphereGeometry(p.radius, p.widthSegments, p.heightSegments, p.phiStart, p.phiLength, p.thetaStart, p.thetaLength);
+      case 'CylinderGeometry':
+        return new THREE.CylinderGeometry(p.radiusTop, p.radiusBottom, p.height, p.radialSegments, p.heightSegments, p.openEnded, p.thetaStart, p.thetaLength);
+      case 'ConeGeometry':
+        return new THREE.ConeGeometry(p.radius, p.height, p.radialSegments, p.heightSegments, p.openEnded, p.thetaStart, p.thetaLength);
+      case 'TorusGeometry':
+        return new THREE.TorusGeometry(p.radius, p.tube, p.radialSegments, p.tubularSegments, p.arc);
+      default:
+        return null;
+    }
+  }
+
+  function getGeometryVariants(geometry) {
+    if (geometryVariants.has(geometry)) return geometryVariants.get(geometry);
+    const variants = { near: geometry, mid: geometry, far: geometry };
+    if (canReplaceGeometry(geometry)) {
+      for (const tier of ['mid', 'far']) {
+        const candidate = makePrimitiveGeometry(geometry, tier);
+        if (candidate && candidate.attributes.position.count < geometry.attributes.position.count) {
+          variants[tier] = candidate;
+        } else {
+          candidate?.dispose();
+        }
+      }
+    }
+    geometryVariants.set(geometry, variants);
+    return variants;
+  }
+
+  function collectGeometryLods(group) {
+    const records = [];
+    const visit = obj => {
+      if (obj.isMesh && obj.geometry && !obj.userData?.interactive) {
+        const variants = getGeometryVariants(obj.geometry);
+        if (variants.mid !== variants.near || variants.far !== variants.near) {
+          records.push({ mesh: obj, variants });
+        }
+      }
+      obj.children?.forEach(visit);
+    };
+    visit(group);
+    return records;
+  }
 
   function classifyMachine(m, index) {
     if (!m?.group || m.kind === 'stock') return null;
@@ -70,7 +168,8 @@
       tier: 'near',
       fineDetails,
       midDetails,
-      lights
+      lights,
+      geometryLods: collectGeometryLods(m.group)
     };
   }
 
@@ -85,6 +184,10 @@
     // when a machine transitions from idle to running.
     for (const light of rec.lights) {
       light.visible = tier === 'near';
+    }
+    for (const { mesh, variants } of rec.geometryLods) {
+      const geometry = variants[tier] || variants.near;
+      if (mesh.geometry !== geometry) mesh.geometry = geometry;
     }
   }
 
