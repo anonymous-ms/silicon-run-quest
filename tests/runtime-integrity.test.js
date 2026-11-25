@@ -75,6 +75,13 @@ test('oxidation furnace model controls and motion are bound to simulator interac
     assert(coreSrc.includes(feature), `Furnace runtime must wire ${feature}`);
   }
   assert(coreSrc.includes("g.scale.setScalar(.45)"), 'The imported furnace must be scaled to fit the existing machine station');
+  assert(coreSrc.includes('paneShape.holes.push(portOpening)') &&
+    coreSrc.includes('const boatLength=doorInsideFaceZ-boatRearZ') &&
+    coreSrc.includes('new THREE.TorusGeometry(.5,seatTubeRadius') &&
+    coreSrc.includes('const wafer=createWafer(1.6)'),
+  'The furnace must keep a circular glass port, end its resized boat at the door, use thin wafer seats, and preserve carried-wafer size');
+  assert(startupSrc.includes('if(machine?.door&&!machine.carriage)machine.door.rotation.y=-machine.doorMaxAngle'),
+    'The sliding-door browser fixture must leave fixed furnace glazing stationary');
   assert(coreSrc.includes('m.carriage.position.z=lerp(m.carriageClosedZ,m.carriageOpenZ,clamp(st.doorAmount,0,1))'),
     'The model carriage must follow the existing interlocked chamber door instead of looping its source track');
   assert(coreSrc.includes('!!st.transfer||[\'loadedDoorOpen\',\'loaded\',\'running\',\'done\'].includes(st.state)') &&

@@ -1255,7 +1255,7 @@ function createOxidationFurnaceModel(g,s,i){
   if(!Array.isArray(model?.objects)||!Array.isArray(model?.groups))throw new Error('Oxidation furnace model is missing its object or group data.');
   const objectData=new Map(model.objects.map(object=>[object.id,object]));
   const groupData=new Map(model.groups.map(group=>[group.id,group]));
-  const objectNodes=new Map(),groupNodes=new Map(),groupByObject=new Map();
+  const objectNodes=new Map(),groupNodes=new Map(),groupByObject=new Map(),objectTransforms=new Map();
   const makeGeometry=primitive=>{
     if(primitive==='box')return new THREE.BoxGeometry(1,1,1);
     if(primitive==='cylinder')return new THREE.CylinderGeometry(.5,.5,1,28);
@@ -1290,10 +1290,58 @@ function createOxidationFurnaceModel(g,s,i){
     groupNodes.set(definition.id,node);
     definition.memberIds.forEach(id=>groupByObject.set(id,definition.id));
   }
+  const loadingDoorDefinition=objectData.get('object_load_door_glass');
+  if(!loadingDoorDefinition)throw new Error('Oxidation furnace model is missing its sliding loading door.');
+  const seatScale=1.12,seatTubeRadius=.012,seatOuterRadius=(.5+seatTubeRadius)*seatScale,seatHalfDepth=seatTubeRadius*seatScale;
+  const doorInsideFaceZ=loadingDoorDefinition.transform.position.z-loadingDoorDefinition.transform.scale.y/2;
+  const slotDefinitions=model.objects.filter(object=>/^object_wafer_v2_\d+$/.test(object.id)).sort((a,b)=>Number(a.id.match(/\d+$/)[0])-Number(b.id.match(/\d+$/)[0]));
+  const activeSlotIndex=slotDefinitions.findIndex(object=>object.id==='object_wafer_v2_3');
+  if(activeSlotIndex<0||activeSlotIndex===slotDefinitions.length-1)throw new Error('Oxidation furnace model is missing its active wafer locator.');
+  const activeSlotZ=slotDefinitions[activeSlotIndex].transform.position.z;
+  const lastSlotZ=doorInsideFaceZ-seatHalfDepth;
+  const slotStep=(lastSlotZ-activeSlotZ)/(slotDefinitions.length-1-activeSlotIndex);
+  const slotPositions=new Map();
+  slotDefinitions.forEach((object,index)=>{
+    const position={x:object.transform.position.x,y:3.62+.14/2+seatOuterRadius,z:activeSlotZ+(index-activeSlotIndex)*slotStep};
+    slotPositions.set(object.id,position);
+    slotPositions.set(object.id.replace('object_wafer_v2_','object_locator_v2_'),position);
+  });
+  const boatRearZ=slotPositions.get(slotDefinitions[0].id).z-seatHalfDepth;
+  const boatLength=doorInsideFaceZ-boatRearZ;
+  const boatCenterZ=(doorInsideFaceZ+boatRearZ)/2;
   for(const definition of model.objects){
     if(['object_shell','object_front_face','object_bore','object_front_opening','object_guard_glass','object_guard_handle'].includes(definition.id))continue;
-    const node=new THREE.Mesh(makeGeometry(definition.primitive),makeMaterial(definition));
-    const transform=definition.transform,parentGroupId=groupByObject.get(definition.id);
+    const locator=definition.id.startsWith('object_locator_v2_');
+    const geometry=locator?new THREE.TorusGeometry(.5,seatTubeRadius,10,32):makeGeometry(definition.primitive);
+    const node=new THREE.Mesh(geometry,makeMaterial(definition));
+    const sourceTransform=definition.transform;
+    const transform={position:{...sourceTransform.position},rotation:sourceTransform.rotation,scale:{...sourceTransform.scale}};
+    const slotPosition=slotPositions.get(definition.id);
+    if(slotPosition){
+      transform.position={...slotPosition};
+      if(locator)transform.scale={x:seatScale,y:seatScale,z:seatScale};
+      else transform.scale={x:1.088,y:transform.scale.y,z:1.088};
+    }else if(definition.id==='object_tray_base'){
+      transform.position.z=boatCenterZ;
+      transform.scale.z=boatLength;
+    }else if(definition.id==='object_tray_lip_l'||definition.id==='object_tray_lip_r'){
+      transform.position.z=boatCenterZ;
+      transform.scale.z=boatLength-.1;
+    }else if(definition.id==='object_boat_rail_l'||definition.id==='object_boat_rail_r'){
+      transform.position.y=3.62+.14/2+.035;
+      transform.position.z=boatCenterZ;
+      transform.scale.y=boatLength-.2;
+    }else if(definition.id==='object_tray_stop'){
+      transform.position.y=3.62+.14/2+.07;
+      transform.position.z=boatRearZ-.05;
+      transform.scale.y=.14;
+    }else if(definition.id==='object_handle_mount_l'){
+      transform.position.y=3.91;
+    }else if(definition.id==='object_handle_mount_u'){
+      transform.position.y=4.79;
+    }
+    objectTransforms.set(definition.id,transform);
+    const parentGroupId=groupByObject.get(definition.id);
     const parent=groupNodes.get(parentGroupId)||g;
     const parentPosition=parentGroupId?groupData.get(parentGroupId).transform.position:{x:0,y:0,z:0};
     node.name=definition.name;
@@ -1318,17 +1366,20 @@ function createOxidationFurnaceModel(g,s,i){
     metalness:0,roughness:.12,transparent:true,opacity:.22,
     transmission:.12,thickness:.035,side:THREE.DoubleSide,depthWrite:false
   });
-  const addWindowPane=(name,width,height,x,y)=>{
-    const pane=new THREE.Mesh(new THREE.BoxGeometry(width,height,.035),windowMaterial);
-    pane.name=name;
-    pane.position.set(x,y,.05);
-    pane.renderOrder=2;
-    windowFrame.add(pane);
-  };
-  addWindowPane('Left furnace safety window',1.68,3.3,.92,0);
-  addWindowPane('Right furnace safety window',1.2,3.3,4.82,0);
-  addWindowPane('Upper furnace safety window',2.4,.48,3,1.45);
-  addWindowPane('Lower furnace safety window',2.4,.48,3,-1.45);
+  const paneShape=new THREE.Shape();
+  paneShape.moveTo(-2.625,-1.65);
+  paneShape.lineTo(2.625,-1.65);
+  paneShape.lineTo(2.625,1.65);
+  paneShape.lineTo(-2.625,1.65);
+  paneShape.closePath();
+  const portOpening=new THREE.Path();
+  portOpening.absarc(.25,0,.82,0,Math.PI*2,true);
+  paneShape.holes.push(portOpening);
+  const portPane=new THREE.Mesh(new THREE.ExtrudeGeometry(paneShape,{depth:.035,bevelEnabled:false,curveSegments:64}),windowMaterial);
+  portPane.name='Furnace safety glazing around loading port';
+  portPane.position.set(2.75,0,.0325);
+  portPane.renderOrder=2;
+  windowFrame.add(portPane);
 
   const controls=[],controlGroup=groupNodes.get('group_controls');
   const controlObjects={temp:'object_temp',flow:'object_flow'};
@@ -1458,7 +1509,7 @@ function createOxidationFurnaceModel(g,s,i){
   const carriageFrames=carriageTrack?.keyframes||[];
   if(carriageFrames.length<2)throw new Error('Oxidation furnace carriage animation track is missing its travel endpoints.');
   const carriagePositions=carriageFrames.map(frame=>frame.transform.position.z);
-  const loadingDoor=objectData.get('object_load_door_glass');
+  const loadingDoor=loadingDoorDefinition;
   const frameTransform=groupData.get('group_safety_door').transform.position;
   const paneFront=frameTransform.z+.05+.035/2;
   const doorHalfDepth=loadingDoor.transform.scale.y/2;
@@ -1470,16 +1521,17 @@ function createOxidationFurnaceModel(g,s,i){
   const slotDefinition=model.objects.find(object=>object.id==='object_wafer_v2_3');
   if(!slotDefinition)throw new Error('Oxidation furnace model is missing its wafer locator.');
   const carriagePosition=groupData.get('group_loading_carriage').transform.position;
+  const slotTransform=objectTransforms.get(slotDefinition.id);
   const homePosition={
-    x:slotDefinition.transform.position.x-carriagePosition.x,
-    y:slotDefinition.transform.position.y-carriagePosition.y,
-    z:slotDefinition.transform.position.z-carriagePosition.z
+    x:slotTransform.position.x-carriagePosition.x,
+    y:slotTransform.position.y-carriagePosition.y,
+    z:slotTransform.position.z-carriagePosition.z
   };
   const waferPivot=new THREE.Group();
   waferPivot.name='oxidation wafer placement';
   waferPivot.position.set(homePosition.x,homePosition.y,homePosition.z);
   carriage.add(waferPivot);
-  const wafer=createWafer(1);
+  const wafer=createWafer(1.6);
   wafer.visible=false;
   waferPivot.add(wafer);
   const waferHome=new THREE.Vector3(homePosition.x,homePosition.y,homePosition.z);

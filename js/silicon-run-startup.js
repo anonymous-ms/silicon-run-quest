@@ -285,7 +285,7 @@ function installTestLaunchHook(){
   st.doorTarget=1;
   st.doorAmount=1.5;
   phys.doorVelocities[oxidationIndex]=0;
-  if(machine?.door)machine.door.rotation.y=-machine.doorMaxAngle;
+  if(machine?.door&&!machine.carriage)machine.door.rotation.y=-machine.doorMaxAngle;
   if(machine?.carriage)machine.carriage.position.z=machine.carriageOpenZ;
   setLamp(oxidationIndex);
   const body=spawnStockWafer(true);
