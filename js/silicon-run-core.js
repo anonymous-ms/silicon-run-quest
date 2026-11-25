@@ -1,7 +1,7 @@
 'use strict';
 const $=id=>document.getElementById(id),clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),lerp=(a,b,t)=>a+(b-a)*t;        
 const C={cyan:0x53e7ff,blue:0x177ddc,controlBlue:0x165b9c,white:0xe9f7fb,dark:0x07121d,orange:0xff9d3c,amber:0xffcf56,violet:0xb16cff,green:0x67f6a3,red:0xff5f73,magenta:0xff4fe1,startGreen:0x18df5c,startGreenIdle:0x11592b,stopRed:0xff2e43,stopRedIdle:0x6b1822,guideBright:0xb8ff1a,guideTurn:0xffd829};
-const DOOR_MAGNET_ANGLE=5/90;
+const DOOR_MAGNET_ANGLE=5/90,DOOR_MAGNET_DISTANCE_RATIO=.1;
 const num=(key,label,min,max,step,target,tol,unit,initial,style='dial',weight=1)=>({kind:'number',key,label,min,max,step,target,tol,unit,initial,style,weight});
 const choice=(key,label,options,target,initial,weight=1)=>({kind:'choice',key,label,options,target,initial,style:'dial',weight});
 const stations=[
@@ -18,7 +18,7 @@ const stations=[
 {name:'Microscope & Probe Test',short:'Probe CCD charge transfer',zone:'TEST',color:C.green,side:-1,z:-37,type:'probe',desc:'Land Kelvin probes on the CCD clock and output amplifier pads to verify charge transfer.',note:'Align probes and set nominal 3.3 V output amplifier bias to capture full CCD sample statistics.',targetSeconds:10,metric:{label:'Electrical samples',unit:'samples',target:100,tol:8,calc:(v,t)=>10*t},controls:[num('probeX','Probe X position',20,80,1,62,4,'%',49,'slider',1.4),num('probeY','Probe Y position',20,80,1,38,4,'%',54,'slider',1.4),num('bias','Sensor bias',2.5,4,.05,3.3,.1,'V',3.65,'dial',1.2)]}
 ];
 const state={started:false,username:'',lotId:'',carrying:false,current:0,completed:false,awaitingDelivery:false,runStart:0,elapsed:0,stamina:1,crouching:false,sprinting:false,nearest:null,focus:null,cycle:null,records:[],pattern:'Logic grid',waferBroken:false,paused:false};        
-const status=stations.map(s=>({state:'locked',values:Object.fromEntries(s.controls.map(c=>[c.key,c.initial])),score:null,deviations:[],metric:0,doorTarget:0,doorAmount:0,transfer:null}));        
+const status=stations.map(s=>({state:'locked',values:Object.fromEntries(s.controls.map(c=>[c.key,c.initial])),score:null,deviations:[],metric:0,doorTarget:0,doorManual:false,doorAmount:0,transfer:null}));        
 let scene,camera,renderer,player,clock,yaw=Math.PI,pitch=-.03,lastFrame=0,stockMachine=null,deliveryStation=null;let xrController0=null,xrController1=null,xrGrip0=null,xrGrip1=null,xrRay=null,xrAdjustAt=0,xrTurnLatch=false,xrHandset=null,xrHandsetCanvas=null,xrHandsetCtx=null,xrHandsetTexture=null,xrHandsetUpdated=0,xrTargetRing=null,xrObjectiveBeacon=null,xrLeftSource=null,xrRightSource=null,xrOverlay=null,xrOverlayCanvas=null,xrOverlayCtx=null,xrOverlayTexture=null;const machines=[],interactives=[],effects=[],colliders=[],keys={},sharpsBins=[],waferShards=[];const raycaster=new THREE.Raycaster();const xrTempMatrix=new THREE.Matrix4(),xrOrigin=new THREE.Vector3(),xrDirection=new THREE.Vector3(),xrHeadDirection=new THREE.Vector3();const phys={grab:null,doorGrab:null,waferBody:null,waferVelocity:new THREE.Vector3(),waferLastPos:new THREE.Vector3(),waferReleaseY:0,waferFree:false,lastHandPos:new THREE.Vector3(),handVelocity:new THREE.Vector3(),doorVelocities:[],buttons:{},hudVisible:true,beaconVisible:true,handData:[],waferStaged:false,waferEverPicked:false,pickupGuide:null,pinchDistance:.12,stockReady:null,stockRespawnAt:0,stockRespawnMs:5000,jumpVelocity:0,jumpOffset:0,crouchHeld:false,baseRigY:.86};        
 let xrRay0=null,xrHitBlobs=[];
 let xrMainMenuActive=false;
@@ -814,6 +814,8 @@ function shatterWafer(point,impact){if(state.waferBroken)return;state.waferBroke
 function beginControlGrab(c,d){const m=machines[d.machineIndex+1],ref=m.controls[stations[d.machineIndex].controls.findIndex(x=>x.key===d.controlKey)],wp=pinchWorld(c);phys.grab={kind:'control',controller:c,data:d,ref,start:wp.clone(),last:wp.clone()};pulseXR(.35,35)}        
 function updateControlGrab(){const g=phys.grab;if(g?.kind!=='control')return;const i=g.data.machineIndex,spec=stations[i].controls.find(x=>x.key===g.data.controlKey),m=machines[i+1],p=pinchWorld(g.controller),local=m.group.worldToLocal(p.clone());const ref=g.ref;if(spec.style==='slider'){const motion=local.y-m.group.worldToLocal(g.last.clone()).y;if(Math.abs(motion)>.008)adjustControl(g.data,Math.sign(motion))}else{const center=(ref.rotor||ref.mesh).getWorldPosition(new THREE.Vector3()),a=Math.atan2(p.y-center.y,p.x-center.x),b=Math.atan2(g.last.y-center.y,g.last.x-center.x),delta=a-b;if(Math.abs(delta)>.035)adjustControl(g.data,Math.sign(delta))}g.last.copy(p)}        
 function updateCarriageCollider(m){const state=m.carriageCollider;if(!state||!m.carriage)return;const position=m.carriage.getWorldPosition(state.position);state.collider.x=state.center.x+position.x-state.origin.x;state.collider.z=state.center.z+position.z-state.origin.z}
+function doorPullProgress(m,st,amountMax=1){if(m?.carriage){const travel=Math.abs(m.carriageOpenZ-m.carriageClosedZ);return travel>.001?clamp(Math.abs(m.carriage.position.z-m.carriageClosedZ)/travel,0,1):0}return clamp(st.doorAmount/amountMax,0,1)}
+function isDoorWithinMagnetDistance(m,st,amountMax=1){return m?.carriage?doorPullProgress(m,st,amountMax)<=DOOR_MAGNET_DISTANCE_RATIO:st.doorAmount<=DOOR_MAGNET_ANGLE}
 const _doorLockNoticeAt=[];
 function isDoorLocked(i){return status[i]?.state==='running'}
 function notifyDoorLocked(i){
@@ -834,6 +836,7 @@ if(d<bestD){bestD=d;best={i,m,grip}}
 if(!best)return false;
 if(isDoorLocked(best.i)){notifyDoorLocked(best.i);return false}
 state.focus=best.grip;
+status[best.i].doorManual=true;
 phys.doorGrab={i:best.i,controller:c,last:p.clone(),handle:best.grip};
 phys.doorVelocities[best.i]=0;
 pulseXR(.48,45);
@@ -844,7 +847,7 @@ function updateDoorGrab(dt){const g=phys.doorGrab;if(!g)return;const st=status[g
 function onXRTriggerStart(c){if(state.paused)return;if(grabShard(c))return;if(grabWafer(c))return;const rayHit=xrInteractiveHit(c);if(rayHit?.object.userData.kind==='designTerminal'){state.focus=rayHit.object;activateFocused();pulseXR(.45,45);return}const near=nearestInteractiveAtPinch(c),d=near?.data;if(d?.type==='control'){state.focus=near.object;beginControlGrab(c,d);return}if(d?.type==='button'){state.focus=near.object;activateFocused();pulseXR(.45,45);return}pulseXR(.08,18)}        
 function onXRTriggerEnd(c){if(phys.grab?.kind==='wafer')releaseWafer(c);else if(phys.grab?.kind==='shard')releaseShard(c);else if(phys.grab?.kind==='control'&&phys.grab.controller===c)phys.grab=null}        
 function onXRSqueezeStart(c){if(state.paused)return;if(c.userData.handedness==='left'){phys.crouchHeld=true;pulseXR(.16,20)}else beginDoorGrab(c)}        
-function onXRSqueezeEnd(c){if(c.userData.handedness==='left')phys.crouchHeld=false;if(phys.doorGrab?.controller===c){const i=phys.doorGrab.i,st=status[i];phys.doorGrab=null;if(st.doorAmount<5/90){st.doorAmount=0;phys.doorVelocities[i]=0;pulseXR(.75,70)}}}        
+function onXRSqueezeEnd(c){if(c.userData.handedness==='left')phys.crouchHeld=false;if(phys.doorGrab?.controller===c){const i=phys.doorGrab.i,st=status[i],m=machines[i+1];phys.doorGrab=null;if(!m?.carriage&&st.doorAmount<5/90){st.doorAmount=0;phys.doorVelocities[i]=0;pulseXR(.75,70)}}}        
 function updateWaferPhysics(dt){const body=phys.waferBody,wafer=body?.view;if(!body?.dynamic||!wafer?.visible||state.waferBroken)return;body.velocity.y-=9.81*dt;wafer.position.addScaledVector(body.velocity,dt);const p=wafer.position;if(p.y<.08){const drop=phys.waferReleaseY-p.y,impact=Math.abs(body.velocity.y);if(drop>.5||impact>2.2){shatterWafer(p.clone(),Math.max(1.4,impact*.35));return}p.y=.08;body.velocity.y=Math.abs(body.velocity.y)*.18;body.velocity.x*=.65;body.velocity.z*=.65}if(Math.abs(p.x)>8.8||p.z>11.8||p.z<-41.8){shatterWafer(p.clone(),2.2);return}for(const c of colliders){if(!c.playerOnly&&Math.abs(p.x-c.x)<c.w/2&&Math.abs(p.z-c.z)<c.d/2&&p.y<2.8&&body.velocity.length()>1.7){shatterWafer(p.clone(),body.velocity.length());return}}tryPlaceWafer()}        
 function updateShards(dt){for(let i=waferShards.length-1;i>=0;i--){const q=waferShards[i];if(phys.grab?.kind==='shard'&&phys.grab.shard===q)continue;q.v.y-=9.81*dt;q.mesh.position.addScaledVector(q.v,dt);q.life+=dt;if(q.mesh.position.y<.03){q.mesh.position.y=.03;q.v.y=Math.abs(q.v.y)*.2;q.v.x*=.75;q.v.z*=.75}const bin=sharpsBins.find(b=>Math.abs(q.mesh.position.x-b.x)<.24&&Math.abs(q.mesh.position.z-b.z)<.24&&q.mesh.position.y<.75);if(bin){scene.remove(q.mesh);waferShards.splice(i,1)}}if(state.waferBroken&&waferShards.length===0){toast('Sharps cleared. Start another run for a replacement wafer.');state.waferBroken=false}}        
 function updatePhysicalSystem(dt,now){if(!renderer.xr.isPresenting)return;exposeCompletedWafer();if(phys.grab?.kind==='wafer'||phys.grab?.kind==='shard'){const p=pinchWorld(phys.grab.controller);phys.handVelocity.copy(p).sub(phys.lastHandPos).divideScalar(Math.max(dt,.001));phys.lastHandPos.copy(p)}updateGhostHandPose(phys.handData[0],xrController0.userData.handedness==='right'?xrRightSource:xrLeftSource,dt);updateGhostHandPose(phys.handData[1],xrController1.userData.handedness==='left'?xrLeftSource:xrRightSource,dt);updateWaferPickupGuide(now);updateStockSupply(now);updateControlGrab();updateDoorGrab(dt);updateWaferPhysics(dt);updateShards(dt)}        
@@ -1288,7 +1291,7 @@ function createOxidationFurnaceModel(g,s,i){
     definition.memberIds.forEach(id=>groupByObject.set(id,definition.id));
   }
   for(const definition of model.objects){
-    if(['object_shell','object_front_face','object_guard_glass','object_guard_handle'].includes(definition.id))continue;
+    if(['object_shell','object_front_face','object_bore','object_front_opening','object_guard_glass','object_guard_handle'].includes(definition.id))continue;
     const node=new THREE.Mesh(makeGeometry(definition.primitive),makeMaterial(definition));
     const transform=definition.transform,parentGroupId=groupByObject.get(definition.id);
     const parent=groupNodes.get(parentGroupId)||g;
@@ -1873,7 +1876,7 @@ function animateEffects(t,dt){
     }
   });
 }
-function newRun(){state.lotId='SR-'+String(Math.floor(1000+Math.random()*9000));state.carrying=false;state.current=0;state.completed=false;state.awaitingDelivery=false;state.runStart=0;state.elapsed=0;state.cycle=null;state.records=[];state.pattern='Logic grid';phys.stockRespawnAt=0;phys.stockReady=null;phys.waferEverPicked=false;setWaferDynamic(false);setWaferStaged(false);phys.waferVelocity.set(0,0,0);phys.jumpOffset=0;phys.jumpVelocity=0;phys.crouchHeld=false;player.position.set(0,renderer.xr.isPresenting?.86:2.58,7.7);yaw=Math.PI;pitch=-.03;player.rotation.y=yaw;status.forEach((st,i)=>{st.state='locked';st.values=Object.fromEntries(stations[i].controls.map(c=>[c.key,c.initial]));st.score=null;st.deviations=[];st.metric=0;st.doorTarget=0;st.doorAmount=0;st.transfer=null;machines[i+1].wafer.visible=false;if(machines[i+1].kind==='fabrication'&&machines[i+1].door)machines[i+1].door.rotation.y=0});if(stockMachine?.robot){stockMachine.robot.phase='animating';stockMachine.robot.t=0}if(deliveryStation?.wafer)deliveryStation.wafer.visible=false;state.handWafer.visible=false;$('lotId').textContent=state.lotId;$('report').style.display='none';updateAll();toast('Traveller '+state.lotId+' prepared. Robot is presenting a blank wafer.')}
+function newRun(){state.lotId='SR-'+String(Math.floor(1000+Math.random()*9000));state.carrying=false;state.current=0;state.completed=false;state.awaitingDelivery=false;state.runStart=0;state.elapsed=0;state.cycle=null;state.records=[];state.pattern='Logic grid';phys.stockRespawnAt=0;phys.stockReady=null;phys.waferEverPicked=false;setWaferDynamic(false);setWaferStaged(false);phys.waferVelocity.set(0,0,0);phys.jumpOffset=0;phys.jumpVelocity=0;phys.crouchHeld=false;player.position.set(0,renderer.xr.isPresenting?.86:2.58,7.7);yaw=Math.PI;pitch=-.03;player.rotation.y=yaw;status.forEach((st,i)=>{st.state='locked';st.values=Object.fromEntries(stations[i].controls.map(c=>[c.key,c.initial]));st.score=null;st.deviations=[];st.metric=0;st.doorTarget=0;st.doorManual=false;st.doorAmount=0;st.transfer=null;machines[i+1].wafer.visible=false;if(machines[i+1].kind==='fabrication'&&machines[i+1].door)machines[i+1].door.rotation.y=0});if(stockMachine?.robot){stockMachine.robot.phase='animating';stockMachine.robot.t=0}if(deliveryStation?.wafer)deliveryStation.wafer.visible=false;state.handWafer.visible=false;$('lotId').textContent=state.lotId;$('report').style.display='none';updateAll();toast('Traveller '+state.lotId+' prepared. Robot is presenting a blank wafer.')}
 function formatTime(ms){const t=Math.max(0,ms),m=Math.floor(t/60000),s=Math.floor(t%60000/1000),x=Math.floor(t%1000);return`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(x).padStart(3,'0')}`}        
 function getRuns(){try{return JSON.parse(localStorage.getItem('waferFabRunsV2')||'[]').filter(r=>Number.isFinite(r.time))}catch(e){return[]}}        
 function benchmarks(){const a=getRuns().map(r=>r.time).sort((x,y)=>x-y);if(!a.length)return{best:null,median:null};return{best:a[0],median:a.length%2?a[(a.length-1)/2]:(a[a.length/2-1]+a[a.length/2])/2}}        
@@ -1994,7 +1997,13 @@ function setLamp(i){const m=machines[i+1],st=status[i];if(m.statusLamps){const r
 function toast(msg,type=''){const d=document.createElement('div');d.className='toast '+type;d.textContent=msg;$('log').appendChild(d);while($('log').children.length>4)$('log').firstChild.remove();setTimeout(()=>{d.style.opacity='0';setTimeout(()=>d.remove(),320)},4200)}        
 function dispenseWafer(){if(!buttonEnabled({kind:'stock'}))return;state.runStart=performance.now();state.carrying=false;state.waferBroken=false;status[0].state='ready';setLamp(0);placeWaferAtStock();toast('Blank wafer issued. Pick it up with either trigger.');updateAll()}        
 function activateFocused(){const o=state.focus;if(!o)return;const d=o.userData;if(d.type==='control'){adjustControl(d,1);return}if(!buttonEnabled(d)){toast('Control interlocked: '+buttonHint(d),'warn');return}if(d.kind==='stock'){dispenseWafer();return}const i=d.machineIndex;if(d.action==='door')toggleDoor(i);if(d.action==='chamber'){if(status[i].state==='ready')loadWafer(i);else if(status[i].state==='done')unloadWafer(i)}if(d.action==='load')loadWafer(i);if(d.action==='start')startProcess(i);if(d.action==='stop'||d.action==='emergencyStop')stopProcess(i);if(d.action==='unload')unloadWafer(i)}
-function toggleDoor(i){if(isDoorLocked(i)){notifyDoorLocked(i);return}const st=status[i];st.doorTarget=st.doorTarget>.5?0:1;toast((st.doorTarget?'Opening ':'Closing ')+stations[i].name+' door.');updateAll()}
+function toggleDoor(i){
+  if(isDoorLocked(i)){notifyDoorLocked(i);return}
+  const st=status[i],m=machines[i+1],progress=doorPullProgress(m,st,renderer.xr.isPresenting?1:1.5),opening=st.doorManual?progress<.5:st.doorTarget<=.5;
+  st.doorManual=false;st.doorTarget=opening?1:0;
+  toast((st.doorTarget?'Opening ':'Closing ')+stations[i].name+' door.');
+  updateAll()
+}
 function setMachineWaferPosition(machine,position){if(machine.waferPivot)machine.waferPivot.position.copy(position);else machine.wafer.position.copy(position)}
 function loadWafer(i){const st=status[i],m=machines[i+1];state.carrying=false;state.handWafer.visible=false;st.state='loading';m.wafer.visible=true;setMachineWaferPosition(m,m.waferLoad.clone());if(m.waferRotation)m.wafer.rotation.copy(m.waferRotation);else m.wafer.rotation.set(-Math.PI/2,0,0);st.transfer={mode:'load',t:0};toast('Hand-guided wafer insertion started.');updateAll()}
 function unloadWafer(i){const st=status[i];st.state='unloading';st.transfer={mode:'unload',t:0};toast('Lifting the completed wafer out of '+stations[i].name+' by hand.');updateAll()}        
@@ -2020,8 +2029,46 @@ function showReport(before=benchmarks()){
   if(renderer.xr.isPresenting)showXROverlay('complete');
 }
 function updateTransfers(dt){status.forEach((st,i)=>{const m=machines[i+1];if(st.transfer){st.transfer.t=clamp(st.transfer.t+dt/1.35,0,1);const u=st.transfer.mode==='load'?st.transfer.t:1-st.transfer.t;const position=m.waferLoad.clone().lerp(m.waferHome,u);position.y+=Math.sin(st.transfer.t*Math.PI)*.2;setMachineWaferPosition(m,position);if(st.transfer.t>=1){if(st.transfer.mode==='load'){st.state='loadedDoorOpen';setMachineWaferPosition(m,m.waferHome);refreshWaferVisual(m.wafer);toast('Wafer seated. Close the chamber door.')}else{m.wafer.visible=false;state.carrying=true;state.handWafer.visible=true;refreshWaferVisual(state.handWafer);st.state='unloadedDoorOpen';toast('Wafer collected. Close the chamber door.')}st.transfer=null;updateAll()}}})}
-function updateDoors(dt){status.forEach((st,i)=>{const m=machines[i+1];if(!m||m.kind!=='fabrication'||!m.door)return;if(isDoorLocked(i)){st.doorAmount=0;st.doorTarget=0;phys.doorVelocities[i]=0;m.door.rotation.y=0;if(m.carriage)m.carriage.position.z=m.carriageClosedZ;return}if(!renderer.xr.isPresenting){if(st.doorAmount>0&&st.doorAmount<DOOR_MAGNET_ANGLE&&st.doorTarget<=.5){st.doorAmount=Math.max(0,st.doorAmount-1.35*dt)}else{st.doorAmount=lerp(st.doorAmount,st.doorTarget,1-Math.exp(-dt*5.5))}}else if(!phys.doorGrab||phys.doorGrab.i!==i){let v=phys.doorVelocities[i]||0;if(st.doorAmount>0&&st.doorAmount<DOOR_MAGNET_ANGLE&&v<=.65){v-=3.4*dt;if(v>0)v*=.45}else{v*=Math.exp(-dt*3.2)}st.doorAmount=clamp(st.doorAmount+v*dt,0,1);phys.doorVelocities[i]=v;if(st.doorAmount<=.002||(st.doorAmount<DOOR_MAGNET_ANGLE&&Math.abs(v)<.2&&v<=0)){if(st.doorAmount>0)pulseXR(.55,55);st.doorAmount=0;st.doorTarget=0;phys.doorVelocities[i]=0}}
-if((st.doorAmount<=.002&&st.doorTarget===0)||Math.abs(st.doorAmount-st.doorTarget)<.008&&!renderer.xr.isPresenting){st.doorAmount=st.doorAmount<=.002?0:st.doorTarget}if(!m.carriage)m.door.rotation.y=-st.doorAmount*(m.doorMaxAngle||Math.PI/2);if(m.carriage)m.carriage.position.z=lerp(m.carriageClosedZ,m.carriageOpenZ,clamp(st.doorAmount,0,1));if(st.doorAmount===0){if(st.state==='loadedDoorOpen')st.state='loaded';else if(st.state==='unloadedDoorOpen')completeStage(i)}})}
+function updateDoors(dt){
+  status.forEach((st,i)=>{
+    const m=machines[i+1];
+    if(!m||m.kind!=='fabrication'||!m.door)return;
+    if(isDoorLocked(i)){
+      st.doorAmount=0;st.doorTarget=0;st.doorManual=false;phys.doorVelocities[i]=0;m.door.rotation.y=0;
+      if(m.carriage)m.carriage.position.z=m.carriageClosedZ;
+      return
+    }
+    if(!renderer.xr.isPresenting){
+      if(m.carriage&&st.doorManual){
+        if(st.doorAmount>0&&isDoorWithinMagnetDistance(m,st))st.doorAmount=Math.max(0,st.doorAmount-1.35*dt)
+      }else if(st.doorAmount>0&&st.doorAmount<DOOR_MAGNET_ANGLE&&st.doorTarget<=.5){
+        st.doorAmount=Math.max(0,st.doorAmount-1.35*dt)
+      }else{
+        st.doorAmount=lerp(st.doorAmount,st.doorTarget,1-Math.exp(-dt*5.5))
+      }
+    }else if(!phys.doorGrab||phys.doorGrab.i!==i){
+      let v=phys.doorVelocities[i]||0;
+      const manualSlider=!!m.carriage&&st.doorManual,nearClosed=isDoorWithinMagnetDistance(m,st);
+      if(st.doorAmount>0&&(m.carriage?manualSlider&&nearClosed:nearClosed)&&v<=.65){
+        v-=3.4*dt;if(v>0)v*=.45
+      }else{
+        v*=Math.exp(-dt*3.2)
+      }
+      st.doorAmount=clamp(st.doorAmount+v*dt,0,1);phys.doorVelocities[i]=v;
+      if(st.doorAmount<=.002||(nearClosed&&Math.abs(v)<.2&&v<=0)){
+        if(st.doorAmount>0)pulseXR(.55,55);
+        st.doorAmount=0;st.doorTarget=0;phys.doorVelocities[i]=0
+      }
+    }
+    if((st.doorAmount<=.002&&st.doorTarget===0)||Math.abs(st.doorAmount-st.doorTarget)<.008&&!renderer.xr.isPresenting)st.doorAmount=st.doorAmount<=.002?0:st.doorTarget;
+    if(!m.carriage)m.door.rotation.y=-st.doorAmount*(m.doorMaxAngle||Math.PI/2);
+    if(m.carriage)m.carriage.position.z=lerp(m.carriageClosedZ,m.carriageOpenZ,clamp(st.doorAmount,0,1));
+    if(st.doorAmount===0){
+      if(st.state==='loadedDoorOpen')st.state='loaded';
+      else if(st.state==='unloadedDoorOpen')completeStage(i)
+    }
+  })
+}
 function updateCycle(now){if(!state.cycle)return;const c=state.cycle,s=stations[c.i],st=status[c.i],m=machines[c.i+1];c.processSeconds=(now-c.start)/1000*c.timeScale;st.metric=calculateMetric(c.i,c.processSeconds);const ratio=st.metric/s.metric.target;if(m?.wafer)refreshWaferVisual(m.wafer,c.i,ratio,st.values);updateModelReadouts(c.i);$('cycleName').textContent=s.name.toUpperCase();$('cycleTime').textContent=`${c.processSeconds.toFixed(1)} process s · ${formatMetric(st.metric,s.metric)} ${s.metric.unit}`;$('cycleFill').style.width=clamp(ratio*100,0,100)+'%';updateMachineGui()}
 function adjustControl(d,dir){const i=d.machineIndex,st=status[i],s=stations[i];if(i!==state.current||!['ready','loadedDoorOpen','loaded'].includes(st.state)){toast('Recipe controls are locked in the current machine state.','warn');return}const c=s.controls.find(x=>x.key===d.controlKey);if(c.kind==='choice'){let n=c.options.indexOf(st.values[c.key]);n=(n+dir+c.options.length)%c.options.length;st.values[c.key]=c.options[n]}else st.values[c.key]=clamp(Number((st.values[c.key]+dir*c.step).toFixed(8)),c.min,c.max);updateControlMeshes(i);updateMachineGui()}        
 function updateControlMeshes(i){const s=stations[i],st=status[i],m=machines[i+1];if(!s||!st||!m||!Array.isArray(m.controls)||m.controls.length===0)return;s.controls.forEach((c,j)=>{const ref=m.controls[j];if(!ref)return;const v=st.values[c.key];let n=c.kind==='choice'?c.options.indexOf(v)/Math.max(1,c.options.length-1):(v-c.min)/(c.max-c.min);if(ref.track&&ref.mesh)ref.mesh.position.y=1.36-Math.floor(j/2)*.64+(n-.5)*.34;else{const target=ref.rotor||ref.mesh;if(target)target.rotation.z=-2.25+n*4.5}});if(m.modelReadouts){if(m.modelReadouts.rpm)m.modelReadouts.rpm(valueText(s.controls.find(c=>c.key==='rpm'),st.values.rpm));if(m.modelReadouts.flow&&s.controls.some(c=>c.key==='rpm'))m.modelReadouts.flow(valueText(s.controls.find(c=>c.key==='flow'),st.values.flow));if(m.modelReadouts.volume)m.modelReadouts.volume(valueText(s.controls.find(c=>c.key==='volume'),st.values.volume));if(m.modelReadouts.render)m.modelReadouts.render(s,st)}}

@@ -292,7 +292,7 @@ function nearestDesktopDoorHandle(){
 function beginDesktopDoorGrab(){
   if(state.paused||desktopDoorGrab||getHandGrab(desktopGrip.controller))return false;const target=nearestDesktopDoorHandle();if(!target)return false;
   if(status[target.index]?.state==='running'){if(typeof notifyDoorLocked==='function')notifyDoorLocked(target.index);else toast((stations[target.index]?.name||'Machine')+' door is locked while running. Press STOP first.','warn');phys.doorVelocities[target.index]=0;return true}
-  desktopDoorGrab={index:target.index,lastAt:performance.now()};phys.doorVelocities[target.index]=0;return true
+  desktopDoorGrab={index:target.index,lastAt:performance.now()};status[target.index].doorManual=true;phys.doorVelocities[target.index]=0;return true
 }
 function endDesktopDoorGrab(){desktopDoorGrab=null}
 function moveDesktopDoor(event){
@@ -354,6 +354,7 @@ function applyDesktopDoorPlayerImpact(dt){
     if(machine.carriage){
       const localVelocity=new THREE.Vector3(vx,0,vz).applyQuaternion(machine.group.quaternion.clone().invert());
       if(Math.abs(localVelocity.z)<.01)return;
+      st.doorManual=false;
       st.doorTarget=localVelocity.z>0?1:0;
       phys.doorVelocities[index]=clamp((phys.doorVelocities[index]||0)+Math.sign(localVelocity.z)*Math.min(1.2,Math.abs(localVelocity.z)*dt*1.35),-4,4);
       return;
@@ -371,22 +372,24 @@ function resolveDesktopDoorPlayerCollision(previous){
 const v812UpdateMovement=updateMovement;
 updateMovement=function(dt){const previous=player.position.clone();applyDesktopDoorPlayerImpact(dt);const intended=colliders.splice(0);try{v812UpdateMovement(dt)}finally{colliders.push(...intended)}const targetX=player.position.x,targetZ=player.position.z;player.position.x=previous.x;player.position.z=previous.z;movePlayerColliderTo(targetX,targetZ,playerRoomBounds(),previous);resolveDesktopDoorPlayerCollision(previous)};
 const v812ToggleDoor=toggleDoor;
-toggleDoor=function(index){if(status[index]?.state==='running'){if(typeof notifyDoorLocked==='function')notifyDoorLocked(index);else toast((stations[index]?.name||'Machine')+' door is locked while running. Press STOP first.','warn');return}const opening=status[index].doorTarget<=.5;v812ToggleDoor(index);if(!renderer.xr.isPresenting)phys.doorVelocities[index]=opening?3.2:-3.2};
+toggleDoor=function(index){if(status[index]?.state==='running'){if(typeof notifyDoorLocked==='function')notifyDoorLocked(index);else toast((stations[index]?.name||'Machine')+' door is locked while running. Press STOP first.','warn');return}const st=status[index],machine=machines[index+1],progress=doorPullProgress(machine,st,renderer.xr.isPresenting?1:1.5),opening=st.doorManual?progress<.5:st.doorTarget<=.5;v812ToggleDoor(index);if(!renderer.xr.isPresenting)phys.doorVelocities[index]=opening?3.2:-3.2};
 const v812UpdateDoors=updateDoors;
 updateDoors=function(dt){
   if(renderer.xr.isPresenting){v812UpdateDoors(dt);return}
-  status.forEach((st,index)=>{const machine=machines[index+1];if(!machine||machine.kind!=='fabrication'||!machine.door)return;if(st.state==='running'){st.doorAmount=0;st.doorTarget=0;phys.doorVelocities[index]=0;machine.door.rotation.y=0;if(machine.carriage)machine.carriage.position.z=machine.carriageClosedZ;return}let velocity=phys.doorVelocities[index]||0;
+  status.forEach((st,index)=>{const machine=machines[index+1];if(!machine||machine.kind!=='fabrication'||!machine.door)return;if(st.state==='running'){st.doorAmount=0;st.doorTarget=0;st.doorManual=false;phys.doorVelocities[index]=0;machine.door.rotation.y=0;if(machine.carriage){machine.carriage.position.z=machine.carriageClosedZ;updateCarriageCollider(machine)}return}let velocity=phys.doorVelocities[index]||0;
     const held=desktopDoorGrab?.index===index;
-    if(!held&&st.doorAmount>0&&st.doorAmount<DOOR_MAGNET_ANGLE&&velocity<=.65){
+    const manualSlider=!!machine.carriage&&st.doorManual,nearClosed=isDoorWithinMagnetDistance(machine,st,1.5);
+    const shouldMagnetClose=machine.carriage?manualSlider&&nearClosed:st.doorAmount>0&&st.doorAmount<DOOR_MAGNET_ANGLE&&st.doorTarget<=.5;
+    if(!held&&st.doorAmount>0&&shouldMagnetClose&&velocity<=.65){
       velocity-=3.4*dt;if(velocity>0)velocity*=.45;
     }else{
-      if(!held)velocity+=( (st.doorTarget>.5?1.5:0)-st.doorAmount)*10*dt;
+      if(!held&&!manualSlider)velocity+=((st.doorTarget>.5?1.5:0)-st.doorAmount)*10*dt;
       velocity*=Math.exp(-dt*(held?1.9:4.2));
     }
     st.doorAmount=clamp(st.doorAmount+velocity*dt,0,1.5);
     if((st.doorAmount<=.002&&!held&&velocity<=0)||(st.doorAmount===0&&velocity<0)){st.doorAmount=0;st.doorTarget=0;velocity=0}
     else if(st.doorAmount===1.5&&velocity>0){velocity=0}
-    phys.doorVelocities[index]=velocity;const doorProgress=clamp(st.doorAmount/1.5,0,1);if(!machine.carriage)machine.door.rotation.y=-doorProgress*(machine.doorMaxAngle||Math.PI/2);if(machine.carriage)machine.carriage.position.z=machine.carriageClosedZ+(machine.carriageOpenZ-machine.carriageClosedZ)*doorProgress;if(st.doorAmount===0){if(st.state==='loadedDoorOpen')st.state='loaded';else if(st.state==='unloadedDoorOpen')completeStage(index)}
+    phys.doorVelocities[index]=velocity;const doorProgress=clamp(st.doorAmount/1.5,0,1);if(!machine.carriage)machine.door.rotation.y=-doorProgress*(machine.doorMaxAngle||Math.PI/2);if(machine.carriage){machine.carriage.position.z=machine.carriageClosedZ+(machine.carriageOpenZ-machine.carriageClosedZ)*doorProgress;updateCarriageCollider(machine)}if(st.doorAmount===0){if(st.state==='loadedDoorOpen')st.state='loaded';else if(st.state==='unloadedDoorOpen')completeStage(index)}
   })
 };
 const v811PhysicalSystem=updatePhysicalSystem;
