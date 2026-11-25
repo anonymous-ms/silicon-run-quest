@@ -37,6 +37,13 @@ test('runtime loader order matches service-worker precache and index.html script
     assert(html.includes(asset), `index.html must reference ${asset}`);
     assert(sw.includes(`'${asset}'`), `service-worker.js must precache ${asset}`);
   }
+
+  const machineAsset = './assets/photolithography-wafer-machine.json';
+  const machineModel = JSON.parse(read(machineAsset.slice(2)));
+  assert(loader.includes(`fetch('${machineAsset}')`), 'js/silicon-run.js must load the photolithography model before the runtime');
+  assert(sw.includes(`'${machineAsset}'`), 'service-worker.js must precache the photolithography model');
+  assert.equal(machineModel.model.objects.length, 58);
+  assert(machineModel.animation.tracks.some(track => track.entityId === 'group_resist_arm'));
 });
 
 test('service-worker offline fallback does not serve index.html for scripts or styles', () => {
@@ -179,8 +186,12 @@ test('CCD fabrication sequence, bright tutorial arrows, button glow shader, and 
     'Running machines must lock their door and notify the operator');
   assert(!coreSrc.includes('const doorBtn=') && !coreSrc.includes('loadBtn=') && !coreSrc.includes('unloadBtn='),
     'Bottom 4 buttons must be removed in favor of upper START/STOP embedded in frontRight shroud panel');
-  assert(coreSrc.includes("frontRight.userData.shroudPart='frontRight'") && coreSrc.includes('armPivot.position.set(.68,2.45,-.33)'),
-    'Shroud must enclose all faces with contiguous oblongs and spin coater swing arm must reach center');
+  const machineModel = JSON.parse(read('assets/photolithography-wafer-machine.json'));
+  assert(coreSrc.includes("frontRight.userData.shroudPart='frontRight'") &&
+    coreSrc.includes('createPhotolithographyMachine(g,s,i)') &&
+    machineModel.model.groups.some(group => group.id === 'group_resist_arm') &&
+    machineModel.animation.tracks.some(track => track.entityId === 'group_resist_arm'),
+  'Other machines retain their shrouds and the spin coater imports the supplied animated swing-arm model');
   assert(coreSrc.includes('320,\'spinSpray\'') && coreSrc.includes('.0105') && coreSrc.includes('resistScaleZ=Math.max(.05,coat*(1-clear))'),
     'Photolithography must use 5x fine 1/4-size particles and uncap resist thickness growth');
 });

@@ -38,6 +38,7 @@
 
     // Always keep base cabinet, deck, overhead nameplate, status lamp, and shroud silhouette in Far LOD
     if (m.lamp) keepVisible.add(m.lamp);
+    if (m.modelHull) keepVisible.add(m.modelHull);
     if (m.shroud?.group) midDetails.push(m.shroud.group);
     if (m.door) midDetails.push(m.door);
 

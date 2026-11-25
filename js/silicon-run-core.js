@@ -7,7 +7,7 @@ const choice=(key,label,options,target,initial,weight=1)=>({kind:'choice',key,la
 const stations=[
 {name:'Sensor Design Terminal',short:'CCD layout release',zone:'DESIGN',color:C.cyan,side:-1,z:7,type:'design',desc:'Validate the buried-channel CCD pixel pitch, transfer register, and reticle layout.',note:'Match pixel array width, row-transfer driver geometry and CDS ADC crossover before starting wafer fab.',targetSeconds:24,metric:{label:'Design verification',unit:'s',target:24,tol:2,calc:(v,t)=>t},controls:[choice('pattern','Device pattern',['Logic grid','Memory array','Sensor rings'],'Logic grid','Sensor rings',1),num('pixels','Pixel array width',512,1536,128,1024,64,'px',768,'slider',1.3),num('driver','Row-driver width',8,22,1,14,1,'µm',11,'dial',1),num('adc','ADC crossover',55,92,1,74,3,'% FS',84,'slider',1.2)]},
 {name:'Oxidation Furnace',short:'Grow gate/mask oxide',zone:'CLEANROOM A',color:0x31aaff,side:1,z:3,type:'deposition',desc:'Thermally grow a SiO₂ gate dielectric and implant-masking layer on P-type silicon.',note:'Dry thermal oxidation grows the insulator beneath CCD transfer gates and masks non-channel silicon.',targetSeconds:30,metric:{label:'Oxide thickness',unit:'nm',target:120,tol:8,calc:(v,t)=>v.rate*t},controls:[num('rate','Growth rate',2,7,.1,4,.5,'nm/s',5.6,'dial',1.3),num('temp','Furnace temperature',850,1150,5,1000,20,'°C',1070,'slider',1.2),num('flow','O₂ flow',12,36,1,24,3,'sccm',30,'dial',1)]},
-{name:'Photoresist Spin Coater',short:'Coat I-line resist',zone:'CLEANROOM A',color:0x42e8ff,side:-1,z:-1,type:'spinner',desc:'Spin-coat positive I-line photoresist across the oxidised CCD wafer.',note:'Chuck speed, dispense flow and dispense volume combine proportionally to drive film thickness and uniformity.',targetSeconds:30,metric:{label:'Resist coating',unit:'µm',target:1.4,tol:.12,calc:(v,t)=>{const pFlow=(v.flow||1.8)/1.8,pRpm=3000/(v.rpm||3000),pVol=(v.volume||3)/3,skew=1+.45*Math.abs(Math.log(Math.max(.2,pFlow*pRpm)));return 1.4*(t/30)*Math.pow(pFlow,.65)*Math.pow(pRpm,.55)*Math.pow(pVol,.35)*skew}},controls:[num('rpm','Chuck speed',1800,4200,50,3000,200,'rpm',2450,'dial',1.2),num('flow','Resist flow',.8,3,.1,1.8,.2,'mL/s',2.5,'slider',1.1),num('volume','Dispense volume',2,5,.1,3,.3,'mL',4.1,'dial',1)]},
+{name:'Photoresist Spin Coater',short:'Coat I-line resist',zone:'CLEANROOM A',color:0x42e8ff,side:-1,z:-1,type:'spinner',desc:'Spin-coat positive I-line photoresist across the oxidised CCD wafer.',note:'Chuck speed, dispense flow and dispense volume combine proportionally to drive film thickness and uniformity.',targetSeconds:30,metric:{label:'Resist coating',unit:'µm',target:1.4,tol:.12,calc:(v,t)=>{const pFlow=(v.flow||1.8)/1.8,pRpm=3000/(v.rpm||3000),pVol=(v.volume||3)/3,skew=1+.45*Math.abs(Math.log(Math.max(.2,pFlow*pRpm)));return 1.4*(t/30)*Math.pow(pFlow,.65)*Math.pow(pRpm,.55)*Math.pow(pVol,.35)*skew}},controls:[num('rpm','Chuck speed',1800,4200,50,3000,200,'rpm',2450,'dial',1.2),num('flow','Resist flow',.8,3,.1,1.8,.2,'mL/s',2.5,'dial',1.1),num('volume','Dispense volume',2,5,.1,3,.3,'mL',4.1,'dial',1)]},
 {name:'Soft-Bake Furnace',short:'Soft-bake resist',zone:'CLEANROOM A',color:C.orange,side:1,z:-5,type:'furnace',desc:'Drive casting solvent out of the spin-coated photoresist before CCD mask exposure.',note:'Under-baking smears edges; over-baking desensitises photo-active compound. Stop cleanly at 100%.',targetSeconds:60,metric:{label:'Solvent removal / soft-bake',unit:'%',target:100,tol:6,calc:(v,t)=>100*(t/60)*Math.exp((v.temp-105)/85)},controls:[num('temp','Bake temperature',80,135,1,105,3,'°C',116,'slider',1.4),num('exhaust','Exhaust flow',8,24,1,16,3,'L/min',11,'dial',1)]},
 {name:'Mask Aligner & I-Line Exposure',short:'Expose CCD channels',zone:'CLEANROOM A',color:0x35ffe0,side:-1,z:-9,type:'aligner',desc:'Align the CCD active-channel reticle to the wafer flat and expose under I-line UV.',note:'Overlay accuracy and accumulated 365 nm I-line dose define the buried-channel pixel columns.',targetSeconds:30,metric:{label:'Accumulated UV dose',unit:'mJ/cm²',target:95,tol:5,calc:(v,t)=>v.doseRate*t},controls:[num('overlay','Overlay error',0,3,.1,.8,.3,'µm',1.9,'slider',1.5),num('doseRate','Dose rate',1.8,4.5,.1,3.2,.25,'mJ/cm²/s',2.5,'dial',1.2),choice('line','Exposure source',['365 nm I-line','405 nm H-line','248 nm DUV'],'365 nm I-line','405 nm H-line',1.4)]},
 {name:'Developer Wet Bench',short:'Develop channel mask',zone:'CLEANROOM A',color:0x54f49c,side:1,z:-13,type:'wetbench',desc:'Develop exposed photoresist in TMAH 2.38% and DI-rinse to open CCD channel windows.',note:'Correct chemistry and bath agitation clear the exposed active areas without eroding pixel walls.',targetSeconds:45,metric:{label:'Pattern developed',unit:'%',target:100,tol:7,calc:(v,t)=>100*(t/45)*(v.chem==='TMAH 2.38%'?1:v.chem==='KOH 5%'?1.35:.18)*Math.pow(v.rpm/600,.18)},controls:[choice('chem','Developer chemistry',['TMAH 2.38%','KOH 5%','DI water only'],'TMAH 2.38%','KOH 5%',1.5),num('rpm','Rinse agitation',300,900,25,600,100,'rpm',425,'dial',1),num('temp','Bath temperature',18,30,.5,23,.8,'°C',27,'slider',1.2)]},
@@ -839,7 +839,7 @@ pulseXR(.48,45);
 toast('Door handle grip attached. Pull or push the handle to swing the door.');
 return true
 }
-function updateDoorGrab(dt){const g=phys.doorGrab;if(!g)return;const st=status[g.i];if(isDoorLocked(g.i)){phys.doorGrab=null;st.doorAmount=0;st.doorTarget=0;phys.doorVelocities[g.i]=0;notifyDoorLocked(g.i);return}const m=machines[g.i+1],p=pinchWorld(g.controller),pivot=m.door.getWorldPosition(new THREE.Vector3()),lp=m.group.worldToLocal(p.clone()),lh=m.group.worldToLocal(g.last.clone()),a=Math.atan2(lp.z,lp.x),b=Math.atan2(lh.z,lh.x),delta=a-b;st.doorAmount=clamp(st.doorAmount+delta/(Math.PI/2),0,1);phys.doorVelocities[g.i]=delta/(Math.PI/2)/Math.max(dt,.001);g.last.copy(p)}
+function updateDoorGrab(dt){const g=phys.doorGrab;if(!g)return;const st=status[g.i];if(isDoorLocked(g.i)){phys.doorGrab=null;st.doorAmount=0;st.doorTarget=0;phys.doorVelocities[g.i]=0;notifyDoorLocked(g.i);return}const m=machines[g.i+1],p=pinchWorld(g.controller),hinge=m.group.worldToLocal(m.door.getWorldPosition(new THREE.Vector3())),lp=m.group.worldToLocal(p.clone()),lh=m.group.worldToLocal(g.last.clone()),a=Math.atan2(lp.z-hinge.z,lp.x-hinge.x),b=Math.atan2(lh.z-hinge.z,lh.x-hinge.x),delta=a-b,maxAngle=m.doorMaxAngle||Math.PI/2;st.doorAmount=clamp(st.doorAmount+delta/maxAngle,0,1);phys.doorVelocities[g.i]=delta/maxAngle/Math.max(dt,.001);g.last.copy(p)}
 function onXRTriggerStart(c){if(state.paused)return;if(grabShard(c))return;if(grabWafer(c))return;const rayHit=xrInteractiveHit(c);if(rayHit?.object.userData.kind==='designTerminal'){state.focus=rayHit.object;activateFocused();pulseXR(.45,45);return}const near=nearestInteractiveAtPinch(c),d=near?.data;if(d?.type==='control'){state.focus=near.object;beginControlGrab(c,d);return}if(d?.type==='button'){state.focus=near.object;activateFocused();pulseXR(.45,45);return}pulseXR(.08,18)}        
 function onXRTriggerEnd(c){if(phys.grab?.kind==='wafer')releaseWafer(c);else if(phys.grab?.kind==='shard')releaseShard(c);else if(phys.grab?.kind==='control'&&phys.grab.controller===c)phys.grab=null}        
 function onXRSqueezeStart(c){if(state.paused)return;if(c.userData.handedness==='left'){phys.crouchHeld=true;pulseXR(.16,20)}else beginDoorGrab(c)}        
@@ -1068,21 +1068,207 @@ function createChamberParticles(parent,color,count,pattern,origin={x:0,y:2.12,z:
   pts.visible=false;pts.frustumCulled=false;parent.add(pts);
   return{pts,positions,seeds,count,pattern,origin,size};
 }
+function createPhotolithographyMachine(g,s,i){
+  const project=window.PhotolithographyMachineModel,model=project?.model;
+  if(!Array.isArray(model?.objects)||!Array.isArray(model?.groups))throw new Error('Photolithography model is missing its object or group data.');
+  const objectData=new Map(model.objects.map(object=>[object.id,object]));
+  const groupData=new Map(model.groups.map(group=>[group.id,group]));
+  const objectNodes=new Map(),groupNodes=new Map();
+  const makeGeometry=primitive=>{
+    if(primitive==='box')return new THREE.BoxGeometry(1,1,1);
+    if(primitive==='cylinder')return new THREE.CylinderGeometry(.5,.5,1,32);
+    if(primitive==='sphere')return new THREE.SphereGeometry(.5,24,16);
+    if(primitive==='cone')return new THREE.ConeGeometry(.5,1,24);
+    throw new Error('Unsupported photolithography primitive: '+primitive);
+  };
+  const makeModelMaterial=color=>{
+    const value=String(color||'#d9dee4ff').replace('#','');
+    const rgb=parseInt(value.slice(0,6),16);
+    const opacity=value.length>=8?parseInt(value.slice(6,8),16)/255:1;
+    return new THREE.MeshStandardMaterial({
+      color:Number.isFinite(rgb)?rgb:0xd9dee4,
+      metalness:.18,
+      roughness:opacity<1?.16:.38,
+      transparent:opacity<1,
+      opacity,
+      depthWrite:opacity>=1,
+      side:opacity<1?THREE.DoubleSide:THREE.FrontSide
+    });
+  };
+  for(const definition of model.groups){
+    const node=new THREE.Group();
+    node.name=definition.name;
+    node.position.set(definition.transform.position.x,definition.transform.position.y,definition.transform.position.z);
+    node.rotation.set(definition.transform.rotation.x,definition.transform.rotation.y,definition.transform.rotation.z);
+    node.userData.modelGroupId=definition.id;
+    if(definition.id==='group_machine_body')node.userData.alwaysVisibleMachineHull=true;
+    g.add(node);
+    groupNodes.set(definition.id,node);
+  }
+  const groupByObject=new Map();
+  model.groups.forEach(group=>group.memberIds.forEach(id=>groupByObject.set(id,group.id)));
+  for(const definition of model.objects){
+    if(definition.id==='object_wafer'||definition.id==='object_wafer_flat')continue;
+    const node=new THREE.Mesh(makeGeometry(definition.primitive),makeModelMaterial(definition.color));
+    node.name=definition.name;
+    node.scale.set(definition.transform.scale.x,definition.transform.scale.y,definition.transform.scale.z);
+    node.rotation.set(definition.transform.rotation.x,definition.transform.rotation.y,definition.transform.rotation.z);
+    const parentGroupId=groupByObject.get(definition.id),parent=groupNodes.get(parentGroupId)||g;
+    const groupPosition=parentGroupId?groupData.get(parentGroupId).transform.position:{x:0,y:0,z:0};
+    node.position.set(
+      definition.transform.position.x-groupPosition.x,
+      definition.transform.position.y-groupPosition.y,
+      definition.transform.position.z-groupPosition.z
+    );
+    if(definition.id==='object_feed_line_cross')node.rotation.z+=Math.PI/2;
+    if(definition.id==='object_feed_line_forward')node.rotation.x+=Math.PI/2;
+    parent.add(node);
+    objectNodes.set(definition.id,node);
+  }
+  const panel=groupNodes.get('group_control_panel');
+  const controls=[];
+  const controlObjects=[
+    ['object_rpm_dial',s.controls[0],C.controlBlue],
+    ['object_feed_rate_dial',s.controls[1],0x78ffbd],
+    ['object_arm_position_dial',s.controls[2],C.controlBlue]
+  ];
+  controlObjects.forEach(([objectId,spec,color])=>{
+    const dial=objectNodes.get(objectId),definition=objectData.get(objectId),position=definition.transform.position;
+    dial.parent.remove(dial);
+    const rotor=new THREE.Group();
+    rotor.position.set(position.x,position.y,position.z);
+    rotor.name=spec.label+' control dial';
+    panel.add(rotor);
+    dial.position.set(0,0,0);
+    dial.rotation.set(Math.PI/2,0,0);
+    dial.material.color.setHex(color);
+    dial.material.emissive.setHex(color);
+    dial.material.emissiveIntensity=.24;
+    rotor.add(dial);
+    const pointer=box(.022,.115,.018,mat(0xffffff,.05,.22),rotor,0,.055,.09);
+    pointer.name=spec.label+' dial pointer';
+    const hit=cyl(.19,.09,new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}),rotor,0,0,.085,24);
+    hit.rotation.x=Math.PI/2;
+    hit.material.colorWrite=false;
+    hit.userData={interactive:true,type:'control',machineIndex:i,controlKey:spec.key,label:spec.label,baseColor:color};
+    interactives.push(hit);
+    controls.push({mesh:dial,rotor,track:false,pointer});
+    const angles=[-2.25,0,2.25],values=[spec.min,(spec.min+spec.max)/2,spec.max];
+    angles.forEach((angle,index)=>{
+      const tx=position.x-Math.sin(angle)*.245,ty=position.y+Math.cos(angle)*.245;
+      const tick=box(.012,.05,.018,mat(0xb9d3dd,.55,.2),panel,position.x-Math.sin(angle)*.185,position.y+Math.cos(angle)*.185,2.425);
+      tick.rotation.z=angle;
+      const decimals=spec.step<1?(String(spec.step).split('.')[1]||'').length:0;
+      const text=Number(values[index]).toFixed(decimals);
+      addControlScaleLabel(panel,text,tx,ty,2.43,.34,.075,12,position.x,position.y);
+    });
+  });
+  const makeDisplay=(x,y,z,width,height,title)=>{
+    const canvas=document.createElement('canvas');
+    canvas.width=360;canvas.height=112;
+    const ctx=canvas.getContext('2d');
+    const texture=new THREE.CanvasTexture(canvas);
+    texture.colorSpace=THREE.SRGBColorSpace;
+    texture.minFilter=THREE.LinearFilter;
+    const screen=new THREE.Mesh(new THREE.PlaneGeometry(width,height),new THREE.MeshBasicMaterial({map:texture,toneMapped:false}));
+    screen.position.set(x,y,z);
+    panel.add(screen);
+    return value=>{
+      ctx.fillStyle='#06110d';ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.strokeStyle='#2e805c';ctx.lineWidth=5;ctx.strokeRect(3,3,canvas.width-6,canvas.height-6);
+      ctx.fillStyle='#73ffad';ctx.font='bold 34px monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText((title+'  '+value).toUpperCase(),canvas.width/2,canvas.height/2);
+      texture.needsUpdate=true;
+    };
+  };
+  const rpmReadout=makeDisplay(2.55,4.42,2.385,.48,.13,'RPM');
+  const flowReadout=makeDisplay(3.15,4.42,2.385,.48,.13,'FLOW');
+  const volumeReadout=makeDisplay(3.3,3.13,2.385,.55,.12,'VOLUME');
+  const decorateButton=(objectId,label,color,action)=>{
+    const button=objectNodes.get(objectId);
+    button.rotation.x=Math.PI/2;
+    button.material.color.setHex(color);
+    button.material.emissive.setHex(color);
+    button.material.emissiveIntensity=.22;
+    button.userData={interactive:true,type:'button',label,kind:'machine',action,machineIndex:i,baseColor:color,disabledColor:action==='start'?C.startGreenIdle:C.stopRedIdle};
+    interactives.push(button);
+    const text=labelMesh(label,'#ffffff',.42,.09,18);
+    text.position.set(button.position.x,button.position.y-.28,button.position.z+.16);
+    panel.add(text);
+    return button;
+  };
+  const startBtn=decorateButton('object_start_button','START',C.startGreen,'start');
+  const stopBtn=decorateButton('object_stop_button','STOP',C.stopRed,'stop');
+  const lamp=objectNodes.get('object_status_lamp');
+  lamp.material=mat(C.dark,.05,.24,false,1,C.dark);
+  const door=groupNodes.get('group_load_door');
+  const doorGlass=objectNodes.get('object_door_glass');
+  const doorHandle=objectNodes.get('object_door_handle');
+  const doorTrack=project.animation?.tracks?.find(track=>track.entityId==='group_load_door')||null;
+  const doorData={interactive:true,type:'button',label:'DOOR HANDLE',kind:'machine',action:'door',machineIndex:i,baseColor:s.color,visualButton:false};
+  doorGlass.userData={...doorData,visualButton:false};
+  doorHandle.userData={...doorData,gripPoint:true,visualButton:false};
+  interactives.push(doorGlass,doorHandle);
+  door.userData.surface=doorGlass;
+  door.userData.handle=doorHandle;
+  lamp.parent.remove(lamp);
+  g.add(lamp);
+  const chamberTarget=box(3.55,2.48,.05,new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}),g,-.89,3.75,2.30);
+  chamberTarget.material.colorWrite=false;
+  chamberTarget.userData={interactive:true,type:'button',label:'CHAMBER',kind:'machine',action:'chamber',machineIndex:i,baseColor:s.color,visualButton:false};
+  interactives.push(chamberTarget);
+  const home=objectData.get('object_wafer').transform.position;
+  const waferPivot=new THREE.Group();
+  waferPivot.position.set(home.x,home.y,home.z);
+  waferPivot.name='RPM-controlled wafer pivot';
+  g.add(waferPivot);
+  const wafer=createWafer(1.07);
+  wafer.rotation.set(-Math.PI/2,0,0);
+  waferPivot.add(wafer);
+  const stream=mesh(new THREE.CylinderGeometry(.012,.012,.48,10),new THREE.MeshBasicMaterial({color:0xf44f8c,transparent:true,opacity:0,depthWrite:false}),groupNodes.get('group_resist_arm'),-2.4,-1.28,0);
+  stream.name='Photoresist dispense stream';
+  const particles=createChamberParticles(g,0xf460a6,320,'spinSpray',{x:-.75,y:3.35,z:0},.0105);
+  const armTrack=project.animation?.tracks?.find(track=>track.entityId==='group_resist_arm')||null;
+  const armRestAngle=groupData.get('group_resist_arm').transform.rotation.y;
+  const armWorkAngle=armTrack?.keyframes?.[0]?.transform.rotation.y??armRestAngle;
+  const spinTrack=project.animation?.tracks?.find(track=>track.entityId==='group_spin_platform')||null;
+  const feedSpec=s.controls.find(control=>control.key==='flow');
+  const rpmSpec=s.controls.find(control=>control.key==='rpm');
+  const volumeSpec=s.controls.find(control=>control.key==='volume');
+  const readouts={rpm:rpmReadout,flow:flowReadout,volume:volumeReadout};
+  return{
+    lamp,door,doorHandle,chamberTarget,startBtn,stopBtn,controls,wafer,waferPivot,modelHull:groupNodes.get('group_machine_body'),
+    waferHome:new THREE.Vector3(home.x,home.y,home.z),
+    waferLoad:new THREE.Vector3(home.x,home.y,objectData.get('object_door_glass').transform.position.z),
+    spinPlatform:groupNodes.get('group_spin_platform'),
+    armPivot:groupNodes.get('group_resist_arm'),
+    armRestAngle,armWorkAngle,spinTrack,doorTrack,stream,particles,readouts,rpmSpec,feedSpec,volumeSpec,
+    doorMaxAngle:Math.max(0,...(doorTrack?.keyframes||[]).map(keyframe=>Math.abs(keyframe.transform.rotation.y)))||Math.abs(project.rig?.joints?.find(joint=>joint.id==='joint_door_hinge')?.min||-105)*Math.PI/180
+  };
+}
 function createMachine(s,i){
   const g=new THREE.Group(),x=s.side*6.65;
   g.position.set(x,0,s.z);g.rotation.y=s.side<0?Math.PI/2:-Math.PI/2;scene.add(g);
-  const lamp=machineShell(g,s),accent=mat(s.color,.35,.25),dark=mat(0x0b1620,.65,.24),steel=mat(0x9fb4bf,.82,.2),copper=mat(0xd47e4a,.8,.22),gold=mat(0xdfb84c,.85,.18);
+  const photoModel=s.type==='spinner'?createPhotolithographyMachine(g,s,i):null;
+  if(photoModel)g.scale.setScalar(.45);
+  const lamp=photoModel?.lamp||machineShell(g,s),accent=mat(s.color,.35,.25),dark=mat(0x0b1620,.65,.24),steel=mat(0x9fb4bf,.82,.2),copper=mat(0xd47e4a,.8,.22),gold=mat(0xdfb84c,.85,.18);
   const isRta=s.type==='furnace'&&s.name.includes('Rapid');
   const doorStyle=s.type==='deposition'?'tube':s.type==='spinner'?'dome':s.type==='rie'||s.type==='metal'?'vacuum':s.type==='furnace'?'oven':'framed';
   let shroud=null,chamberLight=null;
-  if(s.type!=='design'){
+  if(s.type!=='design'&&s.type!=='spinner'){
     shroud=createShroudEnclosure(g,s.color);
     chamberLight=new THREE.PointLight(s.color,0,3.2,2);
     chamberLight.position.set(0,2.35,.25);
     g.add(chamberLight);
+  }else if(photoModel){
+    chamberLight=new THREE.PointLight(s.color,0,2.4,2);
+    chamberLight.position.set(0,4,.2);
+    g.add(chamberLight);
   }
-  const tray=box(.76,.05,.76,mat(0xaabcc2,.78,.18),g,0,1.72,.35);
-  const wafer=createWafer(.72);wafer.position.set(0,1.82,.35);wafer.rotation.set(-Math.PI/2,0,0);wafer.visible=false;g.add(wafer);
+  const tray=photoModel?null:box(.76,.05,.76,mat(0xaabcc2,.78,.18),g,0,1.72,.35);
+  const wafer=photoModel?photoModel.wafer:createWafer(.72);
+  if(!photoModel){wafer.position.set(0,1.82,.35);wafer.rotation.set(-Math.PI/2,0,0);g.add(wafer)}
+  wafer.visible=false;
 
   if(s.type==='design'){
     box(2.2,1.1,.14,dark,g,0,2.05,.05);
@@ -1114,28 +1300,18 @@ function createMachine(s,i){
     }
     effects.push({kind:'oxidationFurnace',index:i,heater,jets,rack,wafer,light:chamberLight});
   }else if(s.type==='spinner'){
-    // Photoresist Spin Coater: stainless catch-cup bowl, vacuum spin chuck, centering pins, robotic dispense swing-arm & resist bottle
-    const bowl=mesh(new THREE.CylinderGeometry(.62,.54,.28,32,1,true),steel,g,0,1.74,.35);
-    const bowlLip=mesh(new THREE.TorusGeometry(.62,.028,8,32),dark,g,0,1.88,.35);bowlLip.rotation.x=Math.PI/2;
-    const chuck=new THREE.Group();chuck.position.set(0,1.76,.35);g.add(chuck);
-    cyl(.26,.1,steel,chuck,0,0,0,24);
-    for(let p=0;p<3;p++){const a=p*Math.PI*2/3;cyl(.015,.06,accent,chuck,Math.cos(a)*.24,.06,Math.sin(a)*.24,8)}
-    const armPivot=new THREE.Group();armPivot.position.set(.68,2.45,-.33);armPivot.rotation.y=.16;g.add(armPivot);
-    const armLen=Math.hypot(.68,.68);
-    cyl(.065,.18,dark,armPivot,0,-.06,0,16);
-    box(.055,.048,armLen,steel,armPivot,0,.04,armLen*.5);
-    box(.022,.022,armLen-.04,mat(0xf24788,.15,.2,true,.85,0xe84fce),armPivot,0,.072,armLen*.5);
-    const nozzle=cyl(.026,.14,mat(0xe84fce,.3,.25,false,1,0xe84fce),armPivot,0,-.04,armLen,12);nozzle.material.emissiveIntensity=.25;
-    const stream=cyl(.009,.48,new THREE.MeshBasicMaterial({color:0xf44f8c,transparent:true,opacity:0,depthWrite:false}),armPivot,0,-.32,armLen,10);
-    // Side amber resist bottle + feed riser connected directly into the swing arm pivot
-    cyl(.09,.28,mat(0xb85218,.15,.22,true,.82),g,.95,1.81,-.55,14);
-    const bottleTop=new THREE.Vector3(.95,1.96,-.55),pivotTop=new THREE.Vector3(.68,2.49,-.33);
-    const riserPos=bottleTop.clone().lerp(pivotTop,.5),riserLen=bottleTop.distanceTo(pivotTop);
-    const feedPipe=cyl(.014,riserLen,mat(0xf24788,.15,.25,true,.78),g,riserPos.x,riserPos.y,riserPos.z,10);
-    feedPipe.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),pivotTop.clone().sub(bottleTop).normalize());
-    // Fine liquid photolithography mist droplets: 5x count (320) and 1/4x particle size (.0105)
-    const particles=createChamberParticles(g,0xf460a6,320,'spinSpray',{x:0,y:2.32,z:.35},.0105);
-    effects.push({kind:'spinner',index:i,chuck,armPivot,armLen,stream,wafer,light:chamberLight,particles});
+    photoModel.spinPlatform.rotation.y=0;
+    photoModel.armPivot.rotation.y=photoModel.armRestAngle;
+    photoModel.waferPivot.rotation.y=0;
+    const flow=photoModel.armPivot;
+    const nozzleOffset=new THREE.Vector3(-2.4,-1.03,0);
+    const particles=photoModel.particles;
+    effects.push({
+      kind:'spinner',index:i,chuck:photoModel.spinPlatform,armPivot:flow,wafer,waferPivot:photoModel.waferPivot,
+      armRestAngle:photoModel.armRestAngle,armWorkAngle:photoModel.armWorkAngle,
+      spinTrack:photoModel.spinTrack,spinTime:0,nozzleOffset,stream:photoModel.stream,
+      light:chamberLight,particles,readouts:photoModel.readouts
+    });
   }else if(s.type==='furnace'&&!isRta){
     // Soft-Bake Furnace: precision proximity hotplate platen, concentric heater rings, 3 quartz lift pins, overhead exhaust baffle
     const platen=cyl(.56,.1,mat(0x475660,.75,.28),g,0,1.72,.35,32);
@@ -1239,19 +1415,19 @@ function createMachine(s,i){
     effects.push({kind:'probe',index:i,stage,turret,probes,scanBeam,wafer,light:chamberLight});
   }
 
-  let chamberTarget=null;
-  if(s.type!=='deposition'){
+  let chamberTarget=photoModel?.chamberTarget||null;
+  if(s.type!=='deposition'&&s.type!=='spinner'){
     chamberTarget=box(1.54,1.02,.035,mat(0x000000,0,1,true,.001),g,-.11,2.235,.86);
     chamberTarget.material.depthWrite=false;chamberTarget.material.colorWrite=false;
     chamberTarget.userData={interactive:true,type:'button',label:'CHAMBER',kind:'machine',action:'chamber',machineIndex:i,baseColor:s.color,visualButton:false};
     interactives.push(chamberTarget);
   }
-  const door=createDoor(g,s.color,i,doorStyle),panel=box(1.55,1.18,.05,mat(0x0a1720,.55,.22),g,0,.99,1.005);
-  const controls=s.controls.map((c,j)=>makeControl(g,c,j,i));
+  const door=photoModel?.door||createDoor(g,s.color,i,doorStyle),panel=photoModel?null:box(1.55,1.18,.05,mat(0x0a1720,.55,.22),g,0,.99,1.005);
+  const controls=photoModel?photoModel.controls:s.controls.map((c,j)=>makeControl(g,c,j,i));
   const btnParent=shroud?.frontRight||g;
-  const startBtn=makeButton(btnParent,shroud?0:1.10,shroud?.22:2.455,shroud?.025:1.02,'START',C.startGreen,{kind:'machine',action:'start',machineIndex:i,disabledColor:C.startGreenIdle,glowShader:true,radius:.10,depth:.07,labelWidth:.52,labelHeight:.14,labelFont:24,labelGap:.165}),
-    stopBtn=makeButton(btnParent,shroud?0:1.10,shroud?-.20:2.035,shroud?.025:1.02,'STOP',C.stopRed,{kind:'machine',action:'stop',machineIndex:i,disabledColor:C.stopRedIdle,glowShader:true,radius:.10,depth:.07,labelWidth:.52,labelHeight:.14,labelFont:24,labelGap:.165});
-  const m={group:g,shroud,lamp,station:s,index:i,world:new THREE.Vector3(x,1.5,s.z),door,doorHandle:door.userData.handle,wafer,tray,chamberTarget,controls,buttons:{start:startBtn,stop:stopBtn}};
+  const startBtn=photoModel?.startBtn||makeButton(btnParent,shroud?0:1.10,shroud?.22:2.455,shroud?.025:1.02,'START',C.startGreen,{kind:'machine',action:'start',machineIndex:i,disabledColor:C.startGreenIdle,glowShader:true,radius:.10,depth:.07,labelWidth:.52,labelHeight:.14,labelFont:24,labelGap:.165}),
+    stopBtn=photoModel?.stopBtn||makeButton(btnParent,shroud?0:1.10,shroud?-.20:2.035,shroud?.025:1.02,'STOP',C.stopRed,{kind:'machine',action:'stop',machineIndex:i,disabledColor:C.stopRedIdle,glowShader:true,radius:.10,depth:.07,labelWidth:.52,labelHeight:.14,labelFont:24,labelGap:.165});
+  const m={group:g,shroud,lamp,modelHull:photoModel?.modelHull||null,station:s,index:i,world:new THREE.Vector3(x,1.5,s.z),door,doorHandle:photoModel?.doorHandle||door.userData.handle,doorMaxAngle:photoModel?.doorMaxAngle||Math.PI/2,wafer,waferPivot:photoModel?.waferPivot||null,waferHome:photoModel?.waferHome||new THREE.Vector3(0,1.82,.35),waferLoad:photoModel?.waferLoad||new THREE.Vector3(0,1.45,1.75),tray,panel,chamberTarget,controls,modelReadouts:photoModel?.readouts||null,buttons:{start:startBtn,stop:stopBtn}};
   machines.push(m);addCollider(x,s.z,2.6,3.7);
   if(s.type==='deposition')colliders[colliders.length-1].playerOnly=true;
 }
@@ -1272,7 +1448,7 @@ function updateChamberParticles(p,on,t,waferCenter={x:0,y:1.83,z:.35}){
         pos[k*3+1]=oy-fall*fallDist;
         pos[k*3+2]=oz+(sd[k*3+2]-.5)*.009;
       }else{
-        const spin=(u-.42)/.58,rad=.015+spin*.22;
+        const spin=(u-.42)/.58,rad=.015+spin*.57;
         pos[k*3]=ox+Math.cos(a+t*11)*rad;
         pos[k*3+1]=waferCenter.y+.012*(1-spin);
         pos[k*3+2]=oz+Math.sin(a+t*11)*rad;
@@ -1289,6 +1465,16 @@ function updateChamberParticles(p,on,t,waferCenter={x:0,y:1.83,z:.35}){
     }
   }
   p.pts.geometry.attributes.position.needsUpdate=true;
+}
+
+function animationRotationRateY(track,time){
+  const frames=track?.keyframes;
+  if(!frames?.length)return 0;
+  for(let index=1;index<frames.length;index++){
+    const next=frames[index],previous=frames[index-1];
+    if(time<=next.time)return(next.transform.rotation.y-previous.transform.rotation.y)/(next.time-previous.time||1);
+  }
+  return 0;
 }
 
 function animateEffects(t,dt){
@@ -1363,14 +1549,21 @@ function animateEffects(t,dt){
       if(e.rack)e.rack.position.z=on?Math.sin(t*2.4)*.035*startupRamp:0;
       if(e.wafer&&on)e.wafer.position.z=.35+Math.sin(t*2.4)*.035*startupRamp;
     }else if(e.kind==='spinner'){
-      const rpmRate=clamp((st?.values?.rpm||3000)/300,4,16);
-      if(on){e.chuck.rotation.y+=dt*rpmRate;if(e.wafer)e.wafer.rotation.z+=dt*rpmRate}
-      const targetArmAngle=on?-Math.PI/4:.16;
+      const duration=window.PhotolithographyMachineModel?.animation?.duration||6;
+      if(on){
+        const rpmRate=clamp(animationRotationRateY(e.spinTrack,e.spinTime)*(st?.values?.rpm||3000)/3000,4,16);
+        e.chuck.rotation.y+=dt*rpmRate;
+        e.waferPivot.rotation.y=e.chuck.rotation.y;
+        e.spinTime=(e.spinTime+dt)%duration;
+      }else e.spinTime=0;
+      const targetArmAngle=on?e.armWorkAngle:e.armRestAngle;
       e.armPivot.rotation.y=lerp(e.armPivot.rotation.y,targetArmAngle,1-Math.exp(-dt*6.5));
-      const ry=e.armPivot.rotation.y,armLen=e.armLen||Math.hypot(.68,.68);
-      const tipX=e.armPivot.position.x+Math.sin(ry)*armLen,tipZ=e.armPivot.position.z+Math.cos(ry)*armLen;
-      const pouring=on&&Math.abs(ry-targetArmAngle)<.24;
-      if(e.particles){e.particles.origin.x=tipX;e.particles.origin.y=2.30;e.particles.origin.z=tipZ;updateChamberParticles(e.particles,pouring,t)}
+      const ry=e.armPivot.rotation.y,tip=e.nozzleOffset.clone().applyAxisAngle(new THREE.Vector3(0,1,0),ry).add(e.armPivot.position);
+      const pouring=on&&Math.abs(ry-targetArmAngle)<.035;
+      if(e.particles){
+        e.particles.origin.x=tip.x;e.particles.origin.y=tip.y+.08;e.particles.origin.z=tip.z;
+        updateChamberParticles(e.particles,pouring,t,{x:-.75,y:2.72,z:0});
+      }
       if(e.stream){e.stream.material.opacity=pouring?.52+.16*Math.sin(t*16):0}
     }else if(e.kind==='softbake'){
       e.ring.material.emissiveIntensity=on?1.5+heatProg*2.1+.4*Math.sin(t*7):.1;
@@ -1527,7 +1720,8 @@ function toast(msg,type=''){const d=document.createElement('div');d.className='t
 function dispenseWafer(){if(!buttonEnabled({kind:'stock'}))return;state.runStart=performance.now();state.carrying=false;state.waferBroken=false;status[0].state='ready';setLamp(0);placeWaferAtStock();toast('Blank wafer issued. Pick it up with either trigger.');updateAll()}        
 function activateFocused(){const o=state.focus;if(!o)return;const d=o.userData;if(d.type==='control'){adjustControl(d,1);return}if(!buttonEnabled(d)){toast('Control interlocked: '+buttonHint(d),'warn');return}if(d.kind==='stock'){dispenseWafer();return}const i=d.machineIndex;if(d.action==='door')toggleDoor(i);if(d.action==='chamber'){if(status[i].state==='ready')loadWafer(i);else if(status[i].state==='done')unloadWafer(i)}if(d.action==='load')loadWafer(i);if(d.action==='start')startProcess(i);if(d.action==='stop')stopProcess(i);if(d.action==='unload')unloadWafer(i)}        
 function toggleDoor(i){if(isDoorLocked(i)){notifyDoorLocked(i);return}const st=status[i];st.doorTarget=st.doorTarget>.5?0:1;toast((st.doorTarget?'Opening ':'Closing ')+stations[i].name+' door.');updateAll()}
-function loadWafer(i){const st=status[i],m=machines[i+1];state.carrying=false;state.handWafer.visible=false;st.state='loading';m.wafer.visible=true;m.wafer.position.set(0,1.45,1.75);m.wafer.rotation.set(-Math.PI/2,0,0);st.transfer={mode:'load',t:0};toast('Hand-guided wafer insertion started.');updateAll()}        
+function setMachineWaferPosition(machine,position){if(machine.waferPivot)machine.waferPivot.position.copy(position);else machine.wafer.position.copy(position)}
+function loadWafer(i){const st=status[i],m=machines[i+1];state.carrying=false;state.handWafer.visible=false;st.state='loading';m.wafer.visible=true;setMachineWaferPosition(m,m.waferLoad.clone());m.wafer.rotation.set(-Math.PI/2,0,0);st.transfer={mode:'load',t:0};toast('Hand-guided wafer insertion started.');updateAll()}
 function unloadWafer(i){const st=status[i];st.state='unloading';st.transfer={mode:'unload',t:0};toast('Lifting the completed wafer out of '+stations[i].name+' by hand.');updateAll()}        
 function startProcess(i){const st=status[i],s=stations[i],m=machines[i+1];if(!m||m.kind!=='fabrication'||!m.wafer?.visible||st.state!=='loaded'||st.doorAmount>(5/90))return false;st.state='running';st.metric=0;state.cycle={i,start:performance.now(),processSeconds:0,timeScale:clamp(s.targetSeconds/8,3,25)};setLamp(i);$('cycleBar').style.opacity='1';toast(s.name+' started. Manual STOP required at the process endpoint.');updateAll();return true}        
 function calculateMetric(i,t){const s=stations[i],st=status[i];try{return Math.max(0,s.metric.calc(st.values,t))}catch(e){return 0}}        
@@ -1550,12 +1744,12 @@ function showReport(before=benchmarks()){
   $('report').style.display=renderer.xr.isPresenting?'none':'grid';
   if(renderer.xr.isPresenting)showXROverlay('complete');
 }
-function updateTransfers(dt){status.forEach((st,i)=>{const m=machines[i+1];if(st.transfer){st.transfer.t=clamp(st.transfer.t+dt/1.35,0,1);const u=st.transfer.mode==='load'?st.transfer.t:1-st.transfer.t;m.wafer.position.y=lerp(1.45,1.82,u)+Math.sin(st.transfer.t*Math.PI)*.2;m.wafer.position.z=lerp(1.75,.35,u);if(st.transfer.t>=1){if(st.transfer.mode==='load'){st.state='loadedDoorOpen';m.wafer.position.set(0,1.82,.35);refreshWaferVisual(m.wafer);toast('Wafer seated. Close the chamber door.')}else{m.wafer.visible=false;state.carrying=true;state.handWafer.visible=true;refreshWaferVisual(state.handWafer);st.state='unloadedDoorOpen';toast('Wafer collected. Close the chamber door.')}st.transfer=null;updateAll()}}})}        
+function updateTransfers(dt){status.forEach((st,i)=>{const m=machines[i+1];if(st.transfer){st.transfer.t=clamp(st.transfer.t+dt/1.35,0,1);const u=st.transfer.mode==='load'?st.transfer.t:1-st.transfer.t;const position=m.waferLoad.clone().lerp(m.waferHome,u);position.y+=Math.sin(st.transfer.t*Math.PI)*.2;setMachineWaferPosition(m,position);if(st.transfer.t>=1){if(st.transfer.mode==='load'){st.state='loadedDoorOpen';setMachineWaferPosition(m,m.waferHome);refreshWaferVisual(m.wafer);toast('Wafer seated. Close the chamber door.')}else{m.wafer.visible=false;state.carrying=true;state.handWafer.visible=true;refreshWaferVisual(state.handWafer);st.state='unloadedDoorOpen';toast('Wafer collected. Close the chamber door.')}st.transfer=null;updateAll()}}})}
 function updateDoors(dt){status.forEach((st,i)=>{const m=machines[i+1];if(!m||m.kind!=='fabrication'||!m.door)return;if(isDoorLocked(i)){st.doorAmount=0;st.doorTarget=0;phys.doorVelocities[i]=0;m.door.rotation.y=0;return}if(!renderer.xr.isPresenting){if(st.doorAmount>0&&st.doorAmount<DOOR_MAGNET_ANGLE&&st.doorTarget<=.5){st.doorAmount=Math.max(0,st.doorAmount-1.35*dt)}else{st.doorAmount=lerp(st.doorAmount,st.doorTarget,1-Math.exp(-dt*5.5))}}else if(!phys.doorGrab||phys.doorGrab.i!==i){let v=phys.doorVelocities[i]||0;if(st.doorAmount>0&&st.doorAmount<DOOR_MAGNET_ANGLE&&v<=.65){v-=3.4*dt;if(v>0)v*=.45}else{v*=Math.exp(-dt*3.2)}st.doorAmount=clamp(st.doorAmount+v*dt,0,1);phys.doorVelocities[i]=v;if(st.doorAmount<=.002||(st.doorAmount<DOOR_MAGNET_ANGLE&&Math.abs(v)<.2&&v<=0)){if(st.doorAmount>0)pulseXR(.55,55);st.doorAmount=0;st.doorTarget=0;phys.doorVelocities[i]=0}}
-if((st.doorAmount<=.002&&st.doorTarget===0)||Math.abs(st.doorAmount-st.doorTarget)<.008&&!renderer.xr.isPresenting){st.doorAmount=st.doorAmount<=.002?0:st.doorTarget}m.door.rotation.y=-st.doorAmount*Math.PI/2;if(st.doorAmount===0){if(st.state==='loadedDoorOpen')st.state='loaded';else if(st.state==='unloadedDoorOpen')completeStage(i)}})}        
+if((st.doorAmount<=.002&&st.doorTarget===0)||Math.abs(st.doorAmount-st.doorTarget)<.008&&!renderer.xr.isPresenting){st.doorAmount=st.doorAmount<=.002?0:st.doorTarget}m.door.rotation.y=-st.doorAmount*(m.doorMaxAngle||Math.PI/2);if(st.doorAmount===0){if(st.state==='loadedDoorOpen')st.state='loaded';else if(st.state==='unloadedDoorOpen')completeStage(i)}})}
 function updateCycle(now){if(!state.cycle)return;const c=state.cycle,s=stations[c.i],st=status[c.i],m=machines[c.i+1];c.processSeconds=(now-c.start)/1000*c.timeScale;st.metric=calculateMetric(c.i,c.processSeconds);const ratio=st.metric/s.metric.target;if(m?.wafer)refreshWaferVisual(m.wafer,c.i,ratio,st.values);$('cycleName').textContent=s.name.toUpperCase();$('cycleTime').textContent=`${c.processSeconds.toFixed(1)} process s · ${formatMetric(st.metric,s.metric)} ${s.metric.unit}`;$('cycleFill').style.width=clamp(ratio*100,0,100)+'%';updateMachineGui()}        
 function adjustControl(d,dir){const i=d.machineIndex,st=status[i],s=stations[i];if(i!==state.current||!['ready','loadedDoorOpen','loaded'].includes(st.state)){toast('Recipe controls are locked in the current machine state.','warn');return}const c=s.controls.find(x=>x.key===d.controlKey);if(c.kind==='choice'){let n=c.options.indexOf(st.values[c.key]);n=(n+dir+c.options.length)%c.options.length;st.values[c.key]=c.options[n]}else st.values[c.key]=clamp(Number((st.values[c.key]+dir*c.step).toFixed(8)),c.min,c.max);updateControlMeshes(i);updateMachineGui()}        
-function updateControlMeshes(i){const s=stations[i],st=status[i],m=machines[i+1];if(!s||!st||!m||!Array.isArray(m.controls)||m.controls.length===0)return;s.controls.forEach((c,j)=>{const ref=m.controls[j];if(!ref)return;const v=st.values[c.key];let n=c.kind==='choice'?c.options.indexOf(v)/Math.max(1,c.options.length-1):(v-c.min)/(c.max-c.min);if(ref.track&&ref.mesh)ref.mesh.position.y=1.36-Math.floor(j/2)*.64+(n-.5)*.34;else{const target=ref.rotor||ref.mesh;if(target)target.rotation.z=-2.25+n*4.5}})}        
+function updateControlMeshes(i){const s=stations[i],st=status[i],m=machines[i+1];if(!s||!st||!m||!Array.isArray(m.controls)||m.controls.length===0)return;s.controls.forEach((c,j)=>{const ref=m.controls[j];if(!ref)return;const v=st.values[c.key];let n=c.kind==='choice'?c.options.indexOf(v)/Math.max(1,c.options.length-1):(v-c.min)/(c.max-c.min);if(ref.track&&ref.mesh)ref.mesh.position.y=1.36-Math.floor(j/2)*.64+(n-.5)*.34;else{const target=ref.rotor||ref.mesh;if(target)target.rotation.z=-2.25+n*4.5}});if(m.modelReadouts){m.modelReadouts.rpm(valueText(s.controls.find(c=>c.key==='rpm'),st.values.rpm));m.modelReadouts.flow(valueText(s.controls.find(c=>c.key==='flow'),st.values.flow));m.modelReadouts.volume(valueText(s.controls.find(c=>c.key==='volume'),st.values.volume))}}
 function raycastFocus(){if(renderer.xr.isPresenting){setXRFocus();return}raycaster.setFromCamera({x:0,y:0},camera);const hits=raycaster.intersectObjects(interactives,false);let found=null;for(const h of hits){const d=h.object.getWorldPosition(new THREE.Vector3()).distanceTo(camera.getWorldPosition(new THREE.Vector3()));if(d<3.4){found=h.object;break}}if(state.focus!==found){if(state.focus?.material?.emissive)state.focus.material.emissiveIntensity=state.focus.userData.type==='button'?.42:.25;state.focus=found;if(found?.material?.emissive)found.material.emissiveIntensity=.9}const tag=$('focusTag');tag.style.opacity=found?'1':'0';if(found){const d=found.userData;tag.textContent=d.type==='control'?`${d.label} — WHEEL TO ADJUST`:`${d.label} — CLICK / E`;const enabled=d.type==='control'||buttonEnabled(d);tag.style.borderColor=enabled?'#53e7ff':'#ff6579';$('actionBtn').disabled=!enabled;$('actionBtn').textContent=d.type==='control'?`ADJUST ${d.label.toUpperCase()} [WHEEL]`:`PRESS ${d.label.toUpperCase()} [E]`}else{$('actionBtn').disabled=true;$('actionBtn').textContent='POINT AT A MACHINE CONTROL'}updateMachineGui()}        
 function getNearest(){let best=null,dist=3.5;stations.forEach((s,i)=>{const d=Math.hypot(player.position.x-s.side*6.65,player.position.z-s.z);if(d<dist){dist=d;best={index:i,name:s.name}}});const ds=Math.hypot(player.position.x,player.position.z-10);if(ds<dist){dist=ds;best={index:null,name:'Blank Wafer Stock'}}if(deliveryStation){const dd=Math.hypot(player.position.x,player.position.z+40.2);if(dd<dist)best={index:null,name:'Final Delivery Bench'}}state.nearest=best;$('prompt').textContent=best?.name==='Final Delivery Bench'?'Place completed wafer onto the green submission pad':best?'Point at the physical machine panel':'Follow the illuminated floor route'}
 function updateMovement(dt){if(renderer.xr.isPresenting||!state.started||document.pointerLockElement!==renderer.domElement)return;state.crouching=!!(keys.ShiftLeft||keys.ShiftRight);const moving=!!(keys.KeyW||keys.KeyA||keys.KeyS||keys.KeyD||keys.ArrowUp||keys.ArrowDown||keys.ArrowLeft||keys.ArrowRight);state.sprinting=!!(keys.ControlLeft||keys.ControlRight)&&moving&&!state.crouching;const tau=3.34,target=state.sprinting?0:1;state.stamina=target+(state.stamina-target)*Math.exp(-dt/tau);const walk=state.crouching?1.2:2.75,added=state.sprinting?4.4*state.stamina:0,speed=walk+added;let f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0),r=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0),len=Math.hypot(f,r)||1;f/=len;r/=len;let nx=clamp(player.position.x+(-Math.sin(yaw)*f+Math.cos(yaw)*r)*speed*dt,-8.25,8.25),nz=clamp(player.position.z+(-Math.cos(yaw)*f-Math.sin(yaw)*r)*speed*dt,-40.5,11.2);for(const c of colliders){if(Math.abs(nx-c.x)<c.w/2+.34&&Math.abs(nz-c.z)<c.d/2+.34){nx=player.position.x;nz=player.position.z;break}}player.position.x=nx;player.position.z=nz;player.position.y=lerp(player.position.y,state.crouching?1.29:2.58,1-Math.exp(-dt*10));player.rotation.y=yaw;camera.rotation.order='YXZ';camera.rotation.x=pitch;$('staminaBar').style.width=state.stamina*100+'%';$('staminaNumber').textContent=Math.round(state.stamina*100)+'%';$('staminaBar').style.background=state.stamina<.25?'#ff6579':'linear-gradient(90deg,#17a9ee,#54f7a1)'}        

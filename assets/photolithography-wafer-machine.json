@@ -1,0 +1,1886 @@
+{
+  "format": "orbit-forge-project",
+  "version": "1.1.1",
+  "createdAt": "2026-11-25T11:25:00Z",
+  "model": {
+    "format": "orbit-forge-model",
+    "version": "1.1.1",
+    "objects": [
+      {
+        "id": "object_base_plinth",
+        "name": "Base Plinth",
+        "primitive": "box",
+        "color": "#26313dff",
+        "transform": {
+          "position": {
+            "x": 0,
+            "y": 0.3,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 8.2,
+            "y": 0.6,
+            "z": 5.6
+          }
+        }
+      },
+      {
+        "id": "object_lower_cabinet",
+        "name": "Lower Cabinet",
+        "primitive": "box",
+        "color": "#e3e7ecff",
+        "transform": {
+          "position": {
+            "x": 0,
+            "y": 1.15,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 7.8,
+            "y": 1.1,
+            "z": 5.2
+          }
+        }
+      },
+      {
+        "id": "object_frame_post_front_left",
+        "name": "Frame Post Front Left",
+        "primitive": "box",
+        "color": "#d9dee4ff",
+        "transform": {
+          "position": {
+            "x": -3.75,
+            "y": 3.8,
+            "z": 2.4
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.18,
+            "y": 4.2,
+            "z": 0.18
+          }
+        }
+      },
+      {
+        "id": "object_frame_post_front_right",
+        "name": "Frame Post Front Right",
+        "primitive": "box",
+        "color": "#d9dee4ff",
+        "transform": {
+          "position": {
+            "x": 3.75,
+            "y": 3.8,
+            "z": 2.4
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.18,
+            "y": 4.2,
+            "z": 0.18
+          }
+        }
+      },
+      {
+        "id": "object_frame_post_rear_left",
+        "name": "Frame Post Rear Left",
+        "primitive": "box",
+        "color": "#d9dee4ff",
+        "transform": {
+          "position": {
+            "x": -3.75,
+            "y": 3.8,
+            "z": -2.4
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.18,
+            "y": 4.2,
+            "z": 0.18
+          }
+        }
+      },
+      {
+        "id": "object_frame_post_rear_right",
+        "name": "Frame Post Rear Right",
+        "primitive": "box",
+        "color": "#d9dee4ff",
+        "transform": {
+          "position": {
+            "x": 3.75,
+            "y": 3.8,
+            "z": -2.4
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.18,
+            "y": 4.2,
+            "z": 0.18
+          }
+        }
+      },
+      {
+        "id": "object_top_rail_front",
+        "name": "Top Rail Front",
+        "primitive": "box",
+        "color": "#d9dee4ff",
+        "transform": {
+          "position": {
+            "x": 0,
+            "y": 5.82,
+            "z": 2.4
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 7.7,
+            "y": 0.18,
+            "z": 0.18
+          }
+        }
+      },
+      {
+        "id": "object_top_rail_rear",
+        "name": "Top Rail Rear",
+        "primitive": "box",
+        "color": "#d9dee4ff",
+        "transform": {
+          "position": {
+            "x": 0,
+            "y": 5.82,
+            "z": -2.4
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 7.7,
+            "y": 0.18,
+            "z": 0.18
+          }
+        }
+      },
+      {
+        "id": "object_top_rail_left",
+        "name": "Top Rail Left",
+        "primitive": "box",
+        "color": "#d9dee4ff",
+        "transform": {
+          "position": {
+            "x": -3.75,
+            "y": 5.82,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.18,
+            "y": 0.18,
+            "z": 4.8
+          }
+        }
+      },
+      {
+        "id": "object_top_rail_right",
+        "name": "Top Rail Right",
+        "primitive": "box",
+        "color": "#d9dee4ff",
+        "transform": {
+          "position": {
+            "x": 3.75,
+            "y": 5.82,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.18,
+            "y": 0.18,
+            "z": 4.8
+          }
+        }
+      },
+      {
+        "id": "object_left_glass",
+        "name": "Left Glass",
+        "primitive": "box",
+        "color": "#73cde84d",
+        "transform": {
+          "position": {
+            "x": -3.64,
+            "y": 4.0,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.06,
+            "y": 3.55,
+            "z": 4.55
+          }
+        },
+        "opacity": 0.3
+      },
+      {
+        "id": "object_right_glass",
+        "name": "Right Glass",
+        "primitive": "box",
+        "color": "#73cde84d",
+        "transform": {
+          "position": {
+            "x": 3.64,
+            "y": 4.0,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.06,
+            "y": 3.55,
+            "z": 4.55
+          }
+        },
+        "opacity": 0.3
+      },
+      {
+        "id": "object_rear_glass",
+        "name": "Rear Glass",
+        "primitive": "box",
+        "color": "#73cde84d",
+        "transform": {
+          "position": {
+            "x": 0,
+            "y": 4.0,
+            "z": -2.29
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 7.2,
+            "y": 3.55,
+            "z": 0.06
+          }
+        },
+        "opacity": 0.3
+      },
+      {
+        "id": "object_roof_glass",
+        "name": "Roof Glass",
+        "primitive": "box",
+        "color": "#73cde838",
+        "transform": {
+          "position": {
+            "x": 0,
+            "y": 5.7,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 7.2,
+            "y": 0.06,
+            "z": 4.55
+          }
+        },
+        "opacity": 0.22
+      },
+      {
+        "id": "object_spin_bowl_outer",
+        "name": "Spin Bowl Outer",
+        "primitive": "cylinder",
+        "color": "#aeb7c2ff",
+        "transform": {
+          "position": {
+            "x": -0.75,
+            "y": 2.0,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 2.35,
+            "y": 0.48,
+            "z": 2.35
+          }
+        }
+      },
+      {
+        "id": "object_spin_bowl_inner",
+        "name": "Spin Bowl Inner",
+        "primitive": "cylinder",
+        "color": "#202a34ff",
+        "transform": {
+          "position": {
+            "x": -0.75,
+            "y": 2.42,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1.98,
+            "y": 0.12,
+            "z": 1.98
+          }
+        }
+      },
+      {
+        "id": "object_rotating_chuck",
+        "name": "Rotating Chuck",
+        "primitive": "cylinder",
+        "color": "#526170ff",
+        "transform": {
+          "position": {
+            "x": -0.75,
+            "y": 2.56,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1.18,
+            "y": 0.16,
+            "z": 1.18
+          }
+        }
+      },
+      {
+        "id": "object_wafer",
+        "name": "Wafer",
+        "primitive": "cylinder",
+        "color": "#83c9efff",
+        "transform": {
+          "position": {
+            "x": -0.75,
+            "y": 2.72,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1.62,
+            "y": 0.055,
+            "z": 1.62
+          }
+        }
+      },
+      {
+        "id": "object_wafer_flat",
+        "name": "Wafer Flat",
+        "primitive": "box",
+        "color": "#dff6ffff",
+        "transform": {
+          "position": {
+            "x": -0.75,
+            "y": 2.78,
+            "z": 1.42
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.55,
+            "y": 0.025,
+            "z": 0.1
+          }
+        }
+      },
+      {
+        "id": "object_arm_pivot_column",
+        "name": "Arm Pivot Column",
+        "primitive": "cylinder",
+        "color": "#394654ff",
+        "transform": {
+          "position": {
+            "x": 1.55,
+            "y": 3.1,
+            "z": -0.8
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.38,
+            "y": 1.65,
+            "z": 0.38
+          }
+        }
+      },
+      {
+        "id": "object_arm_pivot_hub",
+        "name": "Arm Pivot Hub",
+        "primitive": "cylinder",
+        "color": "#f2b84bff",
+        "transform": {
+          "position": {
+            "x": 1.55,
+            "y": 4.05,
+            "z": -0.8
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.48,
+            "y": 0.22,
+            "z": 0.48
+          }
+        }
+      },
+      {
+        "id": "object_swingarm_beam",
+        "name": "Swingarm Beam",
+        "primitive": "box",
+        "color": "#f2b84bff",
+        "transform": {
+          "position": {
+            "x": 0.35,
+            "y": 4.05,
+            "z": -0.8
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 2.45,
+            "y": 0.24,
+            "z": 0.34
+          }
+        }
+      },
+      {
+        "id": "object_swingarm_elbow",
+        "name": "Swingarm Elbow",
+        "primitive": "sphere",
+        "color": "#f2b84bff",
+        "transform": {
+          "position": {
+            "x": -0.85,
+            "y": 4.05,
+            "z": -0.8
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.3,
+            "y": 0.3,
+            "z": 0.3
+          }
+        }
+      },
+      {
+        "id": "object_feed_pipe",
+        "name": "Feed Pipe",
+        "primitive": "cylinder",
+        "color": "#ebf0f4ff",
+        "transform": {
+          "position": {
+            "x": -0.85,
+            "y": 3.54,
+            "z": -0.8
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.12,
+            "y": 0.95,
+            "z": 0.12
+          }
+        }
+      },
+      {
+        "id": "object_dispense_nozzle",
+        "name": "Dispense Nozzle",
+        "primitive": "cone",
+        "color": "#252b33ff",
+        "transform": {
+          "position": {
+            "x": -0.85,
+            "y": 3.02,
+            "z": -0.8
+          },
+          "rotation": {
+            "x": 3.141592653589793,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.18,
+            "y": 0.34,
+            "z": 0.18
+          }
+        }
+      },
+      {
+        "id": "object_door_left_stile",
+        "name": "Door Left Stile",
+        "primitive": "box",
+        "color": "#d9dee4ff",
+        "transform": {
+          "position": {
+            "x": -2.78,
+            "y": 3.75,
+            "z": 2.36
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.16,
+            "y": 2.8,
+            "z": 0.14
+          }
+        }
+      },
+      {
+        "id": "object_door_right_stile",
+        "name": "Door Right Stile",
+        "primitive": "box",
+        "color": "#d9dee4ff",
+        "transform": {
+          "position": {
+            "x": 1.0,
+            "y": 3.75,
+            "z": 2.36
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.16,
+            "y": 2.8,
+            "z": 0.14
+          }
+        }
+      },
+      {
+        "id": "object_door_top_rail",
+        "name": "Door Top Rail",
+        "primitive": "box",
+        "color": "#d9dee4ff",
+        "transform": {
+          "position": {
+            "x": -0.89,
+            "y": 5.08,
+            "z": 2.36
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 3.94,
+            "y": 0.16,
+            "z": 0.14
+          }
+        }
+      },
+      {
+        "id": "object_door_bottom_rail",
+        "name": "Door Bottom Rail",
+        "primitive": "box",
+        "color": "#d9dee4ff",
+        "transform": {
+          "position": {
+            "x": -0.89,
+            "y": 2.42,
+            "z": 2.36
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 3.94,
+            "y": 0.16,
+            "z": 0.14
+          }
+        }
+      },
+      {
+        "id": "object_door_glass",
+        "name": "Door Glass",
+        "primitive": "box",
+        "color": "#73cde84d",
+        "transform": {
+          "position": {
+            "x": -0.89,
+            "y": 3.75,
+            "z": 2.36
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 3.55,
+            "y": 2.48,
+            "z": 0.055
+          }
+        },
+        "opacity": 0.3
+      },
+      {
+        "id": "object_door_handle",
+        "name": "Door Handle",
+        "primitive": "cylinder",
+        "color": "#222831ff",
+        "transform": {
+          "position": {
+            "x": 0.7,
+            "y": 3.75,
+            "z": 2.56
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.1,
+            "y": 0.62,
+            "z": 0.1
+          }
+        }
+      },
+      {
+        "id": "object_control_console",
+        "name": "Control Console",
+        "primitive": "box",
+        "color": "#303b47ff",
+        "transform": {
+          "position": {
+            "x": 2.85,
+            "y": 3.55,
+            "z": 1.92
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1.45,
+            "y": 3.3,
+            "z": 0.55
+          }
+        }
+      },
+      {
+        "id": "object_control_face",
+        "name": "Control Face",
+        "primitive": "box",
+        "color": "#d8dde3ff",
+        "transform": {
+          "position": {
+            "x": 2.85,
+            "y": 3.55,
+            "z": 2.22
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1.28,
+            "y": 3.02,
+            "z": 0.08
+          }
+        }
+      },
+      {
+        "id": "object_rpm_readout",
+        "name": "Rpm Readout",
+        "primitive": "box",
+        "color": "#122432ff",
+        "transform": {
+          "position": {
+            "x": 2.55,
+            "y": 4.42,
+            "z": 2.28
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.48,
+            "y": 0.38,
+            "z": 0.055
+          }
+        }
+      },
+      {
+        "id": "object_feed_readout",
+        "name": "Feed Readout",
+        "primitive": "box",
+        "color": "#122432ff",
+        "transform": {
+          "position": {
+            "x": 3.15,
+            "y": 4.42,
+            "z": 2.28
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.48,
+            "y": 0.38,
+            "z": 0.055
+          }
+        }
+      },
+      {
+        "id": "object_rpm_display",
+        "name": "Rpm Display",
+        "primitive": "box",
+        "color": "#62e6afff",
+        "transform": {
+          "position": {
+            "x": 2.55,
+            "y": 4.42,
+            "z": 2.34
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.31,
+            "y": 0.075,
+            "z": 0.025
+          }
+        }
+      },
+      {
+        "id": "object_feed_display",
+        "name": "Feed Display",
+        "primitive": "box",
+        "color": "#62e6afff",
+        "transform": {
+          "position": {
+            "x": 3.15,
+            "y": 4.42,
+            "z": 2.34
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.25,
+            "y": 0.075,
+            "z": 0.025
+          }
+        }
+      },
+      {
+        "id": "object_rpm_dial",
+        "name": "Rpm Dial",
+        "primitive": "cylinder",
+        "color": "#242c34ff",
+        "transform": {
+          "position": {
+            "x": 2.55,
+            "y": 3.72,
+            "z": 2.34
+          },
+          "rotation": {
+            "x": 1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.25,
+            "y": 0.14,
+            "z": 0.25
+          }
+        }
+      },
+      {
+        "id": "object_feed_rate_dial",
+        "name": "Feed Rate Dial",
+        "primitive": "cylinder",
+        "color": "#242c34ff",
+        "transform": {
+          "position": {
+            "x": 3.15,
+            "y": 3.72,
+            "z": 2.34
+          },
+          "rotation": {
+            "x": 1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.25,
+            "y": 0.14,
+            "z": 0.25
+          }
+        }
+      },
+      {
+        "id": "object_arm_position_dial",
+        "name": "Arm Position Dial",
+        "primitive": "cylinder",
+        "color": "#242c34ff",
+        "transform": {
+          "position": {
+            "x": 2.85,
+            "y": 3.13,
+            "z": 2.34
+          },
+          "rotation": {
+            "x": 1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.25,
+            "y": 0.14,
+            "z": 0.25
+          }
+        }
+      },
+      {
+        "id": "object_start_button",
+        "name": "Start Button",
+        "primitive": "cylinder",
+        "color": "#23bc70ff",
+        "transform": {
+          "position": {
+            "x": 2.55,
+            "y": 2.55,
+            "z": 2.35
+          },
+          "rotation": {
+            "x": 1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.22,
+            "y": 0.15,
+            "z": 0.22
+          }
+        }
+      },
+      {
+        "id": "object_stop_button",
+        "name": "Stop Button",
+        "primitive": "cylinder",
+        "color": "#d84c52ff",
+        "transform": {
+          "position": {
+            "x": 3.15,
+            "y": 2.55,
+            "z": 2.35
+          },
+          "rotation": {
+            "x": 1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.26,
+            "y": 0.15,
+            "z": 0.26
+          }
+        }
+      },
+      {
+        "id": "object_status_lamp",
+        "name": "Status Lamp",
+        "primitive": "sphere",
+        "color": "#ffdc5cff",
+        "transform": {
+          "position": {
+            "x": 2.85,
+            "y": 4.96,
+            "z": 2.34
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.11,
+            "y": 0.11,
+            "z": 0.11
+          }
+        }
+      },
+      {
+        "id": "object_resist_tank_backplate",
+        "name": "Resist Tank Backplate",
+        "primitive": "box",
+        "color": "#4b5663ff",
+        "transform": {
+          "position": {
+            "x": 2.45,
+            "y": 4.35,
+            "z": -2.16
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1.35,
+            "y": 2.25,
+            "z": 0.12
+          }
+        }
+      },
+      {
+        "id": "object_resist_tank",
+        "name": "Resist Tank",
+        "primitive": "cylinder",
+        "color": "#c883d5cc",
+        "transform": {
+          "position": {
+            "x": 2.45,
+            "y": 4.38,
+            "z": -1.92
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.52,
+            "y": 1.42,
+            "z": 0.52
+          }
+        },
+        "opacity": 0.8
+      },
+      {
+        "id": "object_resist_tank_top_cap",
+        "name": "Resist Tank Top Cap",
+        "primitive": "cylinder",
+        "color": "#e3b4e9ff",
+        "transform": {
+          "position": {
+            "x": 2.45,
+            "y": 5.13,
+            "z": -1.92
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.58,
+            "y": 0.13,
+            "z": 0.58
+          }
+        }
+      },
+      {
+        "id": "object_resist_tank_bottom_cap",
+        "name": "Resist Tank Bottom Cap",
+        "primitive": "cylinder",
+        "color": "#6c3e73ff",
+        "transform": {
+          "position": {
+            "x": 2.45,
+            "y": 3.63,
+            "z": -1.92
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.58,
+            "y": 0.13,
+            "z": 0.58
+          }
+        }
+      },
+      {
+        "id": "object_resist_tank_upper_strap",
+        "name": "Resist Tank Upper Strap",
+        "primitive": "box",
+        "color": "#727d88ff",
+        "transform": {
+          "position": {
+            "x": 2.45,
+            "y": 4.78,
+            "z": -1.38
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1.18,
+            "y": 0.13,
+            "z": 0.13
+          }
+        }
+      },
+      {
+        "id": "object_resist_tank_lower_strap",
+        "name": "Resist Tank Lower Strap",
+        "primitive": "box",
+        "color": "#727d88ff",
+        "transform": {
+          "position": {
+            "x": 2.45,
+            "y": 3.98,
+            "z": -1.38
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1.18,
+            "y": 0.13,
+            "z": 0.13
+          }
+        }
+      },
+      {
+        "id": "object_tank_outlet",
+        "name": "Tank Outlet",
+        "primitive": "cylinder",
+        "color": "#d9e0e6ff",
+        "transform": {
+          "position": {
+            "x": 2.45,
+            "y": 5.35,
+            "z": -1.92
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.11,
+            "y": 0.32,
+            "z": 0.11
+          }
+        }
+      },
+      {
+        "id": "object_feed_line_high",
+        "name": "Feed Line High",
+        "primitive": "cylinder",
+        "color": "#d9e0e6ff",
+        "transform": {
+          "position": {
+            "x": 2.45,
+            "y": 5.57,
+            "z": -1.92
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.11,
+            "y": 0.42,
+            "z": 0.11
+          }
+        }
+      },
+      {
+        "id": "object_feed_elbow_rear",
+        "name": "Feed Elbow Rear",
+        "primitive": "sphere",
+        "color": "#d9e0e6ff",
+        "transform": {
+          "position": {
+            "x": 2.45,
+            "y": 5.78,
+            "z": -1.92
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.16,
+            "y": 0.16,
+            "z": 0.16
+          }
+        }
+      },
+      {
+        "id": "object_feed_line_cross",
+        "name": "Feed Line Cross",
+        "primitive": "cylinder",
+        "color": "#d9e0e6ff",
+        "transform": {
+          "position": {
+            "x": 1.98,
+            "y": 5.78,
+            "z": -1.92
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 1.5707963267948966
+          },
+          "scale": {
+            "x": 0.11,
+            "y": 0.86,
+            "z": 0.11
+          }
+        }
+      },
+      {
+        "id": "object_feed_elbow_cross",
+        "name": "Feed Elbow Cross",
+        "primitive": "sphere",
+        "color": "#d9e0e6ff",
+        "transform": {
+          "position": {
+            "x": 1.55,
+            "y": 5.78,
+            "z": -1.92
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.16,
+            "y": 0.16,
+            "z": 0.16
+          }
+        }
+      },
+      {
+        "id": "object_feed_line_forward",
+        "name": "Feed Line Forward",
+        "primitive": "cylinder",
+        "color": "#d9e0e6ff",
+        "transform": {
+          "position": {
+            "x": 1.55,
+            "y": 5.78,
+            "z": -1.36
+          },
+          "rotation": {
+            "x": 1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.11,
+            "y": 1.12,
+            "z": 0.11
+          }
+        }
+      },
+      {
+        "id": "object_feed_elbow_drop",
+        "name": "Feed Elbow Drop",
+        "primitive": "sphere",
+        "color": "#d9e0e6ff",
+        "transform": {
+          "position": {
+            "x": 1.55,
+            "y": 5.78,
+            "z": -0.8
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.16,
+            "y": 0.16,
+            "z": 0.16
+          }
+        }
+      },
+      {
+        "id": "object_feed_line_drop",
+        "name": "Feed Line Drop",
+        "primitive": "cylinder",
+        "color": "#d9e0e6ff",
+        "transform": {
+          "position": {
+            "x": 1.55,
+            "y": 4.93,
+            "z": -0.8
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.11,
+            "y": 1.7,
+            "z": 0.11
+          }
+        }
+      },
+      {
+        "id": "object_pivot_feed_coupling",
+        "name": "Pivot Feed Coupling",
+        "primitive": "cylinder",
+        "color": "#6e7c89ff",
+        "transform": {
+          "position": {
+            "x": 1.55,
+            "y": 4.09,
+            "z": -0.8
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.21,
+            "y": 0.24,
+            "z": 0.21
+          }
+        }
+      }
+    ],
+    "groups": [
+      {
+        "id": "group_machine_body",
+        "name": "Machine Body And Transparent Shroud",
+        "color": "#d9dee4ff",
+        "memberIds": [
+          "object_base_plinth",
+          "object_lower_cabinet",
+          "object_frame_post_front_left",
+          "object_frame_post_front_right",
+          "object_frame_post_rear_left",
+          "object_frame_post_rear_right",
+          "object_top_rail_front",
+          "object_top_rail_rear",
+          "object_top_rail_left",
+          "object_top_rail_right",
+          "object_left_glass",
+          "object_right_glass",
+          "object_rear_glass",
+          "object_roof_glass"
+        ],
+        "transform": {
+          "position": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        }
+      },
+      {
+        "id": "group_load_door",
+        "name": "Thin Framed Transparent Load Door",
+        "color": "#d9dee4ff",
+        "memberIds": [
+          "object_door_left_stile",
+          "object_door_right_stile",
+          "object_door_top_rail",
+          "object_door_bottom_rail",
+          "object_door_glass",
+          "object_door_handle"
+        ],
+        "transform": {
+          "position": {
+            "x": -2.86,
+            "y": 3.75,
+            "z": 2.36
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        }
+      },
+      {
+        "id": "group_spin_platform",
+        "name": "Centred RPM Controlled Wafer Platform",
+        "color": "#83c9efff",
+        "memberIds": [
+          "object_rotating_chuck",
+          "object_wafer",
+          "object_wafer_flat"
+        ],
+        "transform": {
+          "position": {
+            "x": -0.75,
+            "y": 2.62,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        }
+      },
+      {
+        "id": "group_resist_arm",
+        "name": "Continuous Photoresist Swingarm",
+        "color": "#f2b84bff",
+        "memberIds": [
+          "object_arm_pivot_hub",
+          "object_swingarm_beam",
+          "object_swingarm_elbow",
+          "object_feed_pipe",
+          "object_dispense_nozzle"
+        ],
+        "transform": {
+          "position": {
+            "x": 1.55,
+            "y": 4.05,
+            "z": -0.8
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        }
+      },
+      {
+        "id": "group_control_panel",
+        "name": "Forward Facing Control Panel",
+        "color": "#d8dde3ff",
+        "memberIds": [
+          "object_control_console",
+          "object_control_face",
+          "object_rpm_readout",
+          "object_feed_readout",
+          "object_rpm_display",
+          "object_feed_display",
+          "object_rpm_dial",
+          "object_feed_rate_dial",
+          "object_arm_position_dial",
+          "object_start_button",
+          "object_stop_button",
+          "object_status_lamp"
+        ],
+        "transform": {
+          "position": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        }
+      },
+      {
+        "id": "group_resist_supply",
+        "name": "Rear Mounted Photoresist Tank And Feed Line",
+        "color": "#c883d5ff",
+        "memberIds": [
+          "object_resist_tank_backplate",
+          "object_resist_tank",
+          "object_resist_tank_top_cap",
+          "object_resist_tank_bottom_cap",
+          "object_resist_tank_upper_strap",
+          "object_resist_tank_lower_strap",
+          "object_tank_outlet",
+          "object_feed_line_high",
+          "object_feed_elbow_rear",
+          "object_feed_line_cross",
+          "object_feed_elbow_cross",
+          "object_feed_line_forward",
+          "object_feed_elbow_drop",
+          "object_feed_line_drop",
+          "object_pivot_feed_coupling"
+        ],
+        "transform": {
+          "position": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        }
+      }
+    ]
+  },
+  "rig": {
+    "format": "orbit-forge-rig",
+    "version": "1.1.1",
+    "joints": [
+      {
+        "id": "joint_door_hinge",
+        "name": "Load Door Hinge",
+        "type": "pivot",
+        "parentId": "group_machine_body",
+        "childId": "group_load_door",
+        "axis": "y",
+        "min": -105,
+        "max": 0
+      },
+      {
+        "id": "joint_arm_pivot",
+        "name": "Photoresist Arm Position",
+        "type": "pivot",
+        "parentId": "object_arm_pivot_column",
+        "childId": "group_resist_arm",
+        "axis": "y",
+        "min": -45,
+        "max": 60
+      },
+      {
+        "id": "joint_feed_height",
+        "name": "Photoresist Nozzle Height",
+        "type": "slide",
+        "parentId": "group_resist_arm",
+        "childId": "object_dispense_nozzle",
+        "axis": "y",
+        "min": -0.25,
+        "max": 0.25
+      },
+      {
+        "id": "joint_wafer_rotation",
+        "name": "Wafer RPM Axis",
+        "type": "pivot",
+        "parentId": "object_spin_bowl_outer",
+        "childId": "group_spin_platform",
+        "axis": "y",
+        "min": 0,
+        "max": 360
+      }
+    ]
+  },
+  "animation": {
+    "format": "orbit-forge-animation",
+    "version": "1.1.1",
+    "duration": 6,
+    "tracks": [
+      {
+        "entityId": "group_spin_platform",
+        "keyframes": [
+          {
+            "time": 0,
+            "transform": {
+              "position": {
+                "x": -0.75,
+                "y": 2.62,
+                "z": 0
+              },
+              "rotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "time": 2,
+            "transform": {
+              "position": {
+                "x": -0.75,
+                "y": 2.62,
+                "z": 0
+              },
+              "rotation": {
+                "x": 0,
+                "y": 12.566370614359172,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "time": 4,
+            "transform": {
+              "position": {
+                "x": -0.75,
+                "y": 2.62,
+                "z": 0
+              },
+              "rotation": {
+                "x": 0,
+                "y": 25.132741228718345,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "time": 6,
+            "transform": {
+              "position": {
+                "x": -0.75,
+                "y": 2.62,
+                "z": 0
+              },
+              "rotation": {
+                "x": 0,
+                "y": 37.69911184307752,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          }
+        ]
+      },
+      {
+        "entityId": "group_resist_arm",
+        "keyframes": [
+          {
+            "time": 0,
+            "transform": {
+              "position": {
+                "x": 1.55,
+                "y": 4.05,
+                "z": -0.8
+              },
+              "rotation": {
+                "x": 0,
+                "y": 0.35,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "time": 2,
+            "transform": {
+              "position": {
+                "x": 1.55,
+                "y": 4.05,
+                "z": -0.8
+              },
+              "rotation": {
+                "x": 0,
+                "y": -0.25,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "time": 4,
+            "transform": {
+              "position": {
+                "x": 1.55,
+                "y": 4.05,
+                "z": -0.8
+              },
+              "rotation": {
+                "x": 0,
+                "y": 0.45,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "time": 6,
+            "transform": {
+              "position": {
+                "x": 1.55,
+                "y": 4.05,
+                "z": -0.8
+              },
+              "rotation": {
+                "x": 0,
+                "y": 0.35,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          }
+        ]
+      },
+      {
+        "entityId": "group_load_door",
+        "keyframes": [
+          {
+            "time": 0,
+            "transform": {
+              "position": {
+                "x": -2.86,
+                "y": 3.75,
+                "z": 2.36
+              },
+              "rotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "time": 1.2,
+            "transform": {
+              "position": {
+                "x": -2.86,
+                "y": 3.75,
+                "z": 2.36
+              },
+              "rotation": {
+                "x": 0,
+                "y": -1.35,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "time": 2.4,
+            "transform": {
+              "position": {
+                "x": -2.86,
+                "y": 3.75,
+                "z": 2.36
+              },
+              "rotation": {
+                "x": 0,
+                "y": -1.35,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "time": 3.6,
+            "transform": {
+              "position": {
+                "x": -2.86,
+                "y": 3.75,
+                "z": 2.36
+              },
+              "rotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "time": 6,
+            "transform": {
+              "position": {
+                "x": -2.86,
+                "y": 3.75,
+                "z": 2.36
+              },
+              "rotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "metadata": {
+    "name": "Corrected Photolithography Spin Coater With Rear Resist Supply",
+    "frontDirection": "+Z",
+    "notes": "Floating pink torus and cylinder replaced by a translucent rear-wall-mounted photoresist cartridge with backplate, retaining straps, caps, outlet, continuous rigid feed line, elbows and a rotary coupling into the swing-arm pivot.",
+    "revision": "v3: rear-mounted resist tank and continuous feed pipe"
+  }
+}

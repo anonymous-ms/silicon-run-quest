@@ -26,5 +26,17 @@
     script.onerror = () => showError('A simulator component could not be loaded: ' + files[index]);
     document.head.appendChild(script);
   };
-  loadNext(0);
+  fetch('./assets/photolithography-wafer-machine.json')
+    .then(response => {
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      return response.json();
+    })
+    .then(model => {
+      window.PhotolithographyMachineModel = model;
+      loadNext(0);
+    })
+    .catch(error => {
+      console.error('Could not load the photolithography machine model.', error);
+      showError('The photolithography machine model could not be loaded.');
+    });
 })();
