@@ -12,6 +12,8 @@ test('runtime loader order matches service-worker precache and index.html script
   const loader = read('js/silicon-run.js');
   const sw = read('service-worker.js');
 
+  assert(loader.includes("navigator.serviceWorker.register('./service-worker.js'"), 'js/silicon-run.js must register the service worker before loading runtime assets');
+
   const filesMatch = loader.match(/const files = \[([\s\S]*?)\];/);
   assert(filesMatch, 'js/silicon-run.js must define the runtime files array');
   const runtimeFiles = [...filesMatch[1].matchAll(/'([^']+)'/g)].map(m => m[1]);
@@ -40,10 +42,52 @@ test('runtime loader order matches service-worker precache and index.html script
 
   const machineAsset = './assets/photolithography-wafer-machine.json';
   const machineModel = JSON.parse(read(machineAsset.slice(2)));
-  assert(loader.includes(`fetch('${machineAsset}')`), 'js/silicon-run.js must load the photolithography model before the runtime');
+  assert(loader.includes(`loadModel('${machineAsset}')`), 'js/silicon-run.js must load the photolithography model before the runtime');
   assert(sw.includes(`'${machineAsset}'`), 'service-worker.js must precache the photolithography model');
   assert.equal(machineModel.model.objects.length, 58);
   assert(machineModel.animation.tracks.some(track => track.entityId === 'group_resist_arm'));
+
+  const oxidationAsset = './assets/oxidation-furnace-sliding-tray-v2.json';
+  const oxidationModel = JSON.parse(read(oxidationAsset.slice(2)));
+  assert(loader.includes(`loadModel('${oxidationAsset}')`), 'js/silicon-run.js must load the oxidation furnace model before the runtime');
+  assert(sw.includes(`'${oxidationAsset}'`), 'service-worker.js must precache the oxidation furnace model');
+  assert.equal(oxidationModel.model.objects.length, 92);
+  assert(oxidationModel.model.groups.some(group => group.id === 'group_safety_door'));
+  assert(oxidationModel.model.groups.some(group => group.id === 'group_loading_carriage'));
+  assert(oxidationModel.rig.joints.some(joint => joint.childId === 'group_safety_door' && joint.type === 'pivot'));
+  const carriageTrack = oxidationModel.animation.tracks.find(track => track.entityId === 'group_loading_carriage');
+  assert(carriageTrack, 'The imported furnace must provide its carriage motion track');
+  assert.equal(Math.max(...carriageTrack.keyframes.map(frame => frame.transform.position.z)), 3.35);
+  assert.equal(Math.min(...carriageTrack.keyframes.map(frame => frame.transform.position.z)), 0);
+});
+
+test('oxidation furnace model controls and motion are bound to simulator interactions', () => {
+  const coreSrc = read('js/silicon-run-core.js');
+  const startupSrc = read('js/silicon-run-startup.js');
+  const worldSrc = read('js/design-world-runtime.js');
+  const parallelSrc = read('js/parallel-wafer-runtime.js');
+  const model = JSON.parse(read('assets/oxidation-furnace-sliding-tray-v2.json'));
+  const controls = new Set(model.model.objects.map(object => object.id));
+  for (const id of ['object_temp', 'object_flow', 'object_start', 'object_stop', 'object_estop', 'object_screen', 'object_lamp_0', 'object_lamp_1', 'object_lamp_2', 'object_wafer_v2_3']) {
+    assert(controls.has(id), `Imported furnace model is missing ${id}`);
+  }
+  for (const feature of ['createOxidationFurnaceModel', 'group_loading_carriage', 'group_safety_door', 'statusLamps', 'emergencyStop', 'oxidationFlow', 'updateModelReadouts']) {
+    assert(coreSrc.includes(feature), `Furnace runtime must wire ${feature}`);
+  }
+  assert(coreSrc.includes("g.scale.setScalar(.45)"), 'The imported furnace must be scaled to fit the existing machine station');
+  assert(coreSrc.includes('m.carriage.position.z=lerp(m.carriageClosedZ,m.carriageOpenZ,clamp(st.doorAmount,0,1))'),
+    'The model carriage must follow the existing interlocked chamber door instead of looping its source track');
+  assert(coreSrc.includes('!!st.transfer||[\'loadedDoorOpen\',\'loaded\',\'running\',\'done\'].includes(st.state)') &&
+    coreSrc.includes('!machine.body?.view?.visible'),
+  'Wafer loading transfers must remain visible, and the model proxy must hide once the tracked wafer is exposed');
+  assert(startupSrc.includes('getMachineState:') && startupSrc.includes('toggleDoor:') && startupSrc.includes('adjustControl:') && startupSrc.includes('loadWafer:') && startupSrc.includes('unloadWafer:') && startupSrc.includes('carryWafer:') && startupSrc.includes('pressButton:'),
+    'The browser test launch hook must expose furnace state and its existing interaction paths');
+  assert(parallelSrc.includes('updateModelReadouts(i);') && parallelSrc.includes("d.action==='emergencyStop'"),
+    'Concurrent process updates must refresh the imported furnace HMI and retain its emergency-stop action');
+  assert(worldSrc.includes('machine.door.userData.swingLength||1.66') &&
+    worldSrc.includes('doorProgress=clamp(st.doorAmount/1.5,0,1)') &&
+    worldSrc.includes('machine.carriage.position.z=machine.carriageClosedZ'),
+  'Desktop/XR door physics must use the model hinge, panel width, and linked loading carriage');
 });
 
 test('service-worker offline fallback does not serve index.html for scripts or styles', () => {

@@ -1,0 +1,2636 @@
+{
+  "format": "orbit-forge-project",
+  "version": "1.1.0",
+  "createdAt": "2026-11-25T12:59:00Z",
+  "model": {
+    "format": "orbit-forge-model",
+    "version": "1.1.0",
+    "objects": [
+      {
+        "id": "object_plinth",
+        "name": "Base plinth",
+        "primitive": "box",
+        "color": "#18232dff",
+        "transform": {
+          "position": {
+            "x": 0,
+            "y": 0.25,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 8.4,
+            "y": 0.5,
+            "z": 5.8
+          }
+        }
+      },
+      {
+        "id": "object_cabinet",
+        "name": "Service cabinet",
+        "primitive": "box",
+        "color": "#26333fff",
+        "transform": {
+          "position": {
+            "x": 0,
+            "y": 1.35,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 8,
+            "y": 1.7,
+            "z": 5.3
+          }
+        }
+      },
+      {
+        "id": "object_deck",
+        "name": "Stainless process deck",
+        "primitive": "box",
+        "color": "#aab5bdff",
+        "transform": {
+          "position": {
+            "x": 0,
+            "y": 2.3,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 8.1,
+            "y": 0.18,
+            "z": 5.4
+          }
+        }
+      },
+      {
+        "id": "object_roof",
+        "name": "Enclosure roof",
+        "primitive": "box",
+        "color": "#465560ff",
+        "transform": {
+          "position": {
+            "x": 0,
+            "y": 6.35,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 8,
+            "y": 0.18,
+            "z": 5.2
+          }
+        }
+      },
+      {
+        "id": "object_rear",
+        "name": "Rear service wall",
+        "primitive": "box",
+        "color": "#657581ff",
+        "transform": {
+          "position": {
+            "x": 0,
+            "y": 4.35,
+            "z": -2.5
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 8,
+            "y": 3.8,
+            "z": 0.12
+          }
+        }
+      },
+      {
+        "id": "object_post_-3.8_-2.48",
+        "name": "Frame post",
+        "primitive": "box",
+        "color": "#7d8b96ff",
+        "transform": {
+          "position": {
+            "x": -3.8,
+            "y": 4.35,
+            "z": -2.48
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.16,
+            "y": 3.9,
+            "z": 0.16
+          }
+        }
+      },
+      {
+        "id": "object_post_-3.8_2.48",
+        "name": "Frame post",
+        "primitive": "box",
+        "color": "#7d8b96ff",
+        "transform": {
+          "position": {
+            "x": -3.8,
+            "y": 4.35,
+            "z": 2.48
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.16,
+            "y": 3.9,
+            "z": 0.16
+          }
+        }
+      },
+      {
+        "id": "object_post_3.8_-2.48",
+        "name": "Frame post",
+        "primitive": "box",
+        "color": "#7d8b96ff",
+        "transform": {
+          "position": {
+            "x": 3.8,
+            "y": 4.35,
+            "z": -2.48
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.16,
+            "y": 3.9,
+            "z": 0.16
+          }
+        }
+      },
+      {
+        "id": "object_post_3.8_2.48",
+        "name": "Frame post",
+        "primitive": "box",
+        "color": "#7d8b96ff",
+        "transform": {
+          "position": {
+            "x": 3.8,
+            "y": 4.35,
+            "z": 2.48
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.16,
+            "y": 3.9,
+            "z": 0.16
+          }
+        }
+      },
+      {
+        "id": "object_glass_l",
+        "name": "Left guard glass",
+        "primitive": "box",
+        "color": "#77cce855",
+        "transform": {
+          "position": {
+            "x": -3.7,
+            "y": 4.35,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.06,
+            "y": 3.7,
+            "z": 4.7
+          }
+        },
+        "opacity": 0.33
+      },
+      {
+        "id": "object_glass_r",
+        "name": "Right guard glass",
+        "primitive": "box",
+        "color": "#77cce855",
+        "transform": {
+          "position": {
+            "x": 3.7,
+            "y": 4.35,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.06,
+            "y": 3.7,
+            "z": 4.7
+          }
+        },
+        "opacity": 0.33
+      },
+      {
+        "id": "object_shell",
+        "name": "Three-zone insulated furnace shell",
+        "primitive": "cylinder",
+        "color": "#c8d0d6ff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": -0.35
+          },
+          "rotation": {
+            "x": 1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1.55,
+            "y": 3.8,
+            "z": 1.55
+          }
+        }
+      },
+      {
+        "id": "object_quartz",
+        "name": "Quartz process tube",
+        "primitive": "cylinder",
+        "color": "#d9f6ff66",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": -0.35
+          },
+          "rotation": {
+            "x": 1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1.02,
+            "y": 4.7,
+            "z": 1.02
+          }
+        },
+        "opacity": 0.4
+      },
+      {
+        "id": "object_bore",
+        "name": "Process tube opening",
+        "primitive": "cylinder",
+        "color": "#303b43ff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": 1.72
+          },
+          "rotation": {
+            "x": 1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.82,
+            "y": 0.16,
+            "z": 0.82
+          }
+        }
+      },
+      {
+        "id": "object_heater_0",
+        "name": "Resistance heater ring 1",
+        "primitive": "torus",
+        "color": "#d86b47ff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": -1.65
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1.25,
+            "y": 1.25,
+            "z": 1.25
+          }
+        }
+      },
+      {
+        "id": "object_heater_1",
+        "name": "Resistance heater ring 2",
+        "primitive": "torus",
+        "color": "#d86b47ff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": -1.0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1.25,
+            "y": 1.25,
+            "z": 1.25
+          }
+        }
+      },
+      {
+        "id": "object_heater_2",
+        "name": "Resistance heater ring 3",
+        "primitive": "torus",
+        "color": "#d86b47ff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": -0.35
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1.25,
+            "y": 1.25,
+            "z": 1.25
+          }
+        }
+      },
+      {
+        "id": "object_heater_3",
+        "name": "Resistance heater ring 4",
+        "primitive": "torus",
+        "color": "#d86b47ff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": 0.3
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1.25,
+            "y": 1.25,
+            "z": 1.25
+          }
+        }
+      },
+      {
+        "id": "object_heater_4",
+        "name": "Resistance heater ring 5",
+        "primitive": "torus",
+        "color": "#d86b47ff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": 0.95
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1.25,
+            "y": 1.25,
+            "z": 1.25
+          }
+        }
+      },
+      {
+        "id": "object_saddle_0",
+        "name": "Furnace saddle",
+        "primitive": "box",
+        "color": "#566572ff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 3.15,
+            "z": -1.25
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1.9,
+            "y": 1.2,
+            "z": 0.65
+          }
+        }
+      },
+      {
+        "id": "object_foot_0",
+        "name": "Saddle foot",
+        "primitive": "box",
+        "color": "#414e59ff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 2.55,
+            "z": -1.25
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 2.15,
+            "y": 0.16,
+            "z": 1.1
+          }
+        }
+      },
+      {
+        "id": "object_saddle_1",
+        "name": "Furnace saddle",
+        "primitive": "box",
+        "color": "#566572ff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 3.15,
+            "z": 0.55
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1.9,
+            "y": 1.2,
+            "z": 0.65
+          }
+        }
+      },
+      {
+        "id": "object_foot_1",
+        "name": "Saddle foot",
+        "primitive": "box",
+        "color": "#414e59ff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 2.55,
+            "z": 0.55
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 2.15,
+            "y": 0.16,
+            "z": 1.1
+          }
+        }
+      },
+      {
+        "id": "object_gas_panel",
+        "name": "Gas manifold panel",
+        "primitive": "box",
+        "color": "#35434eff",
+        "transform": {
+          "position": {
+            "x": 2.75,
+            "y": 4.25,
+            "z": -2.3
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1.7,
+            "y": 2.8,
+            "z": 0.18
+          }
+        }
+      },
+      {
+        "id": "object_exhaust",
+        "name": "Heated exhaust line",
+        "primitive": "cylinder",
+        "color": "#89969fff",
+        "transform": {
+          "position": {
+            "x": -2.9,
+            "y": 3.35,
+            "z": -1.45
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.18,
+            "y": 1.7,
+            "z": 0.18
+          }
+        }
+      },
+      {
+        "id": "object_trap",
+        "name": "Condensate trap",
+        "primitive": "cylinder",
+        "color": "#78b8caaa",
+        "transform": {
+          "position": {
+            "x": -2.9,
+            "y": 2.75,
+            "z": -1.45
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.42,
+            "y": 0.7,
+            "z": 0.42
+          }
+        },
+        "opacity": 0.68
+      },
+      {
+        "id": "object_mfc_0",
+        "name": "Oxygen mass flow controller",
+        "primitive": "box",
+        "color": "#4f9bd9ff",
+        "transform": {
+          "position": {
+            "x": 2.25,
+            "y": 4.45,
+            "z": -2.12
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.34,
+            "y": 0.92,
+            "z": 0.35
+          }
+        }
+      },
+      {
+        "id": "object_valve_0",
+        "name": "Oxygen isolation valve",
+        "primitive": "sphere",
+        "color": "#d7dde2ff",
+        "transform": {
+          "position": {
+            "x": 2.25,
+            "y": 5.08,
+            "z": -2.12
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.18,
+            "y": 0.18,
+            "z": 0.18
+          }
+        }
+      },
+      {
+        "id": "object_pipe_0",
+        "name": "Oxygen supply pipe",
+        "primitive": "cylinder",
+        "color": "#4f9bd9ff",
+        "transform": {
+          "position": {
+            "x": 2.25,
+            "y": 5.6,
+            "z": -2.12
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.07,
+            "y": 0.9,
+            "z": 0.07
+          }
+        }
+      },
+      {
+        "id": "object_mfc_1",
+        "name": "Nitrogen mass flow controller",
+        "primitive": "box",
+        "color": "#e7c84fff",
+        "transform": {
+          "position": {
+            "x": 2.75,
+            "y": 4.45,
+            "z": -2.12
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.34,
+            "y": 0.92,
+            "z": 0.35
+          }
+        }
+      },
+      {
+        "id": "object_valve_1",
+        "name": "Nitrogen isolation valve",
+        "primitive": "sphere",
+        "color": "#d7dde2ff",
+        "transform": {
+          "position": {
+            "x": 2.75,
+            "y": 5.08,
+            "z": -2.12
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.18,
+            "y": 0.18,
+            "z": 0.18
+          }
+        }
+      },
+      {
+        "id": "object_pipe_1",
+        "name": "Nitrogen supply pipe",
+        "primitive": "cylinder",
+        "color": "#e7c84fff",
+        "transform": {
+          "position": {
+            "x": 2.75,
+            "y": 5.6,
+            "z": -2.12
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.07,
+            "y": 0.9,
+            "z": 0.07
+          }
+        }
+      },
+      {
+        "id": "object_mfc_2",
+        "name": "Steam carrier mass flow controller",
+        "primitive": "box",
+        "color": "#d9d9d9ff",
+        "transform": {
+          "position": {
+            "x": 3.25,
+            "y": 4.45,
+            "z": -2.12
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.34,
+            "y": 0.92,
+            "z": 0.35
+          }
+        }
+      },
+      {
+        "id": "object_valve_2",
+        "name": "Steam carrier isolation valve",
+        "primitive": "sphere",
+        "color": "#d7dde2ff",
+        "transform": {
+          "position": {
+            "x": 3.25,
+            "y": 5.08,
+            "z": -2.12
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.18,
+            "y": 0.18,
+            "z": 0.18
+          }
+        }
+      },
+      {
+        "id": "object_pipe_2",
+        "name": "Steam carrier supply pipe",
+        "primitive": "cylinder",
+        "color": "#d9d9d9ff",
+        "transform": {
+          "position": {
+            "x": 3.25,
+            "y": 5.6,
+            "z": -2.12
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.07,
+            "y": 0.9,
+            "z": 0.07
+          }
+        }
+      },
+      {
+        "id": "object_manifold",
+        "name": "Mixed gas manifold",
+        "primitive": "cylinder",
+        "color": "#c8d0d6ff",
+        "transform": {
+          "position": {
+            "x": 0,
+            "y": 5.95,
+            "z": -0.3
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 1.5707963267948966
+          },
+          "scale": {
+            "x": 0.09,
+            "y": 6.3,
+            "z": 0.09
+          }
+        }
+      },
+      {
+        "id": "object_drop",
+        "name": "Gas manifold drop",
+        "primitive": "cylinder",
+        "color": "#c8d0d6ff",
+        "transform": {
+          "position": {
+            "x": 3.15,
+            "y": 5.25,
+            "z": -1.2
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.09,
+            "y": 1.4,
+            "z": 0.09
+          }
+        }
+      },
+      {
+        "id": "object_guard_0",
+        "name": "Safety door frame",
+        "primitive": "box",
+        "color": "#8a99a4ff",
+        "transform": {
+          "position": {
+            "x": -3.65,
+            "y": 4.35,
+            "z": 2.42
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.14,
+            "y": 3.65,
+            "z": 0.14
+          }
+        }
+      },
+      {
+        "id": "object_guard_1",
+        "name": "Safety door frame",
+        "primitive": "box",
+        "color": "#8a99a4ff",
+        "transform": {
+          "position": {
+            "x": 1.85,
+            "y": 4.35,
+            "z": 2.42
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.14,
+            "y": 3.65,
+            "z": 0.14
+          }
+        }
+      },
+      {
+        "id": "object_guard_2",
+        "name": "Safety door frame",
+        "primitive": "box",
+        "color": "#8a99a4ff",
+        "transform": {
+          "position": {
+            "x": -0.9,
+            "y": 6.1,
+            "z": 2.42
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 5.65,
+            "y": 0.14,
+            "z": 0.14
+          }
+        }
+      },
+      {
+        "id": "object_guard_3",
+        "name": "Safety door frame",
+        "primitive": "box",
+        "color": "#8a99a4ff",
+        "transform": {
+          "position": {
+            "x": -0.9,
+            "y": 2.6,
+            "z": 2.42
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 5.65,
+            "y": 0.14,
+            "z": 0.14
+          }
+        }
+      },
+      {
+        "id": "object_guard_glass",
+        "name": "Interlocked safety glazing",
+        "primitive": "box",
+        "color": "#72cbe84d",
+        "transform": {
+          "position": {
+            "x": -0.9,
+            "y": 4.35,
+            "z": 2.42
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 5.25,
+            "y": 3.3,
+            "z": 0.055
+          }
+        },
+        "opacity": 0.3
+      },
+      {
+        "id": "object_guard_handle",
+        "name": "Safety door handle",
+        "primitive": "cylinder",
+        "color": "#26313aff",
+        "transform": {
+          "position": {
+            "x": 1.55,
+            "y": 4.35,
+            "z": 2.64
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.1,
+            "y": 0.65,
+            "z": 0.1
+          }
+        }
+      },
+      {
+        "id": "object_console",
+        "name": "Operator console",
+        "primitive": "box",
+        "color": "#202d37ff",
+        "transform": {
+          "position": {
+            "x": 2.85,
+            "y": 3.95,
+            "z": 2.05
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1.55,
+            "y": 2.9,
+            "z": 0.65
+          }
+        }
+      },
+      {
+        "id": "object_screen",
+        "name": "Process HMI",
+        "primitive": "box",
+        "color": "#35b6d9ff",
+        "transform": {
+          "position": {
+            "x": 2.85,
+            "y": 4.55,
+            "z": 2.48
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.98,
+            "y": 0.62,
+            "z": 0.03
+          }
+        }
+      },
+      {
+        "id": "object_start",
+        "name": "START button",
+        "primitive": "cylinder",
+        "color": "#20b868ff",
+        "transform": {
+          "position": {
+            "x": 2.55,
+            "y": 3.72,
+            "z": 2.46
+          },
+          "rotation": {
+            "x": 1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.2,
+            "y": 0.13,
+            "z": 0.2
+          }
+        }
+      },
+      {
+        "id": "object_stop",
+        "name": "STOP button",
+        "primitive": "cylinder",
+        "color": "#d4474fff",
+        "transform": {
+          "position": {
+            "x": 3.05,
+            "y": 3.72,
+            "z": 2.46
+          },
+          "rotation": {
+            "x": 1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.2,
+            "y": 0.13,
+            "z": 0.2
+          }
+        }
+      },
+      {
+        "id": "object_estop",
+        "name": "Emergency stop",
+        "primitive": "cylinder",
+        "color": "#d92727ff",
+        "transform": {
+          "position": {
+            "x": 2.85,
+            "y": 3.15,
+            "z": 2.49
+          },
+          "rotation": {
+            "x": 1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.28,
+            "y": 0.16,
+            "z": 0.28
+          }
+        }
+      },
+      {
+        "id": "object_temp",
+        "name": "Temperature dial",
+        "primitive": "cylinder",
+        "color": "#758491ff",
+        "transform": {
+          "position": {
+            "x": 2.55,
+            "y": 5.25,
+            "z": 2.46
+          },
+          "rotation": {
+            "x": 1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.18,
+            "y": 0.12,
+            "z": 0.18
+          }
+        }
+      },
+      {
+        "id": "object_flow",
+        "name": "Gas flow dial",
+        "primitive": "cylinder",
+        "color": "#758491ff",
+        "transform": {
+          "position": {
+            "x": 3.15,
+            "y": 5.25,
+            "z": 2.46
+          },
+          "rotation": {
+            "x": 1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.18,
+            "y": 0.12,
+            "z": 0.18
+          }
+        }
+      },
+      {
+        "id": "object_lamp_0",
+        "name": "Alarm status lamp",
+        "primitive": "cylinder",
+        "color": "#e33b3bff",
+        "transform": {
+          "position": {
+            "x": 3.25,
+            "y": 6.15,
+            "z": 2.05
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.17,
+            "y": 0.18,
+            "z": 0.17
+          }
+        }
+      },
+      {
+        "id": "object_lamp_1",
+        "name": "Heating status lamp",
+        "primitive": "cylinder",
+        "color": "#f0b52fff",
+        "transform": {
+          "position": {
+            "x": 3.25,
+            "y": 6.38,
+            "z": 2.05
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.17,
+            "y": 0.18,
+            "z": 0.17
+          }
+        }
+      },
+      {
+        "id": "object_lamp_2",
+        "name": "Ready status lamp",
+        "primitive": "cylinder",
+        "color": "#31bd68ff",
+        "transform": {
+          "position": {
+            "x": 3.25,
+            "y": 6.61,
+            "z": 2.05
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.17,
+            "y": 0.18,
+            "z": 0.17
+          }
+        }
+      },
+      {
+        "id": "object_blower",
+        "name": "Exhaust blower",
+        "primitive": "cylinder",
+        "color": "#3f4b55ff",
+        "transform": {
+          "position": {
+            "x": -2.2,
+            "y": 1.3,
+            "z": -1.45
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.62,
+            "y": 1.2,
+            "z": 0.62
+          }
+        }
+      },
+      {
+        "id": "object_motor",
+        "name": "Blower motor",
+        "primitive": "cylinder",
+        "color": "#446b88ff",
+        "transform": {
+          "position": {
+            "x": -1.42,
+            "y": 1.3,
+            "z": -1.45
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 1.5707963267948966
+          },
+          "scale": {
+            "x": 0.48,
+            "y": 0.9,
+            "z": 0.48
+          }
+        }
+      },
+      {
+        "id": "object_power",
+        "name": "Heater power supply",
+        "primitive": "box",
+        "color": "#596874ff",
+        "transform": {
+          "position": {
+            "x": 0.6,
+            "y": 1.35,
+            "z": -1.55
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1.8,
+            "y": 1.25,
+            "z": 1.15
+          }
+        }
+      },
+      {
+        "id": "object_cooler",
+        "name": "Door cooling unit",
+        "primitive": "box",
+        "color": "#4b6675ff",
+        "transform": {
+          "position": {
+            "x": 2.35,
+            "y": 1.35,
+            "z": -1.55
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1.1,
+            "y": 1.25,
+            "z": 1.15
+          }
+        }
+      },
+      {
+        "id": "object_front_face",
+        "name": "Stainless furnace front face",
+        "primitive": "box",
+        "color": "#aab5bdff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": 1.62
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 3.05,
+            "y": 3.05,
+            "z": 0.18
+          }
+        }
+      },
+      {
+        "id": "object_front_opening",
+        "name": "Dark circular furnace throat",
+        "primitive": "cylinder",
+        "color": "#20282eff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": 1.76
+          },
+          "rotation": {
+            "x": 1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.86,
+            "y": 0.1,
+            "z": 0.86
+          }
+        }
+      },
+      {
+        "id": "object_guide_left",
+        "name": "Tray linear guide left",
+        "primitive": "box",
+        "color": "#778690ff",
+        "transform": {
+          "position": {
+            "x": -1.42,
+            "y": 3.48,
+            "z": 1.38
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.12,
+            "y": 0.15,
+            "z": 3.8
+          }
+        }
+      },
+      {
+        "id": "object_guide_right",
+        "name": "Tray linear guide right",
+        "primitive": "box",
+        "color": "#778690ff",
+        "transform": {
+          "position": {
+            "x": 0.12,
+            "y": 3.48,
+            "z": 1.38
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.12,
+            "y": 0.15,
+            "z": 3.8
+          }
+        }
+      },
+      {
+        "id": "object_guide_cross",
+        "name": "Tray guide support",
+        "primitive": "box",
+        "color": "#53616cff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 3.35,
+            "z": 0.4
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1.85,
+            "y": 0.18,
+            "z": 2.8
+          }
+        }
+      },
+      {
+        "id": "object_tray_base",
+        "name": "Sliding quartz tray base",
+        "primitive": "box",
+        "color": "#d9f6ffb8",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 3.62,
+            "z": 1.55
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1.55,
+            "y": 0.14,
+            "z": 4.55
+          }
+        },
+        "opacity": 0.72
+      },
+      {
+        "id": "object_tray_lip_l",
+        "name": "Tray left locating rail",
+        "primitive": "box",
+        "color": "#d9f6ffcc",
+        "transform": {
+          "position": {
+            "x": -1.34,
+            "y": 3.82,
+            "z": 1.55
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.1,
+            "y": 0.38,
+            "z": 4.35
+          }
+        },
+        "opacity": 0.8
+      },
+      {
+        "id": "object_tray_lip_r",
+        "name": "Tray right locating rail",
+        "primitive": "box",
+        "color": "#d9f6ffcc",
+        "transform": {
+          "position": {
+            "x": 0.04,
+            "y": 3.82,
+            "z": 1.55
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.1,
+            "y": 0.38,
+            "z": 4.35
+          }
+        },
+        "opacity": 0.8
+      },
+      {
+        "id": "object_tray_stop",
+        "name": "Wafer locating end stop",
+        "primitive": "box",
+        "color": "#d9f6ffcc",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.02,
+            "z": -0.52
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1.45,
+            "y": 0.75,
+            "z": 0.1
+          }
+        },
+        "opacity": 0.8
+      },
+      {
+        "id": "object_boat_rail_l",
+        "name": "Quartz boat left rail",
+        "primitive": "cylinder",
+        "color": "#e8fbffcc",
+        "transform": {
+          "position": {
+            "x": -1.22,
+            "y": 4.05,
+            "z": -0.3
+          },
+          "rotation": {
+            "x": 1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.07,
+            "y": 2.8,
+            "z": 0.07
+          }
+        },
+        "opacity": 0.82
+      },
+      {
+        "id": "object_boat_rail_r",
+        "name": "Quartz boat right rail",
+        "primitive": "cylinder",
+        "color": "#e8fbffcc",
+        "transform": {
+          "position": {
+            "x": -0.08,
+            "y": 4.05,
+            "z": -0.3
+          },
+          "rotation": {
+            "x": 1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.07,
+            "y": 2.8,
+            "z": 0.07
+          }
+        },
+        "opacity": 0.82
+      },
+      {
+        "id": "object_wafer_v2_0",
+        "name": "Vertical silicon wafer 1",
+        "primitive": "cylinder",
+        "color": "#76bde5ff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": -1.05
+          },
+          "rotation": {
+            "x": 1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.68,
+            "y": 0.035,
+            "z": 0.68
+          }
+        }
+      },
+      {
+        "id": "object_locator_v2_0",
+        "name": "Quartz wafer locating slot 1",
+        "primitive": "torus",
+        "color": "#e8fbffcc",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": -1.05
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.76,
+            "y": 0.76,
+            "z": 0.76
+          }
+        },
+        "opacity": 0.78
+      },
+      {
+        "id": "object_wafer_v2_1",
+        "name": "Vertical silicon wafer 2",
+        "primitive": "cylinder",
+        "color": "#76bde5ff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": -0.78
+          },
+          "rotation": {
+            "x": 1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.68,
+            "y": 0.035,
+            "z": 0.68
+          }
+        }
+      },
+      {
+        "id": "object_locator_v2_1",
+        "name": "Quartz wafer locating slot 2",
+        "primitive": "torus",
+        "color": "#e8fbffcc",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": -0.78
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.76,
+            "y": 0.76,
+            "z": 0.76
+          }
+        },
+        "opacity": 0.78
+      },
+      {
+        "id": "object_wafer_v2_2",
+        "name": "Vertical silicon wafer 3",
+        "primitive": "cylinder",
+        "color": "#76bde5ff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": -0.51
+          },
+          "rotation": {
+            "x": 1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.68,
+            "y": 0.035,
+            "z": 0.68
+          }
+        }
+      },
+      {
+        "id": "object_locator_v2_2",
+        "name": "Quartz wafer locating slot 3",
+        "primitive": "torus",
+        "color": "#e8fbffcc",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": -0.51
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.76,
+            "y": 0.76,
+            "z": 0.76
+          }
+        },
+        "opacity": 0.78
+      },
+      {
+        "id": "object_wafer_v2_3",
+        "name": "Vertical silicon wafer 4",
+        "primitive": "cylinder",
+        "color": "#76bde5ff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": -0.24
+          },
+          "rotation": {
+            "x": 1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.68,
+            "y": 0.035,
+            "z": 0.68
+          }
+        }
+      },
+      {
+        "id": "object_locator_v2_3",
+        "name": "Quartz wafer locating slot 4",
+        "primitive": "torus",
+        "color": "#e8fbffcc",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": -0.24
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.76,
+            "y": 0.76,
+            "z": 0.76
+          }
+        },
+        "opacity": 0.78
+      },
+      {
+        "id": "object_wafer_v2_4",
+        "name": "Vertical silicon wafer 5",
+        "primitive": "cylinder",
+        "color": "#76bde5ff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": 0.03
+          },
+          "rotation": {
+            "x": 1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.68,
+            "y": 0.035,
+            "z": 0.68
+          }
+        }
+      },
+      {
+        "id": "object_locator_v2_4",
+        "name": "Quartz wafer locating slot 5",
+        "primitive": "torus",
+        "color": "#e8fbffcc",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": 0.03
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.76,
+            "y": 0.76,
+            "z": 0.76
+          }
+        },
+        "opacity": 0.78
+      },
+      {
+        "id": "object_wafer_v2_5",
+        "name": "Vertical silicon wafer 6",
+        "primitive": "cylinder",
+        "color": "#76bde5ff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": 0.3
+          },
+          "rotation": {
+            "x": 1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.68,
+            "y": 0.035,
+            "z": 0.68
+          }
+        }
+      },
+      {
+        "id": "object_locator_v2_5",
+        "name": "Quartz wafer locating slot 6",
+        "primitive": "torus",
+        "color": "#e8fbffcc",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": 0.3
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.76,
+            "y": 0.76,
+            "z": 0.76
+          }
+        },
+        "opacity": 0.78
+      },
+      {
+        "id": "object_wafer_v2_6",
+        "name": "Vertical silicon wafer 7",
+        "primitive": "cylinder",
+        "color": "#76bde5ff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": 0.57
+          },
+          "rotation": {
+            "x": 1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.68,
+            "y": 0.035,
+            "z": 0.68
+          }
+        }
+      },
+      {
+        "id": "object_locator_v2_6",
+        "name": "Quartz wafer locating slot 7",
+        "primitive": "torus",
+        "color": "#e8fbffcc",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": 0.57
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.76,
+            "y": 0.76,
+            "z": 0.76
+          }
+        },
+        "opacity": 0.78
+      },
+      {
+        "id": "object_load_door_glass",
+        "name": "Translucent quartz loading door",
+        "primitive": "cylinder",
+        "color": "#9fe8ff99",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": 2.02
+          },
+          "rotation": {
+            "x": 1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1.17,
+            "y": 0.16,
+            "z": 1.17
+          }
+        },
+        "opacity": 0.58
+      },
+      {
+        "id": "object_load_door_frame",
+        "name": "Stainless loading door frame",
+        "primitive": "torus",
+        "color": "#82919cff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": 2.02
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1.28,
+            "y": 1.28,
+            "z": 1.28
+          }
+        }
+      },
+      {
+        "id": "object_load_door_seal",
+        "name": "High temperature door seal",
+        "primitive": "torus",
+        "color": "#242b30ff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": 1.88
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1.04,
+            "y": 1.04,
+            "z": 1.04
+          }
+        }
+      },
+      {
+        "id": "object_handle_bar",
+        "name": "Loading door pull handle",
+        "primitive": "cylinder",
+        "color": "#2d3942ff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": 2.48
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.13,
+            "y": 0.76,
+            "z": 0.13
+          }
+        }
+      },
+      {
+        "id": "object_handle_mount_l",
+        "name": "Handle lower mount",
+        "primitive": "box",
+        "color": "#6e7d87ff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 3.76,
+            "z": 2.3
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.26,
+            "y": 0.18,
+            "z": 0.38
+          }
+        }
+      },
+      {
+        "id": "object_handle_mount_u",
+        "name": "Handle upper mount",
+        "primitive": "box",
+        "color": "#6e7d87ff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.94,
+            "z": 2.3
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.26,
+            "y": 0.18,
+            "z": 0.38
+          }
+        }
+      },
+      {
+        "id": "object_tray_drive",
+        "name": "Tray drive coupling",
+        "primitive": "box",
+        "color": "#3d4a53ff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 3.38,
+            "z": 1.82
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.48,
+            "y": 0.3,
+            "z": 0.72
+          }
+        }
+      },
+      {
+        "id": "object_drive_motor",
+        "name": "Tray drive motor",
+        "primitive": "cylinder",
+        "color": "#426a86ff",
+        "transform": {
+          "position": {
+            "x": 1.05,
+            "y": 3.1,
+            "z": 0.2
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 1.5707963267948966
+          },
+          "scale": {
+            "x": 0.36,
+            "y": 0.78,
+            "z": 0.36
+          }
+        }
+      },
+      {
+        "id": "object_drive_screw",
+        "name": "Tray linear drive screw",
+        "primitive": "cylinder",
+        "color": "#c2cbd1ff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 3.28,
+            "z": 0.25
+          },
+          "rotation": {
+            "x": 1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.07,
+            "y": 3.7,
+            "z": 0.07
+          }
+        }
+      },
+      {
+        "id": "object_rear_tube_cap",
+        "name": "Rear gas inlet tube cap",
+        "primitive": "cylinder",
+        "color": "#7d8c96ff",
+        "transform": {
+          "position": {
+            "x": -0.65,
+            "y": 4.35,
+            "z": -2.36
+          },
+          "rotation": {
+            "x": 1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 0.98,
+            "y": 0.18,
+            "z": 0.98
+          }
+        }
+      }
+    ],
+    "groups": [
+      {
+        "id": "group_body",
+        "name": "Fixed chassis and enclosure",
+        "color": "#ffffffff",
+        "memberIds": [
+          "object_plinth",
+          "object_cabinet",
+          "object_deck",
+          "object_roof",
+          "object_rear",
+          "object_post_-3.8_-2.48",
+          "object_post_-3.8_2.48",
+          "object_post_3.8_-2.48",
+          "object_post_3.8_2.48",
+          "object_glass_l",
+          "object_glass_r"
+        ],
+        "transform": {
+          "position": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        }
+      },
+      {
+        "id": "group_furnace_fixed",
+        "name": "Fixed furnace and process services",
+        "color": "#ffffffff",
+        "memberIds": [
+          "object_shell",
+          "object_quartz",
+          "object_bore",
+          "object_heater_0",
+          "object_heater_1",
+          "object_heater_2",
+          "object_heater_3",
+          "object_heater_4",
+          "object_saddle_0",
+          "object_foot_0",
+          "object_saddle_1",
+          "object_foot_1",
+          "object_gas_panel",
+          "object_exhaust",
+          "object_trap",
+          "object_mfc_0",
+          "object_valve_0",
+          "object_pipe_0",
+          "object_mfc_1",
+          "object_valve_1",
+          "object_pipe_1",
+          "object_mfc_2",
+          "object_valve_2",
+          "object_pipe_2",
+          "object_manifold",
+          "object_drop",
+          "object_front_face",
+          "object_front_opening",
+          "object_guide_left",
+          "object_guide_right",
+          "object_guide_cross",
+          "object_drive_motor",
+          "object_drive_screw",
+          "object_rear_tube_cap"
+        ],
+        "transform": {
+          "position": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        }
+      },
+      {
+        "id": "group_safety_door",
+        "name": "Front interlocked safety door",
+        "color": "#ffffffff",
+        "memberIds": [
+          "object_guard_0",
+          "object_guard_1",
+          "object_guard_2",
+          "object_guard_3",
+          "object_guard_glass",
+          "object_guard_handle"
+        ],
+        "transform": {
+          "position": {
+            "x": -3.65,
+            "y": 4.35,
+            "z": 2.42
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        }
+      },
+      {
+        "id": "group_controls",
+        "name": "Operator controls",
+        "color": "#ffffffff",
+        "memberIds": [
+          "object_console",
+          "object_screen",
+          "object_start",
+          "object_stop",
+          "object_estop",
+          "object_temp",
+          "object_flow",
+          "object_lamp_0",
+          "object_lamp_1",
+          "object_lamp_2"
+        ],
+        "transform": {
+          "position": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        }
+      },
+      {
+        "id": "group_services",
+        "name": "Cabinet-mounted services",
+        "color": "#ffffffff",
+        "memberIds": [
+          "object_blower",
+          "object_motor",
+          "object_power",
+          "object_cooler"
+        ],
+        "transform": {
+          "position": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        }
+      },
+      {
+        "id": "group_loading_carriage",
+        "name": "In-out loading door tray and wafer boat",
+        "color": "#ffffffff",
+        "memberIds": [
+          "object_tray_base",
+          "object_tray_lip_l",
+          "object_tray_lip_r",
+          "object_tray_stop",
+          "object_boat_rail_l",
+          "object_boat_rail_r",
+          "object_wafer_v2_0",
+          "object_locator_v2_0",
+          "object_wafer_v2_1",
+          "object_locator_v2_1",
+          "object_wafer_v2_2",
+          "object_locator_v2_2",
+          "object_wafer_v2_3",
+          "object_locator_v2_3",
+          "object_wafer_v2_4",
+          "object_locator_v2_4",
+          "object_wafer_v2_5",
+          "object_locator_v2_5",
+          "object_wafer_v2_6",
+          "object_locator_v2_6",
+          "object_load_door_glass",
+          "object_load_door_frame",
+          "object_load_door_seal",
+          "object_handle_bar",
+          "object_handle_mount_l",
+          "object_handle_mount_u",
+          "object_tray_drive"
+        ],
+        "transform": {
+          "position": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        }
+      }
+    ]
+  },
+  "rig": {
+    "format": "orbit-forge-rig",
+    "version": "1.1.0",
+    "joints": [
+      {
+        "id": "joint_safety_door",
+        "name": "Safety door hinge",
+        "type": "pivot",
+        "parentId": "group_body",
+        "childId": "group_safety_door",
+        "axis": "y",
+        "min": -105,
+        "max": 0
+      },
+      {
+        "id": "joint_loading_carriage_slide",
+        "name": "Front loading tray insertion slide",
+        "type": "slide",
+        "parentId": "group_furnace_fixed",
+        "childId": "group_loading_carriage",
+        "axis": "z",
+        "min": 0,
+        "max": 3.35
+      }
+    ]
+  },
+  "animation": {
+    "format": "orbit-forge-animation",
+    "version": "1.1.0",
+    "duration": 16,
+    "tracks": [
+      {
+        "entityId": "group_loading_carriage",
+        "keyframes": [
+          {
+            "time": 0,
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 3.35
+              },
+              "rotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "time": 3,
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 3.35
+              },
+              "rotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "time": 7,
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "time": 12,
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "time": 16,
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 3.35
+              },
+              "rotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          }
+        ]
+      },
+      {
+        "entityId": "object_lamp_1",
+        "keyframes": [
+          {
+            "time": 0,
+            "transform": {
+              "position": {
+                "x": 3.25,
+                "y": 6.38,
+                "z": 2.05
+              },
+              "rotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 0.17,
+                "y": 0.18,
+                "z": 0.17
+              }
+            }
+          },
+          {
+            "time": 7,
+            "transform": {
+              "position": {
+                "x": 3.25,
+                "y": 6.38,
+                "z": 2.05
+              },
+              "rotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 0.17,
+                "y": 0.18,
+                "z": 0.17
+              }
+            }
+          },
+          {
+            "time": 9,
+            "transform": {
+              "position": {
+                "x": 3.25,
+                "y": 6.38,
+                "z": 2.05
+              },
+              "rotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 0.25,
+                "y": 0.26,
+                "z": 0.25
+              }
+            }
+          },
+          {
+            "time": 12,
+            "transform": {
+              "position": {
+                "x": 3.25,
+                "y": 6.38,
+                "z": 2.05
+              },
+              "rotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 0.25,
+                "y": 0.26,
+                "z": 0.25
+              }
+            }
+          },
+          {
+            "time": 16,
+            "transform": {
+              "position": {
+                "x": 3.25,
+                "y": 6.38,
+                "z": 2.05
+              },
+              "rotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 0.17,
+                "y": 0.18,
+                "z": 0.17
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "metadata": {
+    "name": "Front-Loading Sliding-Tray Wafer Oxidation Furnace",
+    "frontDirection": "+Z",
+    "temperatureRangeC": [
+      850,
+      1150
+    ],
+    "revision": "v2: furnace axis corrected to front-back; translucent sealing door, tray and quartz boat move as one carriage"
+  }
+}

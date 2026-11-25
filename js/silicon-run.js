@@ -1,4 +1,8 @@
 (function(){
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./service-worker.js', { scope: './' })
+      .catch(error => console.error('Service worker registration failed.', error));
+  }
   const showError = message => {
     document.body.innerHTML = '<div style="padding:40px;color:white;font-family:system-ui"><h1>Simulator could not initialise</h1><p>' + message + '</p></div>';
   };
@@ -26,17 +30,21 @@
     script.onerror = () => showError('A simulator component could not be loaded: ' + files[index]);
     document.head.appendChild(script);
   };
-  fetch('./assets/photolithography-wafer-machine.json')
-    .then(response => {
-      if (!response.ok) throw new Error('HTTP ' + response.status);
-      return response.json();
-    })
-    .then(model => {
-      window.PhotolithographyMachineModel = model;
+  const loadModel = asset => fetch(asset).then(response => {
+    if (!response.ok) throw new Error(asset + ': HTTP ' + response.status);
+    return response.json();
+  });
+  Promise.all([
+    loadModel('./assets/photolithography-wafer-machine.json'),
+    loadModel('./assets/oxidation-furnace-sliding-tray-v2.json')
+  ])
+    .then(([photoresistModel, oxidationModel]) => {
+      window.PhotolithographyMachineModel = photoresistModel;
+      window.OxidationFurnaceModel = oxidationModel;
       loadNext(0);
     })
     .catch(error => {
-      console.error('Could not load the photolithography machine model.', error);
-      showError('The photolithography machine model could not be loaded.');
+      console.error('Could not load the imported machine models.', error);
+      showError('An imported machine model could not be loaded.');
     });
 })();

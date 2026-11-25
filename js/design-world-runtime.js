@@ -338,11 +338,11 @@ function adjustDesktopGripDistance(event){
   event.preventDefault();const unit=event.deltaMode===1?3:event.deltaMode===2?1:100;desktopGrip.wheelRemainder+=event.deltaY/unit;const steps=Math.trunc(desktopGrip.wheelRemainder);if(!steps)return;desktopGrip.wheelRemainder-=steps;desktopGrip.desiredDepth=clamp(desktopGrip.desiredDepth*Math.pow(1.03,steps),desktopGrip.minDepth,desktopGrip.maxDepth);desktopGrip.anchor.position.z=-desktopGrip.desiredDepth
 }
 function closestPointOnDesktopDoor(machine,point){
-  machine.door.updateWorldMatrix(true,false);const a=machine.door.localToWorld(new THREE.Vector3(0,0,0)),b=machine.door.localToWorld(new THREE.Vector3(1.66,0,0)),dx=b.x-a.x,dz=b.z-a.z,t=clamp(((point.x-a.x)*dx+(point.z-a.z)*dz)/(dx*dx+dz*dz||1),0,1);return{x:a.x+dx*t,z:a.z+dz*t}
+  machine.door.updateWorldMatrix(true,false);const length=machine.door.userData.swingLength||1.66,a=machine.door.localToWorld(new THREE.Vector3(0,0,0)),b=machine.door.localToWorld(new THREE.Vector3(length,0,0)),dx=b.x-a.x,dz=b.z-a.z,t=clamp(((point.x-a.x)*dx+(point.z-a.z)*dz)/(dx*dx+dz*dz||1),0,1);return{x:a.x+dx*t,z:a.z+dz*t}
 }
 function applyDesktopDoorPlayerImpact(dt){
   if(!state.started||state.paused||renderer.xr.isPresenting||document.pointerLockElement!==renderer.domElement)return;let forward=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0),right=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0),length=Math.hypot(forward,right);if(!length)return;forward/=length;right/=length;const speed=(state.crouching?1.2:2.75)+(state.sprinting?4.4*state.stamina:0),vx=(-Math.sin(yaw)*forward+Math.cos(yaw)*right)*speed,vz=(-Math.cos(yaw)*forward-Math.sin(yaw)*right)*speed,playerPoint={x:player.position.x,z:player.position.z};
-  status.forEach((st,index)=>{if(st.state==='running')return;const machine=machines[index+1];if(!machine||machine.kind!=='fabrication'||!machine.door)return;const nearest=closestPointOnDesktopDoor(machine,playerPoint),dx=nearest.x-playerPoint.x,dz=nearest.z-playerPoint.z,distance=Math.hypot(dx,dz);if(distance>.48||distance<1e-4||(vx*dx+vz*dz)/distance<=0)return;const pivot=machine.door.getWorldPosition(new THREE.Vector3()),handle=machine.door.localToWorld(new THREE.Vector3(1.54,0,0)),torque=(handle.x-pivot.x)*vz-(handle.z-pivot.z)*vx;if(Math.abs(torque)<.01)return;phys.doorVelocities[index]=clamp((phys.doorVelocities[index]||0)+Math.sign(torque)*Math.min(1.2,speed*dt*1.35),-4,4)})
+  status.forEach((st,index)=>{if(st.state==='running')return;const machine=machines[index+1];if(!machine||machine.kind!=='fabrication'||!machine.door)return;const nearest=closestPointOnDesktopDoor(machine,playerPoint),dx=nearest.x-playerPoint.x,dz=nearest.z-playerPoint.z,distance=Math.hypot(dx,dz);if(distance>.48||distance<1e-4||(vx*dx+vz*dz)/distance<=0)return;const pivot=machine.door.getWorldPosition(new THREE.Vector3()),handle=machine.doorHandle?.getWorldPosition(new THREE.Vector3())||machine.door.localToWorld(new THREE.Vector3(machine.door.userData.swingLength||1.54,0,0)),torque=(handle.x-pivot.x)*vz-(handle.z-pivot.z)*vx;if(Math.abs(torque)<.01)return;st.doorTarget=torque>0?1:0;phys.doorVelocities[index]=clamp((phys.doorVelocities[index]||0)+Math.sign(torque)*Math.min(1.2,speed*dt*1.35),-4,4)})
 }
 function resolveDesktopDoorPlayerCollision(previous){
   if(renderer.xr.isPresenting)return;const radius=.39;
@@ -355,17 +355,18 @@ toggleDoor=function(index){if(status[index]?.state==='running'){if(typeof notify
 const v812UpdateDoors=updateDoors;
 updateDoors=function(dt){
   if(renderer.xr.isPresenting){v812UpdateDoors(dt);return}
-  status.forEach((st,index)=>{const machine=machines[index+1];if(!machine||machine.kind!=='fabrication'||!machine.door)return;if(st.state==='running'){st.doorAmount=0;st.doorTarget=0;phys.doorVelocities[index]=0;machine.door.rotation.y=0;return}let velocity=phys.doorVelocities[index]||0;
+  status.forEach((st,index)=>{const machine=machines[index+1];if(!machine||machine.kind!=='fabrication'||!machine.door)return;if(st.state==='running'){st.doorAmount=0;st.doorTarget=0;phys.doorVelocities[index]=0;machine.door.rotation.y=0;if(machine.carriage)machine.carriage.position.z=machine.carriageClosedZ;return}let velocity=phys.doorVelocities[index]||0;
     const held=desktopDoorGrab?.index===index;
     if(!held&&st.doorAmount>0&&st.doorAmount<DOOR_MAGNET_ANGLE&&velocity<=.65){
       velocity-=3.4*dt;if(velocity>0)velocity*=.45;
     }else{
-      velocity*=Math.exp(-dt*(held?1.9:2.8));
+      if(!held)velocity+=( (st.doorTarget>.5?1.5:0)-st.doorAmount)*10*dt;
+      velocity*=Math.exp(-dt*(held?1.9:4.2));
     }
     st.doorAmount=clamp(st.doorAmount+velocity*dt,0,1.5);
     if((st.doorAmount<=.002&&!held&&velocity<=0)||(st.doorAmount===0&&velocity<0)){st.doorAmount=0;st.doorTarget=0;velocity=0}
     else if(st.doorAmount===1.5&&velocity>0){velocity=0}
-    phys.doorVelocities[index]=velocity;machine.door.rotation.y=-st.doorAmount*Math.PI/2;if(st.doorAmount===0){if(st.state==='loadedDoorOpen')st.state='loaded';else if(st.state==='unloadedDoorOpen')completeStage(index)}
+    phys.doorVelocities[index]=velocity;const doorProgress=clamp(st.doorAmount/1.5,0,1);machine.door.rotation.y=-doorProgress*(machine.doorMaxAngle||Math.PI/2);if(machine.carriage)machine.carriage.position.z=machine.carriageClosedZ+(machine.carriageOpenZ-machine.carriageClosedZ)*doorProgress;if(st.doorAmount===0){if(st.state==='loadedDoorOpen')st.state='loaded';else if(st.state==='unloadedDoorOpen')completeStage(index)}
   })
 };
 const v811PhysicalSystem=updatePhysicalSystem;

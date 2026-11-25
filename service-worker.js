@@ -1,7 +1,8 @@
-const CACHE = 'silicon-run-photoresist-2026-11-25-v7';
+const CACHE = 'silicon-run-photoresist-2026-11-25-v8';
 const LOCAL = [
   './', './index.html', './manifest.webmanifest', './css/styles.css', './css/developer-layout.css',
   './assets/photolithography-wafer-machine.json',
+  './assets/oxidation-furnace-sliding-tray-v2.json',
   './js/photoresist-chamber.js', './js/circuit-symbols.js', './js/silicon-run.js',
   './js/silicon-run-core.js', './js/parallel-wafer-runtime.js',
   './js/design-workstation-runtime.js', './js/design-world-runtime.js',

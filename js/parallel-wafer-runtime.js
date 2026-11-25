@@ -716,6 +716,7 @@ buttonHint=function(d){
   if(d.action==='chamber')return st.doorAmount>.92?(machine.body?'Remove or inspect the machine wafer':'Insert the wafer for this process stage'):'Open the door first';      
   if(d.action==='start')return'Requires a loaded wafer and fully closed door';      
   if(d.action==='stop')return'Requires this machine to be running with its door closed';      
+  if(d.action==='emergencyStop')return'Stops the active process immediately';
   return''      
 };      
 buttonEnabled=function(d){      
@@ -726,6 +727,7 @@ buttonEnabled=function(d){
   if(d.action==='chamber')return st.doorAmount>.92&&((st.state==='ready'&&!body&&carriedWafers().length>0)||(st.state==='done'&&!!body));      
   if(d.action==='start')return machine?.kind==='fabrication'&&st.state==='loaded'&&!!body&&!!machine.wafer?.visible&&st.doorAmount<=5/90;      
   if(d.action==='stop')return st.state==='running'&&st.doorAmount<.02&&!!st.cycle&&performance.now()-st.cycle.start>400;      
+  if(d.action==='emergencyStop')return st.state==='running'&&!!st.cycle;
   return false      
 };      
 adjustControl=function(d,dir){      
@@ -792,6 +794,7 @@ updateCycle=function(now){
     const station=stations[i],cycle=st.cycle;      
     cycle.processSeconds=(now-cycle.start)/1000*cycle.timeScale;      
     st.metric=calculateMetric(i,cycle.processSeconds);      
+    updateModelReadouts(i);
     const m=machines[i+1];if(m?.wafer)refreshWaferVisual(m.wafer,i,st.metric/station.metric.target,st.values);      
     active.push({i,cycle,station,st})      
   });      
@@ -868,4 +871,3 @@ newRun=function(){
   toast('Parallel cleanroom ready. Dispense wafers without a population limit.');      
   updateAll()      
 };  
-

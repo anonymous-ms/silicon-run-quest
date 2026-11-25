@@ -277,22 +277,24 @@ function installTestLaunchHook(){
   state.runStart=performance.now();
   const oxidationIndex=stations.findIndex(station=>station.type==='deposition');
   if(oxidationIndex<0)return;
+  state.current=oxidationIndex;
   const machine=machines[oxidationIndex+1],st=status[oxidationIndex];
   status[0].state='complete';
   setLamp(0);
   st.state='ready';
   st.doorTarget=1;
-  st.doorAmount=1;
+  st.doorAmount=1.5;
   phys.doorVelocities[oxidationIndex]=0;
-  if(machine?.door)machine.door.rotation.y=-Math.PI/2;
+  if(machine?.door)machine.door.rotation.y=-machine.doorMaxAngle;
+  if(machine?.carriage)machine.carriage.position.z=machine.carriageOpenZ;
   setLamp(oxidationIndex);
   const body=spawnStockWafer(true);
   if(body){
     body.nextStage=oxidationIndex;
     body.startedAt=state.runStart;
     body.staged=false;
-    body.view.position.set(5.25,1.9,3);
-    body.view.rotation.set(-Math.PI/2,0,0);
+    body.view.position.copy(machine.wafer.getWorldPosition(new THREE.Vector3())).add(new THREE.Vector3(.29,.12,0));
+    body.view.rotation.set(0,0,0);
     syncActiveWafer(body);
   }
   player.position.set(4.2,2.58,3);
@@ -329,9 +331,48 @@ function installTestLaunchHook(){
         locatorPos:locator.toArray(),
         distanceToLocator:waferPos?waferPos.distanceTo(locator):null,
         stationState:st.state,
+        metric:st.metric,
         seated:machine.body===body
       };
-    }
+    },
+    getMachineState:()=>({
+      stationState:st.state,
+      doorTarget:st.doorTarget,
+      doorAmount:st.doorAmount,
+      doorAngle:machine.door.rotation.y,
+      doorMaxAngle:machine.doorMaxAngle,
+      carriageZ:machine.carriage?.position.z,
+      carriageOpenZ:machine.carriageOpenZ,
+      waferVisible:machine.wafer.visible,
+      waferPosition:machine.waferPivot?.position.toArray(),
+      controls:Object.fromEntries(stations[oxidationIndex].controls.map(control=>[control.key,st.values[control.key]])),
+      controlAngles:machine.controls.map(control=>control.rotor.rotation.z),
+      lamps:Object.fromEntries(Object.entries(machine.statusLamps||{}).map(([name,lamp])=>[name,lamp.material.emissiveIntensity])),
+      heaterIntensity:effects.find(effect=>effect.kind==='modelOxidation'&&effect.index===oxidationIndex)?.heaters.map(heater=>heater.material.emissiveIntensity),
+      gasFlowVisible:effects.find(effect=>effect.kind==='modelOxidation'&&effect.index===oxidationIndex)?.particles.pts.visible
+    }),
+    carryWafer:()=>{
+      if(!body)return false;
+      body.heldBy='browser-test';
+      body.dynamic=false;
+      body.staged=false;
+      syncActiveWafer(body);
+      return true;
+    },
+    toggleDoor:()=>toggleDoor(oxidationIndex),
+    adjustControl:(key,direction)=>adjustControl({machineIndex:oxidationIndex,controlKey:key},direction),
+    pressButton:action=>{
+      const button=interactives.find(object=>object.userData?.action===action&&object.userData.machineIndex===oxidationIndex&&object.userData.type==='button');
+      if(!button)return false;
+      state.focus=button;
+      if(!buttonEnabled(button.userData))return false;
+      activateFocused();
+      return true;
+    },
+    loadWafer:()=>loadWafer(oxidationIndex),
+    unloadWafer:()=>unloadWafer(oxidationIndex),
+    startProcess:()=>startProcess(oxidationIndex),
+    stopProcess:()=>stopProcess(oxidationIndex)
   };
 }
 
