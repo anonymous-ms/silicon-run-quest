@@ -813,6 +813,7 @@ function tryPlaceWafer(){const wafer=phys.waferBody?.view||state.handWafer;if(!w
 function shatterWafer(point,impact){if(state.waferBroken)return;state.waferBroken=true;state.carrying=false;setWaferDynamic(false);setWaferStaged(false);if(phys.pickupGuide)phys.pickupGuide.visible=false;if(state.handWafer)state.handWafer.visible=false;for(let i=0;i<14;i++){const shard=mesh(crackedFragmentGeometry(.035+Math.random()*.035),mat(0xb9ccd2,.72,.18),scene,point.x,point.y,point.z);const v=new THREE.Vector3((Math.random()-.5)*impact,(Math.random()*.7+.15)*impact,(Math.random()-.5)*impact);waferShards.push({mesh:shard,v,life:0})}toast('WAFER FRACTURE. Dispose of every shard in a yellow sharps bin.','bad');pulseXR(1,160)}        
 function beginControlGrab(c,d){const m=machines[d.machineIndex+1],ref=m.controls[stations[d.machineIndex].controls.findIndex(x=>x.key===d.controlKey)],wp=pinchWorld(c);phys.grab={kind:'control',controller:c,data:d,ref,start:wp.clone(),last:wp.clone()};pulseXR(.35,35)}        
 function updateControlGrab(){const g=phys.grab;if(g?.kind!=='control')return;const i=g.data.machineIndex,spec=stations[i].controls.find(x=>x.key===g.data.controlKey),m=machines[i+1],p=pinchWorld(g.controller),local=m.group.worldToLocal(p.clone());const ref=g.ref;if(spec.style==='slider'){const motion=local.y-m.group.worldToLocal(g.last.clone()).y;if(Math.abs(motion)>.008)adjustControl(g.data,Math.sign(motion))}else{const center=(ref.rotor||ref.mesh).getWorldPosition(new THREE.Vector3()),a=Math.atan2(p.y-center.y,p.x-center.x),b=Math.atan2(g.last.y-center.y,g.last.x-center.x),delta=a-b;if(Math.abs(delta)>.035)adjustControl(g.data,Math.sign(delta))}g.last.copy(p)}        
+function updateCarriageCollider(m){const state=m.carriageCollider;if(!state||!m.carriage)return;const position=m.carriage.getWorldPosition(state.position);state.collider.x=state.center.x+position.x-state.origin.x;state.collider.z=state.center.z+position.z-state.origin.z}
 const _doorLockNoticeAt=[];
 function isDoorLocked(i){return status[i]?.state==='running'}
 function notifyDoorLocked(i){
@@ -836,10 +837,10 @@ state.focus=best.grip;
 phys.doorGrab={i:best.i,controller:c,last:p.clone(),handle:best.grip};
 phys.doorVelocities[best.i]=0;
 pulseXR(.48,45);
-toast('Door handle grip attached. Pull or push the handle to swing the door.');
+toast('Loading door handle grip attached. Pull or push the handle to slide the tray.');
 return true
 }
-function updateDoorGrab(dt){const g=phys.doorGrab;if(!g)return;const st=status[g.i];if(isDoorLocked(g.i)){phys.doorGrab=null;st.doorAmount=0;st.doorTarget=0;phys.doorVelocities[g.i]=0;notifyDoorLocked(g.i);return}const m=machines[g.i+1],p=pinchWorld(g.controller),hinge=m.group.worldToLocal(m.door.getWorldPosition(new THREE.Vector3())),lp=m.group.worldToLocal(p.clone()),lh=m.group.worldToLocal(g.last.clone()),a=Math.atan2(lp.z-hinge.z,lp.x-hinge.x),b=Math.atan2(lh.z-hinge.z,lh.x-hinge.x),delta=a-b,maxAngle=m.doorMaxAngle||Math.PI/2;st.doorAmount=clamp(st.doorAmount+delta/maxAngle,0,1);phys.doorVelocities[g.i]=delta/maxAngle/Math.max(dt,.001);g.last.copy(p)}
+function updateDoorGrab(dt){const g=phys.doorGrab;if(!g)return;const st=status[g.i];if(isDoorLocked(g.i)){phys.doorGrab=null;st.doorAmount=0;st.doorTarget=0;phys.doorVelocities[g.i]=0;notifyDoorLocked(g.i);return}const m=machines[g.i+1],p=pinchWorld(g.controller),lp=m.group.worldToLocal(p.clone()),lh=m.group.worldToLocal(g.last.clone());if(m.carriage){const travel=Math.max(.01,m.carriageOpenZ-m.carriageClosedZ),delta=lp.z-lh.z;st.doorAmount=clamp(st.doorAmount+delta/travel,0,1);phys.doorVelocities[g.i]=delta/travel/Math.max(dt,.001)}else{const hinge=m.group.worldToLocal(m.door.getWorldPosition(new THREE.Vector3())),a=Math.atan2(lp.z-hinge.z,lp.x-hinge.x),b=Math.atan2(lh.z-hinge.z,lh.x-hinge.x),delta=a-b,maxAngle=m.doorMaxAngle||Math.PI/2;st.doorAmount=clamp(st.doorAmount+delta/maxAngle,0,1);phys.doorVelocities[g.i]=delta/maxAngle/Math.max(dt,.001)}g.last.copy(p)}
 function onXRTriggerStart(c){if(state.paused)return;if(grabShard(c))return;if(grabWafer(c))return;const rayHit=xrInteractiveHit(c);if(rayHit?.object.userData.kind==='designTerminal'){state.focus=rayHit.object;activateFocused();pulseXR(.45,45);return}const near=nearestInteractiveAtPinch(c),d=near?.data;if(d?.type==='control'){state.focus=near.object;beginControlGrab(c,d);return}if(d?.type==='button'){state.focus=near.object;activateFocused();pulseXR(.45,45);return}pulseXR(.08,18)}        
 function onXRTriggerEnd(c){if(phys.grab?.kind==='wafer')releaseWafer(c);else if(phys.grab?.kind==='shard')releaseShard(c);else if(phys.grab?.kind==='control'&&phys.grab.controller===c)phys.grab=null}        
 function onXRSqueezeStart(c){if(state.paused)return;if(c.userData.handedness==='left'){phys.crouchHeld=true;pulseXR(.16,20)}else beginDoorGrab(c)}        
@@ -1287,6 +1288,7 @@ function createOxidationFurnaceModel(g,s,i){
     definition.memberIds.forEach(id=>groupByObject.set(id,definition.id));
   }
   for(const definition of model.objects){
+    if(['object_shell','object_front_face','object_guard_glass','object_guard_handle'].includes(definition.id))continue;
     const node=new THREE.Mesh(makeGeometry(definition.primitive),makeMaterial(definition));
     const transform=definition.transform,parentGroupId=groupByObject.get(definition.id);
     const parent=groupNodes.get(parentGroupId)||g;
@@ -1305,6 +1307,25 @@ function createOxidationFurnaceModel(g,s,i){
     parent.add(node);
     objectNodes.set(definition.id,node);
   }
+
+  const windowFrame=groupNodes.get('group_safety_door');
+  if(!windowFrame)throw new Error('Oxidation furnace model is missing its fixed window frame.');
+  const windowMaterial=new THREE.MeshPhysicalMaterial({
+    color:0x83dff0,emissive:0x09212a,emissiveIntensity:.08,
+    metalness:0,roughness:.12,transparent:true,opacity:.22,
+    transmission:.12,thickness:.035,side:THREE.DoubleSide,depthWrite:false
+  });
+  const addWindowPane=(name,width,height,x,y)=>{
+    const pane=new THREE.Mesh(new THREE.BoxGeometry(width,height,.035),windowMaterial);
+    pane.name=name;
+    pane.position.set(x,y,.05);
+    pane.renderOrder=2;
+    windowFrame.add(pane);
+  };
+  addWindowPane('Left furnace safety window',1.68,3.3,.92,0);
+  addWindowPane('Right furnace safety window',1.2,3.3,4.82,0);
+  addWindowPane('Upper furnace safety window',2.4,.48,3,1.45);
+  addWindowPane('Lower furnace safety window',2.4,.48,3,-1.45);
 
   const controls=[],controlGroup=groupNodes.get('group_controls');
   const controlObjects={temp:'object_temp',flow:'object_flow'};
@@ -1413,15 +1434,16 @@ function createOxidationFurnaceModel(g,s,i){
   [lampAlarm,lampHeating,lampReady].forEach(lamp=>{
     lamp.material=mat(C.dark,.05,.24,false,1,C.dark);
   });
-  const door=groupNodes.get('group_safety_door'),doorSurface=objectNodes.get('object_guard_glass'),doorHandle=objectNodes.get('object_guard_handle');
-  if(!door||!doorSurface||!doorHandle)throw new Error('Oxidation furnace model is missing its safety door.');
-  const doorData={interactive:true,type:'button',label:'SAFETY DOOR HANDLE',kind:'machine',action:'door',machineIndex:i,baseColor:s.color,visualButton:false};
+  const door=windowFrame,doorSurface=objectNodes.get('object_load_door_glass'),doorHandle=objectNodes.get('object_handle_bar');
+  if(!doorSurface||!doorHandle)throw new Error('Oxidation furnace model is missing its sliding loading door.');
+  const doorData={interactive:true,type:'button',label:'SLIDING LOAD DOOR HANDLE',kind:'machine',action:'door',machineIndex:i,baseColor:s.color,visualButton:false};
   doorSurface.userData={...doorData};
   doorHandle.userData={...doorData,gripPoint:true};
   interactives.push(doorSurface,doorHandle);
   door.userData.surface=doorSurface;
   door.userData.handle=doorHandle;
-  door.userData.swingLength=doorSurface.position.x+doorSurface.scale.x/2;
+  door.userData.swingLength=5.5;
+  door.userData.slidingDoor=true;
   const chamberTarget=box(1.5,1.35,.08,new THREE.MeshBasicMaterial({transparent:true,opacity:.001,depthWrite:false}),g,-.65,4.35,2.65);
   chamberTarget.material.colorWrite=false;
   chamberTarget.userData={interactive:true,type:'button',label:'CHAMBER',kind:'machine',action:'chamber',machineIndex:i,baseColor:s.color,visualButton:false};
@@ -1433,7 +1455,12 @@ function createOxidationFurnaceModel(g,s,i){
   const carriageFrames=carriageTrack?.keyframes||[];
   if(carriageFrames.length<2)throw new Error('Oxidation furnace carriage animation track is missing its travel endpoints.');
   const carriagePositions=carriageFrames.map(frame=>frame.transform.position.z);
-  const carriageClosedZ=Math.min(...carriagePositions),carriageOpenZ=Math.max(...carriagePositions);
+  const loadingDoor=objectData.get('object_load_door_glass');
+  const frameTransform=groupData.get('group_safety_door').transform.position;
+  const paneFront=frameTransform.z+.05+.035/2;
+  const doorHalfDepth=loadingDoor.transform.scale.y/2;
+  const carriageClosedZ=Math.min(...carriagePositions)+paneFront+doorHalfDepth+.035-loadingDoor.transform.position.z;
+  const carriageOpenZ=Math.max(...carriagePositions);
   carriage.position.z=carriageClosedZ;
   const hinge=project.rig?.joints?.find(joint=>joint.childId==='group_safety_door');
   const doorMaxAngle=hinge?Math.abs(hinge.min)*Math.PI/180:Math.PI/2;
@@ -1456,13 +1483,14 @@ function createOxidationFurnaceModel(g,s,i){
   const waferLoad=waferHome.clone().add(new THREE.Vector3(0,0,1.1));
   const heaters=model.objects.filter(object=>/^object_heater_/.test(object.id)).map(object=>objectNodes.get(object.id));
   const oxygenValve=objectNodes.get('object_valve_0');
-  const gasParticles=createChamberParticles(g,0x87e8fa,100,'oxidationFlow',{x:-.65,y:4.35,z:-1.55},.012);
+  const gasParticles=createChamberParticles(g,0x87e8fa,160,'oxidationFlow',{x:-.65,y:4.35,z:-1.55},.032);
   return{
     lamp:lampReady,statusLamps:{alarm:lampAlarm,heating:lampHeating,ready:lampReady},
     door,doorHandle,doorMaxAngle,chamberTarget,startBtn,stopBtn,controls,wafer,waferPivot,
     waferHome,waferLoad,waferRotation:new THREE.Euler(0,0,0),carriage,carriageClosedZ,carriageOpenZ,
     readouts,heaters,oxygenValve,oxygenValveRestZ:oxygenValve?.rotation.z||0,gasParticles,modelHull:groupNodes.get('group_body'),
-    chamberPosition:new THREE.Vector3(-.65,4.35,.2)
+    colliderParts:['group_body','group_furnace_fixed','group_services','group_controls','group_safety_door'].map(id=>groupNodes.get(id)),
+    chamberPosition:new THREE.Vector3(-.65,4.35,-.35)
   };
 }
 function createMachine(s,i){
@@ -1644,8 +1672,18 @@ function createMachine(s,i){
     buttons:{start:startBtn,stop:stopBtn}
   };
   machines.push(m);
-  addCollider(x,s.z,furnaceModel?3.9:2.6,furnaceModel?3.9:3.7);
-  if(s.type==='deposition')colliders[colliders.length-1].playerOnly=true;
+  const colliderStart=colliders.length;
+  if(furnaceModel){
+    g.updateMatrixWorld(true);
+    furnaceModel.colliderParts.forEach(part=>{
+      const bounds=new THREE.Box3().setFromObject(part),size=bounds.getSize(new THREE.Vector3()),center=bounds.getCenter(new THREE.Vector3());
+      colliders.push({x:center.x,z:center.z,w:size.x,d:size.z});
+    });
+    const bounds=new THREE.Box3().setFromObject(furnaceModel.carriage),size=bounds.getSize(new THREE.Vector3()),center=bounds.getCenter(new THREE.Vector3()),origin=furnaceModel.carriage.getWorldPosition(new THREE.Vector3()),collider={x:center.x,z:center.z,w:size.x,d:size.z};
+    colliders.push(collider);
+    m.carriageCollider={collider,center,origin,position:new THREE.Vector3()};
+  }else addCollider(x,s.z,2.6,3.7);
+  if(s.type==='deposition')for(let index=colliderStart;index<colliders.length;index++)colliders[index].playerOnly=true;
 }
 
 function updateChamberParticles(p,on,t,waferCenter={x:0,y:1.83,z:.35}){
@@ -1682,7 +1720,7 @@ function updateChamberParticles(p,on,t,waferCenter={x:0,y:1.83,z:.35}){
       const progress=(u+sd[k*3+1])%1;
       pos[k*3]=ox+(sd[k*3]-.5)*.2;
       pos[k*3+1]=oy+(sd[k*3+2]-.5)*.2;
-      pos[k*3+2]=oz+progress*1.4;
+      pos[k*3+2]=oz+progress*2.6;
     }
   }
   p.pts.geometry.attributes.position.needsUpdate=true;
@@ -1699,6 +1737,7 @@ function animationRotationRateY(track,time){
 }
 
 function animateEffects(t,dt){
+  machines.forEach(updateCarriageCollider);
   const toDelivery=!!(state.awaitingDelivery||(typeof parallel!=='undefined'&&parallel?.active?.nextStage>=stations.length))&&!state.completed&&!!deliveryStation;
   const activeTarget=toDelivery?deliveryStation:(!state.runStart?stockMachine:machines[state.current+1]);
   const side=toDelivery?0:(activeTarget?.station?.side||0);
@@ -1755,7 +1794,7 @@ function animateEffects(t,dt){
     if(e.kind==='modelOxidation'){
       const cycleStart=st?.cycle?.start;
       const startupRamp=on&&cycleStart!=null?clamp((performance.now()-cycleStart)/500,0,1):on?1:0;
-      const heaterTarget=1.2+heatProg*1.8+.35*Math.sin(t*8);
+      const heaterTarget=2+heatProg*2.2+.4*Math.sin(t*8);
       e.heaters.forEach(heater=>{
         heater.material.emissiveIntensity=on?lerp(.04,heaterTarget,startupRamp):.04;
         heater.material.emissive.setHex(on&&heatProg>.65&&startupRamp>.65?0xff9a35:0xff481c);
@@ -1763,7 +1802,7 @@ function animateEffects(t,dt){
       if(e.light){
         e.light.visible=true;
         e.light.color.setHex(0xff7d32);
-        e.light.intensity=on?lerp(0,2.2+heatProg*2.4+.5*Math.sin(t*10),startupRamp):0;
+        e.light.intensity=on?lerp(0,3+heatProg*2.8+.5*Math.sin(t*10),startupRamp):0;
       }
       if(e.oxygenValve)e.oxygenValve.rotation.z=e.oxygenValveRestZ-.42*startupRamp;
     }else if(e.kind==='spinner'){
@@ -1930,7 +1969,24 @@ function controlFitness(c,v){if(c.kind==='choice')return v===c.target?100:0;retu
 function machineStateText(st){return st.state.replace(/([A-Z])/g,' $1').toUpperCase()}        
 function updateMachineGui(){const target=state.focus?.userData,m=target?.machineIndex!=null?machines[target.machineIndex+1]:state.nearest?.index!=null?machines[state.nearest.index+1]:null;if(!m){$('machineGui').classList.remove('active');$('machineName').textContent='NO MACHINE TARGETED';return}$('machineGui').classList.add('active');const s=m.station,st=status[m.index];$('machineName').textContent=s.name.toUpperCase();$('machineState').textContent=machineStateText(st);$('recipeText').innerHTML=`<b>${s.short}</b><br>${s.desc}<br><span style="color:#7f9cab">${s.note}</span>`;if(target?.type==='control'){const c=s.controls.find(x=>x.key===target.controlKey);$('controlLabel').textContent=c.label.toUpperCase();$('controlValue').textContent=valueText(c,st.values[c.key]);$('controlSpec').textContent=specText(c)}else if(target?.type==='button'){$('controlLabel').textContent=(target.label||'BUTTON').toUpperCase();$('controlValue').textContent=buttonEnabled(target)?'ENABLED':'INTERLOCKED';$('controlSpec').textContent=buttonHint(target)}else{$('controlLabel').textContent='POINT AT A DIAL, SLIDER OR BUTTON';$('controlValue').textContent='—';$('controlSpec').textContent='Mouse wheel adjusts the targeted control'}const metric=st.metric||0,ratio=metric/s.metric.target;$('metricLabel').textContent=s.metric.label.toUpperCase();$('metricValue').textContent=`${formatMetric(metric,s.metric)} / ${s.metric.target} ${s.metric.unit}`;$('metricFill').style.width=clamp(ratio*100,0,100)+'%';$('metricFill').style.background=ratio>1.08?'linear-gradient(90deg,#ffcf56,#ff6579)':'linear-gradient(90deg,#53e7ff,#67f6a3)'}        
 function formatMetric(v,m){const d=m.unit==='µm'||m.unit.includes('ions')?2:m.unit==='%'||m.unit==='samples'||m.unit==='nm'||m.unit==='s'?1:1;return Number(v).toFixed(d)}        
-function buttonHint(d){if(d.kind==='stock')return'Issues one tracked blank wafer';if(d.action==='door')return isDoorLocked(d.machineIndex)?'Door is locked while the machine is running — press STOP first':'Pull or click the 3D door handle to open or close it';if(d.action==='chamber'){const st=status[d.machineIndex];if(st?.doorAmount<.92)return'Open the door, then look inside the chamber';if(st?.state==='ready')return state.carrying?'Insert the carried wafer by hand':'A carried wafer is required';if(st?.state==='done')return state.carrying?'Your hands are already occupied':'Remove the completed wafer by hand';return'Chamber access is available when loading or unloading'}if(d.action==='start')return'Requires loaded wafer and fully closed door';if(d.action==='stop')return'Requires running process and fully closed door';if(d.action==='emergencyStop')return'Stops the active process immediately';return''}
+function buttonHint(d){
+  if(d.kind==='stock')return'Issues one tracked blank wafer';
+  if(d.action==='door'){
+    if(isDoorLocked(d.machineIndex))return'Door is locked while the machine is running — press STOP first';
+    return machines[d.machineIndex+1]?.carriage?'Pull or click the loading door handle to slide the tray':'Pull or click the 3D door handle to open or close it';
+  }
+  if(d.action==='chamber'){
+    const st=status[d.machineIndex];
+    if(st?.doorAmount<.92)return'Open the door, then look inside the chamber';
+    if(st?.state==='ready')return state.carrying?'Insert the carried wafer by hand':'A carried wafer is required';
+    if(st?.state==='done')return state.carrying?'Your hands are already occupied':'Remove the completed wafer by hand';
+    return'Chamber access is available when loading or unloading';
+  }
+  if(d.action==='start')return'Requires loaded wafer and fully closed door';
+  if(d.action==='stop')return'Requires running process and fully closed door';
+  if(d.action==='emergencyStop')return'Stops the active process immediately';
+  return''
+}
 function buttonEnabled(d){if(d.kind==='stock')return state.started&&!state.runStart&&!state.carrying;if(d.kind!=='machine')return true;const i=d.machineIndex,st=status[i],m=machines[i+1];if(i!==state.current||state.completed)return false;if(d.action==='door')return !isDoorLocked(i);if(d.action==='chamber')return st.doorAmount>.92&&((st.state==='ready'&&state.carrying)||(st.state==='done'&&!state.carrying));if(d.action==='start')return m?.kind==='fabrication'&&st.state==='loaded'&&!!m?.wafer?.visible&&st.doorAmount<=(5/90);if(d.action==='stop')return st.state==='running'&&st.doorAmount<.02&&state.cycle&&performance.now()-state.cycle.start>400;if(d.action==='emergencyStop')return st.state==='running'&&!!state.cycle;return false}
 function updateButtonVisuals(){const t=performance.now()*.001;interactives.forEach(o=>{if(o.userData.type!=='button'||o.userData.visualButton===false)return;const en=buttonEnabled(o.userData),idleCol=o.userData.disabledColor??0x34434b;o.material.color.setHex(en?o.userData.baseColor:idleCol);o.material.emissive.setHex(en?o.userData.baseColor:idleCol);o.material.emissiveIntensity=en?(o.userData.glowMaterial?1.45+0.25*Math.sin(t*6.2):.48):(o.userData.disabledColor!=null?.18:0);if(o.userData.glowMesh&&o.userData.glowMaterial){o.userData.glowMesh.visible=en;o.userData.glowMaterial.uniforms.uTime.value=t;o.userData.glowMaterial.uniforms.uIntensity.value=en?1.15:0}})}        
 function updateModelReadouts(i){const m=machines[i+1];if(m?.modelReadouts?.render)m.modelReadouts.render(stations[i],status[i])}
@@ -1965,7 +2021,7 @@ function showReport(before=benchmarks()){
 }
 function updateTransfers(dt){status.forEach((st,i)=>{const m=machines[i+1];if(st.transfer){st.transfer.t=clamp(st.transfer.t+dt/1.35,0,1);const u=st.transfer.mode==='load'?st.transfer.t:1-st.transfer.t;const position=m.waferLoad.clone().lerp(m.waferHome,u);position.y+=Math.sin(st.transfer.t*Math.PI)*.2;setMachineWaferPosition(m,position);if(st.transfer.t>=1){if(st.transfer.mode==='load'){st.state='loadedDoorOpen';setMachineWaferPosition(m,m.waferHome);refreshWaferVisual(m.wafer);toast('Wafer seated. Close the chamber door.')}else{m.wafer.visible=false;state.carrying=true;state.handWafer.visible=true;refreshWaferVisual(state.handWafer);st.state='unloadedDoorOpen';toast('Wafer collected. Close the chamber door.')}st.transfer=null;updateAll()}}})}
 function updateDoors(dt){status.forEach((st,i)=>{const m=machines[i+1];if(!m||m.kind!=='fabrication'||!m.door)return;if(isDoorLocked(i)){st.doorAmount=0;st.doorTarget=0;phys.doorVelocities[i]=0;m.door.rotation.y=0;if(m.carriage)m.carriage.position.z=m.carriageClosedZ;return}if(!renderer.xr.isPresenting){if(st.doorAmount>0&&st.doorAmount<DOOR_MAGNET_ANGLE&&st.doorTarget<=.5){st.doorAmount=Math.max(0,st.doorAmount-1.35*dt)}else{st.doorAmount=lerp(st.doorAmount,st.doorTarget,1-Math.exp(-dt*5.5))}}else if(!phys.doorGrab||phys.doorGrab.i!==i){let v=phys.doorVelocities[i]||0;if(st.doorAmount>0&&st.doorAmount<DOOR_MAGNET_ANGLE&&v<=.65){v-=3.4*dt;if(v>0)v*=.45}else{v*=Math.exp(-dt*3.2)}st.doorAmount=clamp(st.doorAmount+v*dt,0,1);phys.doorVelocities[i]=v;if(st.doorAmount<=.002||(st.doorAmount<DOOR_MAGNET_ANGLE&&Math.abs(v)<.2&&v<=0)){if(st.doorAmount>0)pulseXR(.55,55);st.doorAmount=0;st.doorTarget=0;phys.doorVelocities[i]=0}}
-if((st.doorAmount<=.002&&st.doorTarget===0)||Math.abs(st.doorAmount-st.doorTarget)<.008&&!renderer.xr.isPresenting){st.doorAmount=st.doorAmount<=.002?0:st.doorTarget}m.door.rotation.y=-st.doorAmount*(m.doorMaxAngle||Math.PI/2);if(m.carriage)m.carriage.position.z=lerp(m.carriageClosedZ,m.carriageOpenZ,clamp(st.doorAmount,0,1));if(st.doorAmount===0){if(st.state==='loadedDoorOpen')st.state='loaded';else if(st.state==='unloadedDoorOpen')completeStage(i)}})}
+if((st.doorAmount<=.002&&st.doorTarget===0)||Math.abs(st.doorAmount-st.doorTarget)<.008&&!renderer.xr.isPresenting){st.doorAmount=st.doorAmount<=.002?0:st.doorTarget}if(!m.carriage)m.door.rotation.y=-st.doorAmount*(m.doorMaxAngle||Math.PI/2);if(m.carriage)m.carriage.position.z=lerp(m.carriageClosedZ,m.carriageOpenZ,clamp(st.doorAmount,0,1));if(st.doorAmount===0){if(st.state==='loadedDoorOpen')st.state='loaded';else if(st.state==='unloadedDoorOpen')completeStage(i)}})}
 function updateCycle(now){if(!state.cycle)return;const c=state.cycle,s=stations[c.i],st=status[c.i],m=machines[c.i+1];c.processSeconds=(now-c.start)/1000*c.timeScale;st.metric=calculateMetric(c.i,c.processSeconds);const ratio=st.metric/s.metric.target;if(m?.wafer)refreshWaferVisual(m.wafer,c.i,ratio,st.values);updateModelReadouts(c.i);$('cycleName').textContent=s.name.toUpperCase();$('cycleTime').textContent=`${c.processSeconds.toFixed(1)} process s · ${formatMetric(st.metric,s.metric)} ${s.metric.unit}`;$('cycleFill').style.width=clamp(ratio*100,0,100)+'%';updateMachineGui()}
 function adjustControl(d,dir){const i=d.machineIndex,st=status[i],s=stations[i];if(i!==state.current||!['ready','loadedDoorOpen','loaded'].includes(st.state)){toast('Recipe controls are locked in the current machine state.','warn');return}const c=s.controls.find(x=>x.key===d.controlKey);if(c.kind==='choice'){let n=c.options.indexOf(st.values[c.key]);n=(n+dir+c.options.length)%c.options.length;st.values[c.key]=c.options[n]}else st.values[c.key]=clamp(Number((st.values[c.key]+dir*c.step).toFixed(8)),c.min,c.max);updateControlMeshes(i);updateMachineGui()}        
 function updateControlMeshes(i){const s=stations[i],st=status[i],m=machines[i+1];if(!s||!st||!m||!Array.isArray(m.controls)||m.controls.length===0)return;s.controls.forEach((c,j)=>{const ref=m.controls[j];if(!ref)return;const v=st.values[c.key];let n=c.kind==='choice'?c.options.indexOf(v)/Math.max(1,c.options.length-1):(v-c.min)/(c.max-c.min);if(ref.track&&ref.mesh)ref.mesh.position.y=1.36-Math.floor(j/2)*.64+(n-.5)*.34;else{const target=ref.rotor||ref.mesh;if(target)target.rotation.z=-2.25+n*4.5}});if(m.modelReadouts){if(m.modelReadouts.rpm)m.modelReadouts.rpm(valueText(s.controls.find(c=>c.key==='rpm'),st.values.rpm));if(m.modelReadouts.flow&&s.controls.some(c=>c.key==='rpm'))m.modelReadouts.flow(valueText(s.controls.find(c=>c.key==='flow'),st.values.flow));if(m.modelReadouts.volume)m.modelReadouts.volume(valueText(s.controls.find(c=>c.key==='volume'),st.values.volume));if(m.modelReadouts.render)m.modelReadouts.render(s,st)}}

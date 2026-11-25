@@ -341,12 +341,32 @@ function closestPointOnDesktopDoor(machine,point){
   machine.door.updateWorldMatrix(true,false);const length=machine.door.userData.swingLength||1.66,a=machine.door.localToWorld(new THREE.Vector3(0,0,0)),b=machine.door.localToWorld(new THREE.Vector3(length,0,0)),dx=b.x-a.x,dz=b.z-a.z,t=clamp(((point.x-a.x)*dx+(point.z-a.z)*dz)/(dx*dx+dz*dz||1),0,1);return{x:a.x+dx*t,z:a.z+dz*t}
 }
 function applyDesktopDoorPlayerImpact(dt){
-  if(!state.started||state.paused||renderer.xr.isPresenting||document.pointerLockElement!==renderer.domElement)return;let forward=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0),right=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0),length=Math.hypot(forward,right);if(!length)return;forward/=length;right/=length;const speed=(state.crouching?1.2:2.75)+(state.sprinting?4.4*state.stamina:0),vx=(-Math.sin(yaw)*forward+Math.cos(yaw)*right)*speed,vz=(-Math.cos(yaw)*forward-Math.sin(yaw)*right)*speed,playerPoint={x:player.position.x,z:player.position.z};
-  status.forEach((st,index)=>{if(st.state==='running')return;const machine=machines[index+1];if(!machine||machine.kind!=='fabrication'||!machine.door)return;const nearest=closestPointOnDesktopDoor(machine,playerPoint),dx=nearest.x-playerPoint.x,dz=nearest.z-playerPoint.z,distance=Math.hypot(dx,dz);if(distance>.48||distance<1e-4||(vx*dx+vz*dz)/distance<=0)return;const pivot=machine.door.getWorldPosition(new THREE.Vector3()),handle=machine.doorHandle?.getWorldPosition(new THREE.Vector3())||machine.door.localToWorld(new THREE.Vector3(machine.door.userData.swingLength||1.54,0,0)),torque=(handle.x-pivot.x)*vz-(handle.z-pivot.z)*vx;if(Math.abs(torque)<.01)return;st.doorTarget=torque>0?1:0;phys.doorVelocities[index]=clamp((phys.doorVelocities[index]||0)+Math.sign(torque)*Math.min(1.2,speed*dt*1.35),-4,4)})
+  if(!state.started||state.paused||renderer.xr.isPresenting||document.pointerLockElement!==renderer.domElement)return;
+  let forward=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0),right=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0),length=Math.hypot(forward,right);
+  if(!length)return;
+  forward/=length;right/=length;
+  const speed=(state.crouching?1.2:2.75)+(state.sprinting?4.4*state.stamina:0),vx=(-Math.sin(yaw)*forward+Math.cos(yaw)*right)*speed,vz=(-Math.cos(yaw)*forward-Math.sin(yaw)*right)*speed,playerPoint={x:player.position.x,z:player.position.z};
+  status.forEach((st,index)=>{
+    if(st.state==='running')return;
+    const machine=machines[index+1];if(!machine||machine.kind!=='fabrication'||!machine.door)return;
+    const nearest=closestPointOnDesktopDoor(machine,playerPoint),dx=nearest.x-playerPoint.x,dz=nearest.z-playerPoint.z,distance=Math.hypot(dx,dz);
+    if(distance>.48||distance<1e-4||(vx*dx+vz*dz)/distance<=0)return;
+    if(machine.carriage){
+      const localVelocity=new THREE.Vector3(vx,0,vz).applyQuaternion(machine.group.quaternion.clone().invert());
+      if(Math.abs(localVelocity.z)<.01)return;
+      st.doorTarget=localVelocity.z>0?1:0;
+      phys.doorVelocities[index]=clamp((phys.doorVelocities[index]||0)+Math.sign(localVelocity.z)*Math.min(1.2,Math.abs(localVelocity.z)*dt*1.35),-4,4);
+      return;
+    }
+    const pivot=machine.door.getWorldPosition(new THREE.Vector3()),handle=machine.doorHandle?.getWorldPosition(new THREE.Vector3())||machine.door.localToWorld(new THREE.Vector3(machine.door.userData.swingLength||1.54,0,0)),torque=(handle.x-pivot.x)*vz-(handle.z-pivot.z)*vx;
+    if(Math.abs(torque)<.01)return;
+    st.doorTarget=torque>0?1:0;
+    phys.doorVelocities[index]=clamp((phys.doorVelocities[index]||0)+Math.sign(torque)*Math.min(1.2,speed*dt*1.35),-4,4)
+  })
 }
 function resolveDesktopDoorPlayerCollision(previous){
   if(renderer.xr.isPresenting)return;const radius=.39;
-  status.forEach((st,index)=>{const machine=machines[index+1];if(!machine||machine.kind!=='fabrication'||!machine.door||player.position.y<1.1)return;const closest=closestPointOnDesktopDoor(machine,player.position),dx=player.position.x-closest.x,dz=player.position.z-closest.z,distance=Math.hypot(dx,dz),clearance=radius+.055;if(distance>=clearance)return;let nx,nz;if(distance<1e-5){nx=player.position.x-previous.x;nz=player.position.z-previous.z;const len=Math.hypot(nx,nz);if(len<1e-5){nx=-(machine.door.getWorldDirection(new THREE.Vector3()).z);nz=machine.door.getWorldDirection(new THREE.Vector3()).x}else{nx/=len;nz/=len}}else{nx=dx/distance;nz=dz/distance}const correction=clearance-distance;player.position.x+=nx*correction;player.position.z+=nz*correction})
+  status.forEach((st,index)=>{const machine=machines[index+1];if(!machine||machine.kind!=='fabrication'||!machine.door||player.position.y<1.1||machine.carriage&&st.doorAmount>.45)return;const closest=closestPointOnDesktopDoor(machine,player.position),dx=player.position.x-closest.x,dz=player.position.z-closest.z,distance=Math.hypot(dx,dz),clearance=radius+.055;if(distance>=clearance)return;let nx,nz;if(distance<1e-5){nx=player.position.x-previous.x;nz=player.position.z-previous.z;const len=Math.hypot(nx,nz);if(len<1e-5){nx=-(machine.door.getWorldDirection(new THREE.Vector3()).z);nz=machine.door.getWorldDirection(new THREE.Vector3()).x}else{nx/=len;nz/=len}}else{nx=dx/distance;nz=dz/distance}const correction=clearance-distance;player.position.x+=nx*correction;player.position.z+=nz*correction})
 }
 const v812UpdateMovement=updateMovement;
 updateMovement=function(dt){const previous=player.position.clone();applyDesktopDoorPlayerImpact(dt);const intended=colliders.splice(0);try{v812UpdateMovement(dt)}finally{colliders.push(...intended)}const targetX=player.position.x,targetZ=player.position.z;player.position.x=previous.x;player.position.z=previous.z;movePlayerColliderTo(targetX,targetZ,playerRoomBounds(),previous);resolveDesktopDoorPlayerCollision(previous)};
@@ -366,7 +386,7 @@ updateDoors=function(dt){
     st.doorAmount=clamp(st.doorAmount+velocity*dt,0,1.5);
     if((st.doorAmount<=.002&&!held&&velocity<=0)||(st.doorAmount===0&&velocity<0)){st.doorAmount=0;st.doorTarget=0;velocity=0}
     else if(st.doorAmount===1.5&&velocity>0){velocity=0}
-    phys.doorVelocities[index]=velocity;const doorProgress=clamp(st.doorAmount/1.5,0,1);machine.door.rotation.y=-doorProgress*(machine.doorMaxAngle||Math.PI/2);if(machine.carriage)machine.carriage.position.z=machine.carriageClosedZ+(machine.carriageOpenZ-machine.carriageClosedZ)*doorProgress;if(st.doorAmount===0){if(st.state==='loadedDoorOpen')st.state='loaded';else if(st.state==='unloadedDoorOpen')completeStage(index)}
+    phys.doorVelocities[index]=velocity;const doorProgress=clamp(st.doorAmount/1.5,0,1);if(!machine.carriage)machine.door.rotation.y=-doorProgress*(machine.doorMaxAngle||Math.PI/2);if(machine.carriage)machine.carriage.position.z=machine.carriageClosedZ+(machine.carriageOpenZ-machine.carriageClosedZ)*doorProgress;if(st.doorAmount===0){if(st.state==='loadedDoorOpen')st.state='loaded';else if(st.state==='unloadedDoorOpen')completeStage(index)}
   })
 };
 const v811PhysicalSystem=updatePhysicalSystem;
