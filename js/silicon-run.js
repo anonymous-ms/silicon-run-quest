@@ -13,6 +13,7 @@
   const files = [
     'silicon-run-core.js',
     'parallel-wafer-runtime.js',
+    'wafer-vr-fixes.js',
     'design-workstation-runtime.js',
     'design-world-runtime.js',
     'cleanroom-lod.js',
